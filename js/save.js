@@ -17,6 +17,7 @@ function defaultSave() {
     ships: ['striker'], ship: 'striker',
     asc: { unlocked: 0, selected: 0, best: {} },
     challenges: {},
+    checkpoints: {}, startSel: 1,
     settings: {
       sound: true, music: true, sfxVol: 0.8, musVol: 0.45,
       shake: true, quality: 'auto', lefty: false, tutorialDone: false, mouseAim: false, aimV: 2,
@@ -38,8 +39,12 @@ const Save = {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw), aimV = parsed.settings && parsed.settings.aimV;
+        const parsed = JSON.parse(raw), aimV = parsed.settings && parsed.settings.aimV, hadCp = !!parsed.checkpoints;
         this.data = mergeDefaults(parsed, defaultSave());
+        if (!hadCp) { // older saves: checkpoints for bosses already beaten (best floor per ascension)
+          const cp = this.data.checkpoints, best = { 0: this.data.best.floor | 0, ...(this.data.asc.best || {}) };
+          for (const a in best) { const f = Math.floor(((best[a] | 0) - 1) / 5) * 5 + 1; if (f >= 6) cp[a] = Math.max(cp[a] | 0, f); }
+        }
         if (aimV !== 2) { this.data.settings.mouseAim = false; this.data.settings.aimV = 2; } // auto-aim is the default on PC too
       }
     } catch (e) {

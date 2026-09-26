@@ -8,6 +8,7 @@ function newRun(snapshot) {
     hurt: 0, dodges: 0, rerolls: meta.reroll | 0, windUsed: false,
     ship: Save.data.ships.includes(Save.data.ship) ? Save.data.ship : 'striker',
     asc: Math.min(Save.data.asc.selected | 0, Save.data.asc.unlocked | 0), hurtAtBoss: 0,
+    start: 1, kitLeft: 0, kitTotal: 0,
   };
   G.player = makePlayer();
   computeStats();
@@ -20,7 +21,13 @@ function newRun(snapshot) {
     computeStats();
     G.player.hp = clamp(snapshot.hp, 1, G.stats.maxHp);
     floor = snapshot.floor; type = snapshot.type;
-  } else if ((meta.start | 0) > 0) {
+  } else if (checkpointsFor(G.run.asc).includes(Save.data.startSel | 0) && (Save.data.startSel | 0) > 1) {
+    const kit = checkpointKit(Save.data.startSel | 0);
+    floor = G.run.start = Save.data.startSel | 0;
+    G.run.kitLeft = G.run.kitTotal = kit.picks;
+    G.run.rerolls += kit.rerolls;
+  }
+  if (!snapshot && (meta.start | 0) > 0) {
     const commons = UPGRADES.filter((u) => u.rarity === 0 && u.id !== 'vital' && u.id !== 'mender');
     addUpgrade(pick(commons).id, true);
     computeStats();
@@ -30,6 +37,24 @@ function newRun(snapshot) {
   Input.reset();
   enterFloor(floor, type, snapshot && snapshot.floorState);
   Sound.music(true, 'normal');
+  if (G.run.kitLeft > 0) openKit();
+}
+
+// Checkpoint start: pick the starting kit one card at a time (saved after every pick).
+function openKit() {
+  G.state = 'reward';
+  G.rewardKind = 'kit';
+  const choices = rollChoices('kit');
+  if (!choices.length) { G.run.kitLeft = 0; G.state = 'play'; return; }
+  UI.showUpgrade(choices, 'kit');
+}
+
+function unlockCheckpoint(floor) {
+  const S = Save.data, a = G.run.asc | 0;
+  if (floor <= (S.checkpoints[a] | 0)) return;
+  S.checkpoints[a] = floor;
+  Save.save();
+  setTimeout(() => UI.toast('CHECKPOINT · FLOOR ' + floor, 'Start new runs from here in the menu'), 900);
 }
 
 function addUpgrade(id, silent) {
@@ -118,7 +143,8 @@ function saveSnapshot() {
   Save.data.snapshot = {
     v: 2, floor: run.floor, type: G.room.type, hp: G.player.hp, order: expandOrder(),
     run: { kills: run.kills, shards: run.shards + pendingShards(), dmg: run.dmg, time: run.time, bosses: run.bosses, elites: run.elites,
-      hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed, ship: run.ship, asc: run.asc },
+      hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed, ship: run.ship, asc: run.asc,
+      start: run.start, kitLeft: run.kitLeft, kitTotal: run.kitTotal },
     floorState: G.room.type === 'boss' && G.room.phase !== 'doors' ? null : serializeFloor(), // a boss fight restarts; a beaten boss stays beaten
   };
   Save.save();
@@ -434,7 +460,7 @@ function giveReward() {
 // ---------- upgrade choice ----------
 function rollChoices(kind) {
   const run = G.run;
-  const odds = kind === 'boss' ? [0, 50, 50] : kind === 'elite' ? [20, 55, 25] : [64 - Math.min(14, run.floor), 29 + Math.min(10, run.floor * 0.7), 7 + Math.min(6, run.floor * 0.3)];
+  const odds = kind === 'kit' ? [15, 50, 35] : kind === 'boss' ? [0, 50, 50] : kind === 'elite' ? [20, 55, 25] : [64 - Math.min(14, run.floor), 29 + Math.min(10, run.floor * 0.7), 7 + Math.min(6, run.floor * 0.3)];
   const luck = Save.metaLvl('luck') | 0; // Workshop "Lucky Draw": shifts weight from common to rare/epic
   if (luck) { const shift = Math.min(odds[0], 6 * luck); odds[0] -= shift; odds[1] += shift / 2; odds[2] += shift / 2; }
   const ownedTags = {};
@@ -466,6 +492,15 @@ function openUpgradeChoice(kind) {
 }
 
 function chooseUpgrade(id) {
+  if (G.rewardKind === 'kit' && G.state === 'reward') {
+    if (id && id[0] !== '_') addUpgrade(id);
+    sfx('upgrade');
+    G.run.kitLeft--;
+    saveSnapshot();
+    if (G.run.kitLeft > 0) openKit();
+    else { G.state = 'play'; G.rewardKind = null; Input.reset(); G.player.hp = G.stats.maxHp; G.hudDirty = true; }
+    return;
+  }
   if (id === '__heal') healPlayer(restHealAmount());
   else if (id === '__train') { const c = rollChoices('normal'); if (c.length) { addUpgrade(c[0].id); floatText(G.player.x, G.player.y - 20, c[0].name, '#ffffff', 12, 1.4); } }
   else if (id === '__skip') { G.run.shards += 8; }
@@ -547,9 +582,11 @@ function playerDie() {
 function finalizeRun(abandon) {
   const run = G.run, S = Save.data;
   const salv = (1 + 0.15 * (S.meta.salvage | 0)) * (1 + 0.15 * (run.asc | 0));
-  const floorBonus = run.floor * 2;
-  // quitting a run on floors 1-3 pays nothing (prevents farming quick restarts)
-  const noPay = !!abandon && run.floor <= 3;
+  // a checkpoint start pays only for the floors actually climbed
+  const climbed = run.floor - (run.start || 1) + 1;
+  const floorBonus = Math.max(0, climbed) * 2;
+  // quitting in the first 3 floors of a run pays nothing (prevents farming quick restarts)
+  const noPay = !!abandon && climbed <= 3;
   const earned = noPay ? 0 : Math.round((run.shards + floorBonus) * salv);
   const prevBest = S.best.floor;
   const record = run.floor > prevBest;
@@ -569,7 +606,7 @@ function finalizeRun(abandon) {
   S.snapshot = null;
   Save.save();
   return { floor: run.floor, kills: run.kills, time: run.time, dmg: run.dmg, bosses: run.bosses, dodges: run.dodges,
-    earned, floorBonus, record, prevBest, asc: run.asc | 0, abandon: !!abandon, noPay, order: run.order.slice(), upgrades: Object.assign({}, run.upgrades) };
+    earned, floorBonus, record, prevBest, asc: run.asc | 0, abandon: !!abandon, noPay, start: run.start || 1, order: run.order.slice(), upgrades: Object.assign({}, run.upgrades) };
 }
 
 function topBuild() {
@@ -669,10 +706,11 @@ function checkChallenges(evt, info) {
   if (!run) return;
   const done = [];
   const hit = (id, cond) => { if (cond && !challengeDone(id)) done.push(id); };
-  hit('f5', run.floor >= 5);
-  hit('f20', run.floor >= 20);
-  hit('f30', run.floor >= 30);
-  hit('speed10', evt === 'floor' && run.floor >= 10 && run.time < 480);
+  const climbed = run.floor > (run.start || 1) || (run.start || 1) === 1; // not just by starting at a checkpoint
+  hit('f5', climbed && run.floor >= 5);
+  hit('f20', climbed && run.floor >= 20);
+  hit('f30', climbed && run.floor >= 30);
+  hit('speed10', evt === 'floor' && run.floor >= 10 && run.time < 480 && (run.start || 1) === 1);
   hit('build12', run.order.length >= 12);
   hit('hoard', run.shards >= 200);
   hit('dodge25', run.dodges >= 25);

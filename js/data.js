@@ -218,6 +218,13 @@ const ASCENSION = [
   'Bosses start enraged',
   'Enemies have another +20% HP',
 ];
+// ---------- Checkpoints ----------
+// Beating the boss on floor 5k unlocks starting a run on floor 5k+1 (per ascension level).
+// Starting there gives a starting kit (upgrade picks with better odds) and extra rerolls;
+// floors below the checkpoint pay no shards.
+function checkpointKit(start) { const skipped = Math.floor((start - 1) / 5); return { picks: 1 + skipped * 2, rerolls: skipped }; }
+function checkpointsFor(asc) { const max = (Save.data.checkpoints || {})[asc | 0] | 0, out = [1]; for (let f = 6; f <= max; f += 5) out.push(f); return out; }
+
 function ascMod(n) { const a = (G.run && G.run.asc) | 0; return a >= n; }
 
 // ---------- Challenges ----------

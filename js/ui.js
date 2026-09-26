@@ -100,6 +100,7 @@ const UI = {
       case 'challenges': sfx('select'); this.renderChallenges(); this.push('s-challenges'); break;
       case 'ship-prev': case 'ship-next': this.cycleShip(a === 'ship-next' ? 1 : -1); break;
       case 'asc-prev': case 'asc-next': this.cycleAsc(a === 'asc-next' ? 1 : -1); break;
+      case 'start-prev': case 'start-next': this.cycleStart(a === 'start-next' ? 1 : -1); break;
       case 'settings': sfx('select'); this.renderSettings(); this.push('s-settings'); break;
       case 'back': sfx('select'); this.back(); break;
       case 'resume': sfx('select'); resumeGame(); break;
@@ -210,6 +211,7 @@ const UI = {
     $('pk-ship-name').style.color = owned ? sh.color : '';
     const ch = CHALLENGES.find((c) => c.reward.ship === sh.id);
     $('pk-ship-desc').textContent = owned ? sh.desc : 'Unlock: ' + (ch ? ch.name + ' (' + ch.desc.replace(/\.$/, '') + ')' : '') + ' or buy in the Workshop';
+    this.renderStartPicker();
     // ascension picker
     const A = S.asc, un = A.unlocked | 0;
     $('pick-asc').classList.toggle('hidden', un < 1);
@@ -225,6 +227,25 @@ const UI = {
     S.ship = SHIPS[(i + dir + SHIPS.length) % SHIPS.length].id;
     Save.save(); sfx('select'); this.renderMenu();
   },
+  cycleStart(dir) {
+    const S = Save.data, list = checkpointsFor(Math.min(S.asc.selected | 0, S.asc.unlocked | 0));
+    let i = Math.max(0, list.indexOf(S.startSel | 0));
+    i = clamp(i + dir, 0, list.length - 1);
+    S.startSel = list[i];
+    Save.save(); sfx('select'); this.renderMenu();
+  },
+  renderStartPicker() {
+    const S = Save.data, list = checkpointsFor(Math.min(S.asc.selected | 0, S.asc.unlocked | 0));
+    if (!list.includes(S.startSel | 0)) S.startSel = list.filter((f) => f <= (S.startSel | 0)).pop() || 1;
+    const f = S.startSel | 0;
+    $('pick-start').classList.toggle('hidden', list.length < 2);
+    $('pk-start-name').textContent = f === 1 ? 'FLOOR 1' : 'CHECKPOINT · FLOOR ' + f;
+    $('pk-start-name').style.color = f === 1 ? '' : 'var(--good)';
+    const kit = checkpointKit(f);
+    $('pk-start-desc').textContent = f === 1 ? 'From the bottom. Checkpoints: ' + (list.length - 1) + ' unlocked.'
+      : 'Starting kit: ' + kit.picks + ' upgrade picks · +' + kit.rerolls + ' rerolls · floors below ' + f + ' pay no shards';
+  },
+
   cycleAsc(dir) {
     const A = Save.data.asc;
     A.selected = clamp((A.selected | 0) + dir, 0, A.unlocked | 0);
@@ -274,8 +295,8 @@ const UI = {
   // ---------- Upgrade cards ----------
   showUpgrade(choices, kind) {
     const run = G.run;
-    $('up-title').textContent = kind === 'boss' ? 'BOSS REWARD' : kind === 'elite' ? 'ELITE REWARD' : 'CHOOSE AN UPGRADE';
-    $('up-sub').textContent = 'Floor ' + run.floor + ' cleared';
+    $('up-title').textContent = kind === 'kit' ? 'STARTING KIT' : kind === 'boss' ? 'BOSS REWARD' : kind === 'elite' ? 'ELITE REWARD' : 'CHOOSE AN UPGRADE';
+    $('up-sub').textContent = kind === 'kit' ? 'Checkpoint · floor ' + run.start + ' · pick ' + (run.kitTotal - run.kitLeft + 1) + ' of ' + run.kitTotal : 'Floor ' + run.floor + ' cleared';
     $('up-cards').innerHTML = choices.map((u) => {
       const lvl = (run.upgrades[u.id] || 0) + 1;
       return `<button class="card r${u.rarity}" data-id="${u.id}" style="--tc:${TAGS[u.tag].color}">
@@ -311,7 +332,7 @@ const UI = {
   // ---------- Pause ----------
   showPause() {
     const run = G.run;
-    $('p-nopay').classList.toggle('hidden', run.floor > 3);
+    $('p-nopay').classList.toggle('hidden', run.floor - (run.start || 1) + 1 > 3);
     $('p-info').textContent = 'Floor ' + run.floor + ' · ' + fmtTime(run.time) + ' · ' + run.kills + ' kills';
     $('p-build').innerHTML = run.order.length ? run.order.map((id) => {
       const u = UPG[id];
@@ -357,7 +378,7 @@ const UI = {
       if (nx) next = (nx.cost - Save.data.shards) + ' more shards for “' + nx.m.name + '”';
     }
     if (!r.record && Save.data.best.floor - r.floor > 0 && Save.data.best.floor - r.floor <= 3) next = 'Only ' + (Save.data.best.floor - r.floor) + ' ' + (Save.data.best.floor - r.floor === 1 ? 'floor' : 'floors') + ' short of your record. ' + next;
-    if (r.noPay) next = 'Runs ended on floors 1–3 earn no shards. Reach floor 4 to keep your haul.';
+    if (r.noPay) next = 'Runs ended within their first 3 floors earn no shards.';
     $('d-next').textContent = next;
     this.refreshDeathDots();
     this.show('s-dead', { lock: 700 });

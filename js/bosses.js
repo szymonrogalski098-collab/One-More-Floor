@@ -609,6 +609,7 @@ function onBossDeath(b) {
     if (next > (S.asc.unlocked | 0)) { S.asc.unlocked = next; Save.save(); setTimeout(() => UI.toast('ASCENSION ' + next + ' UNLOCKED', 'Pick it in the menu for more shards'), 1800); }
   }
   checkChallenges('boss', { kind: b.kind, noHit });
+  unlockCheckpoint(run.floor + 1);
   G.boss = null;
   slowmo(1.4, 0.25);
   hitstop(0.2);

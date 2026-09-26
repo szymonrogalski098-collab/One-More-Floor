@@ -77,6 +77,11 @@
           <div class="pk-body"><div class="pk-k">ASCENSION</div><div class="pk-v" id="pk-asc-name">0</div><div class="pk-d" id="pk-asc-desc"></div></div>
           <button class="pk-arrow" data-action="asc-next" aria-label="Higher ascension">›</button>
         </div>
+        <div class="picker hidden" id="pick-start">
+          <button class="pk-arrow" data-action="start-prev" aria-label="Earlier checkpoint">‹</button>
+          <div class="pk-body"><div class="pk-k">START</div><div class="pk-v" id="pk-start-name">FLOOR 1</div><div class="pk-d" id="pk-start-desc"></div></div>
+          <button class="pk-arrow" data-action="start-next" aria-label="Later checkpoint">›</button>
+        </div>
  </div>
       </div>
       <div class="menu-col-b">
@@ -116,7 +121,7 @@
         <button class="btn btn-ghost" data-action="save-quit">Save &amp; quit</button>
       </div>
       <button class="btn btn-danger small" data-action="abandon">End run</button>
-      <p id="p-nopay" class="hint small-hint hidden">Ending the run on floors 1–3 earns no shards. From floor 4 you keep what you collected.</p>
+      <p id="p-nopay" class="hint small-hint hidden">Ending a run within its first 3 floors earns no shards. After that you keep what you collected.</p>
     </div>
   </section>
 

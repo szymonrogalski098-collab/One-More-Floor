@@ -261,4 +261,5 @@ function finishElevator() {
   if (G.stats.regen > 0) healPlayer(G.stats.regen);
   Sound.music(true, 'normal');
   checkChallenges('boss', { kind: 'elevator', noHit });
+  unlockCheckpoint(run.floor + 1);
 }

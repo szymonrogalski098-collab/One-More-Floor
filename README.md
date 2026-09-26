@@ -22,7 +22,8 @@ On a computer every screen has its own layout (two-column menu, large side-by-si
 - **Stairs:** staircases are cut into the top wall of the exit room (bottom step on the wall line), one per route (Combat / Elite / Rest / Boss). They are always visible but locked until the whole floor is cleared. Stand on a staircase to see the full map of the floor it leads to (it is generated in advance, so what you see is what you get), then walk up it to climb. You arrive by stepping out of a stair nook in the bottom wall.
 - **Save & quit / closing the app** keeps the exact floor: layout, cleared rooms, surviving enemies and your position. A fight that was interrupted restarts with you just outside the room. Boss fights restart from the hall entrance; a boss you already beat stays beaten.
 - **Bosses** fight in one big circular hall.
-- **Ending a run early:** using *End run* on floors 1–3 earns no shards. From floor 4 on you keep what you collected.
+- **Ending a run early:** using *End run* within the first 3 floors of a run earns no shards. After that you keep what you collected.
+- **Checkpoints:** beating a boss unlocks starting new runs on the floor after it (6, 11, 16, 21 …), separately for every Ascension level. Pick it with START in the menu. A checkpoint run begins with a **starting kit**: 1 + 2 per skipped boss upgrade picks with better rarity odds (16 → 7 picks) and +1 reroll per skipped boss, then full HP. Floors below the checkpoint pay no shards and do not count for challenges.
 - When you die you earn **shards**, which you spend in the **Workshop** on permanent upgrades and unlocks.
 
 ### Builds
@@ -174,6 +175,7 @@ npm run test:resume     # Save & Quit restores the same floor, rooms and positio
 npm run test:softlock   # stragglers elsewhere never stall a room
 npm run test:content    # new enemies, ascension, challenges, ships
 npm run test:pc         # mouse & keyboard (click = dash, no joystick, aim modes, hover, touch switch) + guide arrow stability
+npm run test:checkpoint # unlocks, starting kit, resume mid-kit, shard rules, old-save migration
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Orrery, Forgemaster
 npm run perf            # frame cost with 4x CPU throttling
 ```
