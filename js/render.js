@@ -280,7 +280,7 @@ const Render = {
         ctx.globalAlpha = 0.8; ctx.strokeStyle = '#ff4f3d'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(e.x, e.y, R, 0, TAU); ctx.stroke();
       } else if (e.type === 'boss' && e.kind === 'warden' && e.air) {
-        const R = 60, k = e.airK || 0;
+        const R = SLAM_R, k = e.airK || 0;
         ctx.globalAlpha = 0.18 + 0.3 * k;
         ctx.fillStyle = '#ff4f3d';
         ctx.beginPath(); ctx.arc(e.tx, e.ty, R * k, 0, TAU); ctx.fill();

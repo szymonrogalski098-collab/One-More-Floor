@@ -4,6 +4,8 @@
 //  - Loom (Krosno): rotating laser sweeps (chevrons show direction), laser grids, homing orbs you can shoot down.
 //  - Mirror (Lustro): splits into copies (only the real one has a solid core), wall-to-wall dashes leaving bullet trails, summons.
 
+const SLAM_R = 56; // Warden slam radius (also drawn by the renderer)
+
 function spawnBoss(floor) {
   const kind = BOSS_ORDER[(Math.floor(floor / 5) - 1) % BOSS_ORDER.length];
   const cyc = Math.floor((floor - 5) / 15);
@@ -99,18 +101,18 @@ const BOSS_AI = {
       const total = hard ? 4 : 3;
       if (b.sub === '') {
         b.sub = 'aim'; b.st = 0; b.air = true; b.untarget = true;
-        b.sx = b.x; b.sy = b.y; b.tx = p.x; b.ty = p.y;
+        // target is locked at take-off: the red circle never moves, so walking out of it
+        // during the flight always works (dash is a bonus, not a requirement)
+        b.sx = b.x; b.sy = b.y;
+        b.tx = clamp(p.x, WALL + b.r, G.W - WALL - b.r);
+        b.ty = clamp(p.y, WALL + b.r, G.H - WALL - b.r);
         sfx('jump');
         burst(b.x, b.y, b.color, 8, 100, 0.3, 3);
       }
       b.st += dt;
       b.vx = b.vy = 0;
       if (b.sub === 'aim') {
-        const aimT = hard ? 0.72 : 0.9, lockAt = aimT - 0.32;
-        if (b.st < lockAt) {
-          b.tx = clamp(p.x, WALL + b.r, G.W - WALL - b.r);
-          b.ty = clamp(p.y, WALL + b.r, G.H - WALL - b.r);
-        }
+        const aimT = hard ? 0.85 : 1.0;
         b.airK = Math.min(1, b.st / aimT);
         b.alpha = 1 - Math.sin(b.airK * Math.PI) * 0.85;
         const k = easeOut(b.airK);
@@ -118,16 +120,16 @@ const BOSS_AI = {
         if (b.st >= aimT) {
           b.x = b.tx; b.y = b.ty; b.air = false; b.untarget = false; b.alpha = 1; b.airK = 0;
           addShake(0.55); sfx('slam');
-          ring(b.x, b.y, 10, 66, 0.35, COL.warden, 4);
+          ring(b.x, b.y, 10, SLAM_R + 6, 0.35, COL.warden, 4);
           burst(b.x, b.y, COL.warden, 16, 220, 0.5, 4);
-          const R = 60 + PLAYER_HITBOX;
+          const R = SLAM_R + PLAYER_HITBOX;
           if (dist2(b.x, b.y, p.x, p.y) < R * R) hurtPlayer(b.x, b.y);
           const n = hard ? 18 : 14, off = Math.random() * TAU;
           for (let i = 0; i < n; i++) fireEB(b.x, b.y, off + (i * TAU) / n, 112, { color: COL.warden });
           b.sub = 'rest'; b.st = 0; b.step++;
         }
       } else if (b.sub === 'rest') {
-        if (b.st > (hard ? 0.35 : 0.55)) {
+        if (b.st > (hard ? 0.4 : 0.6)) {
           if (b.step >= total) endPattern(b, 1.3);
           else b.sub = '';
         }

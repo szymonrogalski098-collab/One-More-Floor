@@ -1,7 +1,7 @@
 // One More Floor — service worker.
 // All paths are RELATIVE to this file, so the game works from any sub-path
 // (e.g. https://user.github.io/One-More-Floor/). Bump CACHE_VERSION on every release.
-const CACHE_VERSION = 'omf-v1.0.0';
+const CACHE_VERSION = 'omf-v1.0.1';
 
 const ASSETS = [
   './',
