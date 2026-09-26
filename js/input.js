@@ -1,6 +1,7 @@
 'use strict';
-// Touch-first input: floating joystick anywhere on the canvas, dash button,
-// second-finger tap = dash (gesture alternative), keyboard fallback for desktop.
+// Two control schemes, switched automatically by the last device used:
+//  - touch: floating joystick anywhere on the canvas, dash button, second-finger tap = dash;
+//  - PC: WASD/arrows to move, aim with the mouse, Space/Shift or a mouse click to dash.
 
 const Input = {
   R: 54,           // joystick radius (CSS px)
@@ -10,9 +11,21 @@ const Input = {
   dashQueued: false,
   tapStarts: new Map(),
   anyTouch: false,
+  pc: false,                       // mouse & keyboard mode
+  mouse: { x: 0, y: 0, seen: false },
 
   init(canvas, dashBtn) {
     const opts = { passive: false };
+    this.setPc(!!(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches));
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.seen = true;
+      if (!this.pc) this.setPc(true);
+    }, { passive: true });
+    window.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch' && this.pc) this.setPc(false);
+      else if (e.pointerType === 'mouse' && !this.pc) this.setPc(true);
+    }, { capture: true, passive: true });
     canvas.addEventListener('pointerdown', (e) => this.onDown(e), opts);
     window.addEventListener('pointermove', (e) => this.onMove(e), opts);
     window.addEventListener('pointerup', (e) => this.onUp(e), opts);
@@ -42,9 +55,22 @@ const Input = {
     window.addEventListener('blur', () => { this.keys = {}; this.release(); });
   },
 
+  setPc(on) {
+    this.pc = on;
+    document.documentElement.classList.toggle('pc', on);
+    document.documentElement.classList.toggle('touch', !on);
+    this.release();
+    if (typeof UI !== 'undefined' && UI.onControlsChanged) UI.onControlsChanged();
+  },
+
   onDown(e) {
     e.preventDefault();
     Sound.init();
+    if (e.pointerType === 'mouse') { // PC: a click is a dash, never a joystick
+      this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.seen = true;
+      if (e.button === 0 || e.button === 2) this.dashQueued = true;
+      return;
+    }
     if (e.pointerType === 'touch') this.anyTouch = true;
     const st = this.stick;
     if (st.id === null) {

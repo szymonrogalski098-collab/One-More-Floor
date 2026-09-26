@@ -1,7 +1,7 @@
 'use strict';
 // Boot, main loop (fixed 60 Hz simulation + variable render), app lifecycle, PWA registration.
 
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 const STEP = 1 / 60;
 
 const Loop = { last: 0, acc: 0, frameAvg: 1 / 60, slowFor: 0, hudT: 0, raf: 0 };
@@ -46,6 +46,7 @@ function resumeGame() {
 function onPauseKey() {
   if (G.state === 'play') pauseGame();
   else if (G.state === 'paused' && UI.current === 's-pause') resumeGame();
+  else if (UI.stack.length && ['s-meta', 's-records', 's-settings', 's-challenges', 's-confirm'].includes(UI.current)) UI.back(); // Esc closes sub-screens
 }
 
 function saveAndQuit() {
@@ -120,6 +121,7 @@ function boot() {
   Save.load();
   applyQualitySetting();
   UI.init();
+  UI.onControlsChanged();
   Render.init($('cv'));
   Input.init($('cv'), $('btn-dash'));
   window.addEventListener('resize', onResize);

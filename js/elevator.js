@@ -108,7 +108,7 @@ function updateSidePlayer(dt) {
   const v = Input.vector();
   if (Input.consumeDash() && p.dashCharges > 0 && p.dashT <= 0) {
     p.dashCharges--;
-    p.dashDx = Math.abs(v.x) > 0.15 ? Math.sign(v.x) : (p.sideDir || 1);
+    p.dashDx = Math.abs(v.x) > 0.15 ? Math.sign(v.x) : mouseAim() ? (mouseWorld().x < p.x ? -1 : 1) : (p.sideDir || 1);
     p.dashDy = 0;
     p.dashT = DASH_TIME; // no dashIfr: its attacks ignore dashing
     sfx('dash');

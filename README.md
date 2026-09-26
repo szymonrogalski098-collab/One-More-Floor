@@ -4,10 +4,20 @@
 
 ## How to play
 
-- **Move:** drag anywhere on the screen (floating joystick). On desktop use WASD / arrow keys.
-- **Shoot:** automatic, at the nearest visible enemy.
-- **DASH:** the corner button, a tap with a second finger, or Space/Shift. You are invulnerable while dashing. Dashing through an attack counts as a **perfect dodge** (slow motion, synergy with Adrenaline).
-- **Loop:** fight, reward (pick 1 of 3 upgrades; on a computer click a card or press 1–4, R rerolls), choose a door (Combat / Elite / Rest), next floor. **A boss every 5 floors.**
+The game switches between two control schemes automatically, depending on the last device you used:
+
+| | Phone (touch) | Computer (mouse & keyboard) |
+|---|---|---|
+| Move | drag anywhere (floating joystick) | WASD / arrow keys |
+| Aim | automatic, nearest visible enemy | the mouse (auto-aim can be chosen in Settings) |
+| Shoot | automatic | automatic |
+| Dash | corner button or a second-finger tap | Space, Shift or a mouse click |
+| Pause | pause button | Esc / P (Esc also closes sub-screens) |
+
+On a computer every screen has its own layout (two-column menu, large side-by-side reward cards, two-column Workshop), buttons grow under the mouse and the cursor becomes a crosshair in game.
+
+- **DASH:** You are invulnerable while dashing. Dashing through an attack counts as a **perfect dodge** (slow motion, synergy with Adrenaline).
+- **Loop:** fight, reward (pick 1 of 3 upgrades), choose a door (Combat / Elite / Rest), next floor. **A boss every 5 floors.**
 - **Floors:** combat and elite floors are small dungeons: a safe start room, fight rooms joined by corridors and an exit room with staircases. Rooms vary in shape (cut corners, L-shapes) and cover (pillars, crates, low walls, columns, rings), and some have spike traps that fire only while the room is being fought. Entering a fight room locks its exits (red energy bars) until every wave is cleared; dormant enemies wait in some corridors. A green chevron next to you points to the next room. The camera follows you when the floor is bigger than the screen, and arrows on the screen edge show enemies out of view.
 - **Stairs:** staircases are cut into the top wall of the exit room (bottom step on the wall line), one per route (Combat / Elite / Rest / Boss). They are always visible but locked until the whole floor is cleared. Stand on a staircase to see the full map of the floor it leads to (it is generated in advance, so what you see is what you get), then walk up it to climb. You arrive by stepping out of a stair nook in the bottom wall.
 - **Save & quit / closing the app** keeps the exact floor: layout, cleared rooms, surviving enemies and your position. A fight that was interrupted restarts with you just outside the room. Boss fights restart from the hall entrance; a boss you already beat stays beaten.
@@ -163,6 +173,7 @@ npm run test:dungeon    # floor generation, room locking, abandon rule, boss hal
 npm run test:resume     # Save & Quit restores the same floor, rooms and position
 npm run test:softlock   # stragglers elsewhere never stall a room
 npm run test:content    # new enemies, ascension, challenges, ships
+npm run test:pc         # mouse & keyboard: click = dash (no joystick), mouse aim, hover, touch switch
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Orrery, Forgemaster
 npm run perf            # frame cost with 4x CPU throttling
 ```

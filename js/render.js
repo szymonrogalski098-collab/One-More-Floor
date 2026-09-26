@@ -70,6 +70,10 @@ const Render = {
     const t = this.camTarget(), k = 1 - Math.exp(-dt * 6);
     this.cam.x += (t.x - this.cam.x) * k; this.cam.y += (t.y - this.cam.y) * k;
   },
+  toWorld(sx, sy) {
+    const s = this.scale;
+    return { x: this.cam.x + (sx - this.offX - this.VW * s / 2) / s, y: this.cam.y + (sy - this.offY - this.VH * s / 2) / s };
+  },
   toScreen(x, y) {
     const s = this.scale;
     return { x: this.offX + this.VW * s / 2 + (x - this.cam.x) * s, y: this.offY + this.VH * s / 2 + (y - this.cam.y) * s };
@@ -235,6 +239,7 @@ const Render = {
     if (p && p.alive && p.hp === 1) dmgA = Math.max(dmgA, 0.18 + Math.sin(G.time * 6) * 0.1);
     if (dmgA > 0.01) { ctx.globalAlpha = Math.min(1, dmgA); ctx.drawImage(this.dmgVignette, 0, 0, this.sw, this.sh); ctx.globalAlpha = 1; }
     this.drawJoystick(ctx);
+    this.drawCrosshair(ctx);
     if (G.tutorial) this.drawTutorial(ctx);
     if (G.fade > 0) { ctx.globalAlpha = G.fade; ctx.fillStyle = '#07060f'; ctx.fillRect(0, 0, this.sw, this.sh); ctx.globalAlpha = 1; }
   },
@@ -1014,7 +1019,7 @@ const Render = {
     let alpha = 1;
     if (p.iframes > 0 && ((t * 18) | 0) % 2 === 0) alpha = 0.35;
     ctx.globalAlpha = alpha;
-    const a = t - (p.lastShot || -9) < 0.35 ? p.aim : p.face;
+    const a = G.side ? p.face : mouseAim() ? Math.atan2(mouseWorld().y - p.y, mouseWorld().x - p.x) : t - (p.lastShot || -9) < 0.35 ? p.aim : p.face;
     ctx.save();
     ctx.translate(p.x, p.y); ctx.rotate(a);
     const ship = G.run ? G.run.ship : 'striker';
@@ -1224,6 +1229,20 @@ const Render = {
     ctx.globalAlpha = 1;
   },
 
+  // PC: neon crosshair at the mouse (the system cursor is hidden over the game)
+  drawCrosshair(ctx) {
+    if (!Input.pc || !Input.mouse.seen || (G.state !== 'play' && G.state !== 'climb')) return;
+    const x = Input.mouse.x, y = Input.mouse.y, t = G.time, r = 9 + Math.sin(t * 5) * 0.8;
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.player; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - r - 6, y); ctx.lineTo(x - r + 3, y); ctx.moveTo(x + r - 3, y); ctx.lineTo(x + r + 6, y);
+    ctx.moveTo(x, y - r - 6); ctx.lineTo(x, y - r + 3); ctx.moveTo(x, y + r - 3); ctx.lineTo(x, y + r + 6);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, 1.6, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+  },
+
   drawJoystick(ctx) {
     const st = Input.stick;
     if (!st.active) return;
@@ -1240,7 +1259,12 @@ const Render = {
 
   drawTutorial(ctx) {
     const t = G.tutorial;
-    const lines = [
+    const lines = Input.pc ? [
+      [0.8, 'WASD or arrow keys to move'],
+      [4.5, mouseAim() ? 'Aim with the mouse, firing is automatic' : 'You fire automatically at the nearest enemy'],
+      [8.5, 'SPACE, SHIFT or a mouse click = invulnerable dash'],
+      [13, 'Dash through an attack = PERFECT DODGE'],
+    ] : [
       [0.8, 'Drag anywhere on the screen to move'],
       [4.5, 'You fire automatically at the nearest enemy'],
       [8.5, 'DASH (or tap with a second finger) = invulnerable dodge'],

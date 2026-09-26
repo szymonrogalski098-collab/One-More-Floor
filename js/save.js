@@ -19,7 +19,7 @@ function defaultSave() {
     challenges: {},
     settings: {
       sound: true, music: true, sfxVol: 0.8, musVol: 0.45,
-      shake: true, quality: 'auto', lefty: false, tutorialDone: false,
+      shake: true, quality: 'auto', lefty: false, tutorialDone: false, mouseAim: true,
     },
   };
 }

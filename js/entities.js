@@ -77,6 +77,7 @@ function tryDash() {
   const v = Input.vector();
   let dx, dy;
   if (v.mag > 0.15) { dx = v.x / v.mag; dy = v.y / v.mag; }
+  else if (mouseAim()) { const m = mouseWorld(), l = Math.hypot(m.x - p.x, m.y - p.y) || 1; dx = (m.x - p.x) / l; dy = (m.y - p.y) / l; }
   else { dx = Math.cos(p.face); dy = Math.sin(p.face); }
   p.dashDx = dx; p.dashDy = dy;
   p.dashT = DASH_TIME; p.dashIfr = DASH_TIME + DASH_IFR_TAIL + G.stats.dodgeWin; p.dodged = false;
@@ -179,11 +180,27 @@ function findTarget() {
   return best;
 }
 
+// PC: bullets go where the mouse points (auto-fire keeps running while enemies are around).
+function mouseAim() { return Input.pc && Input.mouse.seen && Save.data.settings.mouseAim !== false; }
+function mouseWorld() { return Render.toWorld(Input.mouse.x, Input.mouse.y); }
+function enemiesAround() {
+  const p = G.player, R = G.stats.range * 1.4;
+  for (const e of G.enemies) if (!e.dead && !e.untarget && !e.sleep && dist2(p.x, p.y, e.x, e.y) < R * R) return true;
+  return false;
+}
+
 function playerFire() {
   const p = G.player, s = G.stats;
-  const t = findTarget();
-  if (!t) return false;
-  const a = Math.atan2(t.y - p.y, t.x - p.x);
+  let a;
+  if (mouseAim()) {
+    if (!enemiesAround()) return false;
+    const m = mouseWorld();
+    a = Math.atan2(m.y - p.y, m.x - p.x);
+  } else {
+    const t = findTarget();
+    if (!t) return false;
+    a = Math.atan2(t.y - p.y, t.x - p.x);
+  }
   p.aim = a;
   p.lastShot = G.time;
   const n = s.proj;

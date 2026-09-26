@@ -55,6 +55,7 @@
   <!-- MENU -->
   <section id="s-menu" class="screen">
     <div class="menu-wrap">
+      <div class="menu-col-a">
       <div class="logo">
         <div class="logo-top">ONE MORE</div>
         <div class="logo-bot">FLOOR</div>
@@ -76,7 +77,9 @@
           <div class="pk-body"><div class="pk-k">ASCENSION</div><div class="pk-v" id="pk-asc-name">0</div><div class="pk-d" id="pk-asc-desc"></div></div>
           <button class="pk-arrow" data-action="asc-next" aria-label="Higher ascension">›</button>
         </div>
+ </div>
       </div>
+      <div class="menu-col-b">
       <button id="btn-continue" class="btn btn-secondary hidden" data-action="continue">CONTINUE</button>
       <button class="btn btn-primary" data-action="play">PLAY</button>
       <div class="row">
@@ -85,8 +88,9 @@
       </div>
       <button class="btn btn-ghost small" data-action="records">Records</button>
       <button class="btn btn-ghost small" data-action="settings">Settings</button>
-      <p class="hint">Drag anywhere to move · auto-fire · DASH to dodge</p>
+      <p id="m-controls" class="hint">Drag anywhere to move · auto-fire · DASH to dodge</p>
       <p id="install-hint" class="hint small-hint hidden"></p>
+      </div>
     </div>
   </section>
 
@@ -97,7 +101,6 @@
       <div id="up-sub" class="sub-h"></div>
       <div id="up-cards" class="cards"></div>
       <button id="btn-reroll" class="btn btn-ghost small hidden" data-action="reroll">Reroll</button>
-      <div class="key-hint">Click a card or press <b>1</b>–<b>4</b><span id="up-key-r"> · <b>R</b> to reroll</span></div>
     </div>
   </section>
 
@@ -194,7 +197,8 @@
         <button class="toggle" data-set="music"><span>Music</span><i></i></button>
         <label class="slider"><span>Music volume</span><input type="range" min="0" max="1" step="0.05" data-range="musVol"></label>
         <button class="toggle" data-set="shake"><span>Screen shake</span><i></i></button>
-        <button class="toggle" data-set="lefty"><span>DASH on the left (left-handed)</span><i></i></button>
+        <button class="toggle touch-only" data-set="lefty"><span>DASH on the left (left-handed)</span><i></i></button>
+        <button class="toggle pc-only" data-set="mouseAim"><span>Aim with the mouse (off: auto-aim)</span><i></i></button>
         <div class="seg" id="seg-quality">
           <span>Graphics quality</span>
           <div class="seg-btns">
