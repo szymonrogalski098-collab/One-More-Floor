@@ -47,6 +47,13 @@ const UI = {
       });
       inp.addEventListener('change', () => { Save.save(); sfx('select'); });
     });
+    // keyboard on the reward screen: 1-4 pick a card, R rerolls
+    window.addEventListener('keydown', (e) => {
+      if (this.current !== 's-upgrade' || $('s-upgrade').classList.contains('locked') || e.repeat) return;
+      const cards = $('up-cards').querySelectorAll('.card'), n = parseInt(e.key, 10);
+      if (n >= 1 && n <= cards.length) { e.preventDefault(); chooseUpgradeFromUI(cards[n - 1].dataset.id); }
+      else if (e.key.toLowerCase() === 'r' && !$('btn-reroll').classList.contains('hidden')) this.action('reroll', $('btn-reroll'));
+    });
     $('btn-pause').addEventListener('click', (e) => { e.stopPropagation(); pauseGame(); });
     $('ver').textContent = APP_VERSION;
   },
@@ -269,9 +276,9 @@ const UI = {
     const run = G.run;
     $('up-title').textContent = kind === 'boss' ? 'BOSS REWARD' : kind === 'elite' ? 'ELITE REWARD' : 'CHOOSE AN UPGRADE';
     $('up-sub').textContent = 'Floor ' + run.floor + ' cleared';
-    $('up-cards').innerHTML = choices.map((u) => {
+    $('up-cards').innerHTML = choices.map((u, i) => {
       const lvl = (run.upgrades[u.id] || 0) + 1;
-      return `<button class="card r${u.rarity}" data-id="${u.id}" style="--tc:${TAGS[u.tag].color}">
+      return `<button class="card r${u.rarity}" data-id="${u.id}" style="--tc:${TAGS[u.tag].color}"><span class="card-key">${i + 1}</span>
         ${upgBadge(u)}
         <div class="card-body">
           <div class="card-top"><span class="rar">${RARITY[u.rarity].name}</span><span class="tg">${TAGS[u.tag].name}</span></div>
@@ -282,6 +289,7 @@ const UI = {
     const rr = $('btn-reroll');
     rr.classList.toggle('hidden', run.rerolls <= 0);
     rr.textContent = 'Reroll (' + run.rerolls + ')';
+    $('up-key-r').classList.toggle('hidden', run.rerolls <= 0);
     this.show('s-upgrade', { lock: 450 });
   },
 
@@ -290,14 +298,15 @@ const UI = {
     const heal = restHealAmount();
     $('up-title').textContent = 'REST';
     $('up-sub').textContent = 'HP: ' + p.hp + '/' + s.maxHp;
-    const card = (id, icon, tag, rar, name, desc) => `<button class="card r${rar}" data-id="${id}" style="--tc:${TAGS[tag].color}">
+    const card = (id, icon, tag, rar, name, desc, key) => `<button class="card r${rar}" data-id="${id}" style="--tc:${TAGS[tag].color}"><span class="card-key">${key}</span>
       <div class="badge" style="--tc:${TAGS[tag].color}">${icon}</div>
       <div class="card-body"><div class="card-top"><span class="tg">${TAGS[tag].name}</span></div>
       <div class="card-name">${name}</div><div class="card-desc">${desc}</div></div></button>`;
     $('up-cards').innerHTML =
-      card('__heal', '+HP', 'tank', 0, 'Rest', 'Heal ' + heal + ' HP.') +
-      card('__train', 'UP', 'core', 1, 'Train', 'Get a random upgrade.');
+      card('__heal', '+HP', 'tank', 0, 'Rest', 'Heal ' + heal + ' HP.', 1) +
+      card('__train', 'UP', 'core', 1, 'Train', 'Get a random upgrade.', 2);
     $('btn-reroll').classList.add('hidden');
+    $('up-key-r').classList.add('hidden');
     this.show('s-upgrade', { lock: 450 });
   },
 
