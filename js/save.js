@@ -19,7 +19,7 @@ function defaultSave() {
     challenges: {},
     settings: {
       sound: true, music: true, sfxVol: 0.8, musVol: 0.45,
-      shake: true, quality: 'auto', lefty: false, tutorialDone: false, mouseAim: true,
+      shake: true, quality: 'auto', lefty: false, tutorialDone: false, mouseAim: false, aimV: 2,
     },
   };
 }
@@ -37,7 +37,11 @@ const Save = {
   load() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
-      if (raw) this.data = mergeDefaults(JSON.parse(raw), defaultSave());
+      if (raw) {
+        const parsed = JSON.parse(raw), aimV = parsed.settings && parsed.settings.aimV;
+        this.data = mergeDefaults(parsed, defaultSave());
+        if (aimV !== 2) { this.data.settings.mouseAim = false; this.data.settings.aimV = 2; } // auto-aim is the default on PC too
+      }
     } catch (e) {
       this.data = defaultSave();
     }

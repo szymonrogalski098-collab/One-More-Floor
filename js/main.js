@@ -1,7 +1,7 @@
 'use strict';
 // Boot, main loop (fixed 60 Hz simulation + variable render), app lifecycle, PWA registration.
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 const STEP = 1 / 60;
 
 const Loop = { last: 0, acc: 0, frameAvg: 1 / 60, slowFor: 0, hudT: 0, raf: 0 };
@@ -143,7 +143,7 @@ function boot() {
   Loop.raf = requestAnimationFrame(frame);
   registerSW();
   setupInstallHint();
-  if (/[?&]debug\b/.test(location.search)) window.OMF = { G, Save, step, guideTarget, routeTo, distField, clearFloor: debugClearFloor, newRun, enterFloor, spawnBoss, addUpgrade, computeStats, Render, UI, Input, Q, killEnemy, chooseUpgrade, goThroughDoor, startGame, hurtPlayer, rollChoices };
+  if (/[?&]debug\b/.test(location.search)) window.OMF = { G, Save, step, guideTarget, guidePoint, routeTo, distField, clearFloor: debugClearFloor, newRun, enterFloor, spawnBoss, addUpgrade, computeStats, Render, UI, Input, Q, killEnemy, chooseUpgrade, goThroughDoor, startGame, hurtPlayer, rollChoices };
 }
 
 let resizeT = 0;

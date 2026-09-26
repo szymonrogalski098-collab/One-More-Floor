@@ -375,7 +375,7 @@ html.pc .pc-only { display: flex !important; }
 html.pc .touch-only { display: none !important; }
 
 /* ---------- PC: mouse & keyboard ---------- */
-html.pc canvas#cv { cursor: none; }
+html.pc.maim canvas#cv { cursor: none; }
 /* no joystick or touch button on PC: the dash button becomes a small cooldown gauge */
 html.pc .dash { pointer-events: none; width: 62px; height: 62px; right: 18px; bottom: 18px; opacity: 0.9; }
 html.pc .dash.left { left: auto; right: 18px; }

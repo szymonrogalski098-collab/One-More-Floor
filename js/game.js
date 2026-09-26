@@ -46,7 +46,7 @@ function resetArrays() {
   while (G.eb.length) ebPool.push(G.eb.pop());
   G.enemies.length = 0; G.newEnemies.length = 0; G.markers.length = 0; G.pickups.length = 0;
   G.rings.length = 0; G.texts.length = 0; G.bolts.length = 0; G.beams.length = 0; G.explosions.length = 0;
-  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null;
+  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
 }
 
 function enterFloor(n, type, restore, layout) {
@@ -399,9 +399,19 @@ function guideTarget() {
   if (R.phase !== 'fight' || R.active || R.type === 'boss') return null;
   const next = G.rooms.find((r) => r.state === 'idle');
   if (next) return { x: next.x + next.w / 2, y: next.y + next.h / 2 };
-  let best = null, bd = Infinity;
-  for (const e of G.enemies) { if (e.dead) continue; const d = dist2(e.x, e.y, G.player.x, G.player.y); if (d < bd) { bd = d; best = e; } }
-  return best && bd > 200 * 200 ? { x: best.x, y: best.y } : null;
+  // a straggler somewhere: stick to one until it dies (no flipping between enemies),
+  // hide the arrow once it is close (with hysteresis so it does not blink)
+  const p = G.player;
+  let e = G.guideEnemy;
+  if (!e || e.dead || G.enemies.indexOf(e) === -1) {
+    e = null; let bd = Infinity;
+    for (const x of G.enemies) { if (x.dead) continue; const d = dist2(x.x, x.y, p.x, p.y); if (d < bd) { bd = d; e = x; } }
+    G.guideEnemy = e;
+  }
+  if (!e) return null;
+  const d = Math.sqrt(dist2(e.x, e.y, p.x, p.y));
+  G.guideFar = d > (G.guideFar ? 150 : 220);
+  return G.guideFar ? { x: e.x, y: e.y } : null;
 }
 
 function roomCleared() {

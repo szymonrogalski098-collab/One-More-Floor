@@ -78,8 +78,9 @@ const UI = {
   push(id) { this.stack.push(this.current); this.show(id); },
   // switched between touch and mouse & keyboard: texts that name the controls follow
   onControlsChanged() {
-    const h = $('m-controls');
-    if (h) h.textContent = Input.pc ? 'WASD to move · aim with the mouse · SPACE or click to dash' : 'Drag anywhere to move · auto-fire · DASH to dodge';
+    const h = $('m-controls'), maim = Save.data.settings.mouseAim;
+    document.documentElement.classList.toggle('maim', !!maim);
+    if (h) h.textContent = Input.pc ? 'WASD to move · ' + (maim ? 'aim with the mouse' : 'auto-aim') + ' · SPACE or click to dash' : 'Drag anywhere to move · auto-fire · DASH to dodge';
   },
 
   back() {
@@ -430,6 +431,7 @@ const UI = {
     Sound.applySettings();
     if (key === 'lefty') $('btn-dash').classList.toggle('left', s.lefty);
     if (key === 'shake' && !s.shake) G.trauma = 0;
+    if (key === 'mouseAim') this.onControlsChanged();
     this.renderSettings();
     sfx('select');
   },

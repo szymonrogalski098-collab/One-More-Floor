@@ -269,9 +269,14 @@ const Render = {
     const p = G.player;
     if (!p || !p.alive || G.state !== 'play') return;
     const tg = guideTarget();
-    if (!tg) return;
-    const w = routeTo(p.x, p.y, p.r, tg.x, tg.y) || tg;
-    const a = Math.atan2(w.y - p.y, w.x - p.x);
+    if (!tg) { this.guideA = null; return; }
+    const w = guidePoint(p.x, p.y, tg.x, tg.y);
+    const want = Math.atan2(w.y - p.y, w.x - p.x);
+    // smoothed so the arrow turns instead of snapping
+    const now = G.time, dt = Math.min(0.1, Math.max(0, now - (this.guideT || now)));
+    this.guideT = now;
+    this.guideA = this.guideA == null ? want : this.guideA + angleDiff(this.guideA, want) * Math.min(1, dt * 12);
+    const a = this.guideA;
     const r = 30 + Math.sin(G.time * 6) * 3, x = p.x + Math.cos(a) * r, y = p.y + Math.sin(a) * r;
     ctx.save(); ctx.translate(x, y); ctx.rotate(a);
     ctx.globalAlpha = 0.85; ctx.strokeStyle = '#8dff6a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -1231,7 +1236,7 @@ const Render = {
 
   // PC: neon crosshair at the mouse (the system cursor is hidden over the game)
   drawCrosshair(ctx) {
-    if (!Input.pc || !Input.mouse.seen || (G.state !== 'play' && G.state !== 'climb')) return;
+    if (!mouseAim() || (G.state !== 'play' && G.state !== 'climb')) return;
     const x = Input.mouse.x, y = Input.mouse.y, t = G.time, r = 9 + Math.sin(t * 5) * 0.8;
     ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.player; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();

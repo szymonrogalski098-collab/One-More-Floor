@@ -9,12 +9,12 @@ The game switches between two control schemes automatically, depending on the la
 | | Phone (touch) | Computer (mouse & keyboard) |
 |---|---|---|
 | Move | drag anywhere (floating joystick) | WASD / arrow keys |
-| Aim | automatic, nearest visible enemy | the mouse (auto-aim can be chosen in Settings) |
+| Aim | automatic, nearest visible enemy | automatic too (mouse aim can be switched on in Settings) |
 | Shoot | automatic | automatic |
 | Dash | corner button or a second-finger tap | Space, Shift or a mouse click |
 | Pause | pause button | Esc / P (Esc also closes sub-screens) |
 
-On a computer every screen has its own layout (two-column menu, large side-by-side reward cards, two-column Workshop), buttons grow under the mouse and the cursor becomes a crosshair in game.
+On a computer every screen has its own layout (two-column menu, large side-by-side reward cards, two-column Workshop), buttons grow under the mouse, and with mouse aim on the cursor becomes a crosshair in game.
 
 - **DASH:** You are invulnerable while dashing. Dashing through an attack counts as a **perfect dodge** (slow motion, synergy with Adrenaline).
 - **Loop:** fight, reward (pick 1 of 3 upgrades), choose a door (Combat / Elite / Rest), next floor. **A boss every 5 floors.**
@@ -173,7 +173,7 @@ npm run test:dungeon    # floor generation, room locking, abandon rule, boss hal
 npm run test:resume     # Save & Quit restores the same floor, rooms and position
 npm run test:softlock   # stragglers elsewhere never stall a room
 npm run test:content    # new enemies, ascension, challenges, ships
-npm run test:pc         # mouse & keyboard: click = dash (no joystick), mouse aim, hover, touch switch
+npm run test:pc         # mouse & keyboard (click = dash, no joystick, aim modes, hover, touch switch) + guide arrow stability
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Orrery, Forgemaster
 npm run perf            # frame cost with 4x CPU throttling
 ```

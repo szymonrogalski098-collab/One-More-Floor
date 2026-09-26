@@ -169,6 +169,42 @@ function routeTo(x, y, r, tx, ty) {
   return { x: (bx + 0.5) * T, y: (by + 0.5) * T };
 }
 
+// Line of sight wide enough for a body of radius r (centre line plus both edges).
+function wideLOS(ax, ay, bx, by, r) {
+  const dx = bx - ax, dy = by - ay, l = Math.hypot(dx, dy) || 1, nx = (-dy / l) * r, ny = (dx / l) * r;
+  return hasLOS(ax, ay, bx, by) && hasLOS(ax + nx, ay + ny, bx + nx, by + ny) && hasLOS(ax - nx, ay - ny, bx - nx, by - ny);
+}
+
+// Where the guide arrow should point: follow the BFS path a few tiles ahead and aim at the
+// farthest path tile still in direct view (stable, unlike the next-tile waypoint that swings
+// around as you cross a tile centre).
+function guidePoint(x, y, tx, ty) {
+  if (G.circle || G.side || wideLOS(x, y, tx, ty, 7)) return { x: tx, y: ty };
+  const g = G.grid, f = distField(Math.floor(tx / T), Math.floor(ty / T));
+  let cx = Math.floor(x / T), cy = Math.floor(y / T);
+  if (f[cy * g.cols + cx] < 0) return { x: tx, y: ty };
+  let best = null, first = null;
+  for (let step = 0; step < 14; step++) {
+    const here = f[cy * g.cols + cx];
+    if (here <= 0) break;
+    let nx = -1, ny = -1, nd = here;
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+      if (!ox && !oy) continue;
+      const ax = cx + ox, ay = cy + oy;
+      if (solidTile(ax, ay) || (ox && oy && (solidTile(cx + ox, cy) || solidTile(cx, cy + oy)))) continue;
+      const d = f[ay * g.cols + ax];
+      if (d >= 0 && d < nd) { nd = d; nx = ax; ny = ay; }
+    }
+    if (nx < 0) break;
+    cx = nx; cy = ny;
+    const px = (cx + 0.5) * T, py = (cy + 0.5) * T;
+    if (!first) first = { x: px, y: py };
+    if (wideLOS(x, y, px, py, 7)) best = { x: px, y: py };
+    else if (best) break;
+  }
+  return best || first || { x: tx, y: ty };
+}
+
 // ---------- gates ----------
 function setGates(room, locked) {
   const g = G.grid;

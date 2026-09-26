@@ -77,7 +77,7 @@ function tryDash() {
   const v = Input.vector();
   let dx, dy;
   if (v.mag > 0.15) { dx = v.x / v.mag; dy = v.y / v.mag; }
-  else if (mouseAim()) { const m = mouseWorld(), l = Math.hypot(m.x - p.x, m.y - p.y) || 1; dx = (m.x - p.x) / l; dy = (m.y - p.y) / l; }
+  else if (Input.pc && Input.mouse.seen) { const m = mouseWorld(), l = Math.hypot(m.x - p.x, m.y - p.y) || 1; dx = (m.x - p.x) / l; dy = (m.y - p.y) / l; }
   else { dx = Math.cos(p.face); dy = Math.sin(p.face); }
   p.dashDx = dx; p.dashDy = dy;
   p.dashT = DASH_TIME; p.dashIfr = DASH_TIME + DASH_IFR_TAIL + G.stats.dodgeWin; p.dodged = false;
