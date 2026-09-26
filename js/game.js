@@ -6,6 +6,8 @@ function newRun(snapshot) {
   G.run = {
     floor: 0, upgrades: {}, order: [], kills: 0, shards: 0, dmg: 0, time: 0, bosses: 0, elites: 0,
     hurt: 0, dodges: 0, rerolls: meta.reroll | 0, windUsed: false,
+    ship: Save.data.ships.includes(Save.data.ship) ? Save.data.ship : 'striker',
+    asc: Math.min(Save.data.asc.selected | 0, Save.data.asc.unlocked | 0), hurtAtBoss: 0,
   };
   G.player = makePlayer();
   computeStats();
@@ -44,7 +46,7 @@ function resetArrays() {
   while (G.eb.length) ebPool.push(G.eb.pop());
   G.enemies.length = 0; G.newEnemies.length = 0; G.markers.length = 0; G.pickups.length = 0;
   G.rings.length = 0; G.texts.length = 0; G.bolts.length = 0; G.beams.length = 0; G.explosions.length = 0;
-  G.stairs = []; G.stairOn = null; G.traps = []; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null;
+  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null;
 }
 
 function enterFloor(n, type, restore, layout) {
@@ -71,6 +73,7 @@ function enterFloor(n, type, restore, layout) {
   G.state = 'play';
   G.hudDirty = true;
   makePreviews();
+  checkChallenges('floor');
   saveSnapshot();
   if (!Save.data.settings.tutorialDone && n === 1) G.tutorial = 0.01; else G.tutorial = 0;
 }
@@ -113,7 +116,7 @@ function saveSnapshot() {
   Save.data.snapshot = {
     v: 2, floor: run.floor, type: G.room.type, hp: G.player.hp, order: expandOrder(),
     run: { kills: run.kills, shards: run.shards + pendingShards(), dmg: run.dmg, time: run.time, bosses: run.bosses, elites: run.elites,
-      hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed },
+      hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed, ship: run.ship, asc: run.asc },
     floorState: G.room.type === 'boss' ? null : serializeFloor(),
   };
   Save.save();
@@ -226,7 +229,7 @@ function planFloor(n, type) {
   const rooms = G.rooms.filter((r) => r.state === 'idle');
   let budget = sc.budget * (1 + 0.15 * (rooms.length - 1)) * (type === 'elite' ? 0.75 : 1);
 
-  const hallPool = pool.filter((k) => k !== 'sentinel' && k !== 'bomber');
+  const hallPool = pool.filter((k) => !['sentinel', 'bomber', 'brood', 'mortar'].includes(k));
   for (const h of G.halls) {
     const len = h.horiz ? h.tw : h.th;
     if (n < 2 || len < 6 || Math.random() < 0.3) continue;
@@ -249,6 +252,7 @@ function planFloor(n, type) {
     const nW = rooms.length === 1 ? (n < 3 ? 2 : 3) : rm.kind === 'exit' && n >= 3 ? 3 : 2;
     rm.waves = splitWaves(list, Math.min(nW, list.length));
     rm.waveIdx = 0;
+    if (type === 'combat' && rm.kind === 'exit' && ascMod(3)) rm.waves[rm.waves.length - 1].push({ t: pick(pool.filter((k) => k !== 'bomber')), elite: true });
     if (type === 'elite' && rm.kind === 'exit') {
       const elitePool = pool.filter((k) => k !== 'bomber');
       const ne = n < 9 ? 1 : 2;
@@ -345,7 +349,12 @@ function updateRoom(dt) {
       if (rm.waveIdx < rm.waves.length && (alive <= R.waveThresh || R.waveT > 11)) startNextWave();
       if (rm.waveIdx >= rm.waves.length && alive === 0) clearRoomSection(rm);
     }
-    if (!R.active && !R.queue.length && G.rooms.every((r) => r.state !== 'idle' && r.state !== 'active') && aliveCount() === 0) roomCleared();
+    const roomsDone = !R.active && !R.queue.length && G.rooms.every((r) => r.state !== 'idle' && r.state !== 'active');
+    if (roomsDone) {
+      // every room is clear: stragglers asleep in corridors wake up and come to you (no hunting for them)
+      for (const e of G.enemies) if (!e.dead && e.sleep) { e.sleep = false; floatText(e.x, e.y - e.r - 6, '!', '#ffffff', 14, 0.6); }
+      if (aliveCount() === 0) roomCleared();
+    }
     return;
   }
   if (R.phase === 'clear') {
@@ -519,7 +528,7 @@ function playerDie() {
 
 function finalizeRun(abandon) {
   const run = G.run, S = Save.data;
-  const salv = 1 + 0.15 * (S.meta.salvage | 0);
+  const salv = (1 + 0.15 * (S.meta.salvage | 0)) * (1 + 0.15 * (run.asc | 0));
   const floorBonus = run.floor * 2;
   // quitting a run on floors 1-3 pays nothing (prevents farming quick restarts)
   const noPay = !!abandon && run.floor <= 3;
@@ -535,12 +544,14 @@ function finalizeRun(abandon) {
   S.totals.time += run.time;
   if (record) S.best.floor = run.floor;
   if (run.kills > S.best.kills) S.best.kills = run.kills;
+  S.asc.best[run.asc | 0] = Math.max(S.asc.best[run.asc | 0] | 0, run.floor);
+  checkChallenges('end');
   S.history.unshift({ floor: run.floor, kills: run.kills, time: Math.round(run.time), build: topBuild(), date: Date.now() });
   S.history = S.history.slice(0, 8);
   S.snapshot = null;
   Save.save();
   return { floor: run.floor, kills: run.kills, time: run.time, dmg: run.dmg, bosses: run.bosses, dodges: run.dodges,
-    earned, floorBonus, record, prevBest, abandon: !!abandon, noPay, order: run.order.slice(), upgrades: Object.assign({}, run.upgrades) };
+    earned, floorBonus, record, prevBest, asc: run.asc | 0, abandon: !!abandon, noPay, order: run.order.slice(), upgrades: Object.assign({}, run.upgrades) };
 }
 
 function topBuild() {
@@ -579,6 +590,7 @@ function step(dt) {
     updateEnemies(dt);
     if (G.newEnemies.length) { for (const e of G.newEnemies) G.enemies.push(e); G.newEnemies.length = 0; }
     updateBeams(dt);
+    updateShells(dt);
     updatePlayerBullets(dt);
     updateEnemyBullets(dt);
     processExplosions();
@@ -628,4 +640,44 @@ function updateTraps() {
       sfx('fuse');
     }
   }
+}
+
+// ---------- challenges ----------
+function challengeDone(id) { return !!Save.data.challenges[id]; }
+function checkChallenges(evt, info) {
+  const S = Save.data, run = G.run;
+  if (!run) return;
+  const done = [];
+  const hit = (id, cond) => { if (cond && !challengeDone(id)) done.push(id); };
+  hit('f5', run.floor >= 5);
+  hit('f20', run.floor >= 20);
+  hit('f30', run.floor >= 30);
+  hit('speed10', evt === 'floor' && run.floor >= 10 && run.time < 480);
+  hit('build12', run.order.length >= 12);
+  hit('hoard', run.shards >= 200);
+  hit('dodge25', run.dodges >= 25);
+  hit('elite20', run.elites >= 20);
+  hit('kills1k', S.totals.kills + (evt === 'end' ? 0 : run.kills) >= 1000);
+  hit('ships', SHIPS.every((sh) => S.ships.includes(sh.id)));
+  if (evt === 'boss') {
+    hit('warden', info.kind === 'warden');
+    hit('loom', info.kind === 'loom');
+    hit('mirror', info.kind === 'mirror');
+    hit('nohit', info.noHit);
+    hit('asc3', info.kind === 'mirror' && (run.asc | 0) >= 3);
+    hit('asc10', info.kind === 'mirror' && (run.asc | 0) >= 10);
+  }
+  for (const id of done) grantChallenge(id);
+}
+function grantChallenge(id) {
+  const S = Save.data, c = CHALLENGES.find((x) => x.id === id);
+  if (!c || S.challenges[id]) return;
+  S.challenges[id] = Date.now();
+  let reward = '';
+  if (c.reward.shards) { S.shards += c.reward.shards; reward = '+' + c.reward.shards + ' shards'; }
+  if (c.reward.ship && !S.ships.includes(c.reward.ship)) { S.ships.push(c.reward.ship); reward = 'New ship: ' + SHIP[c.reward.ship].name; }
+  Save.save();
+  UI.toast('CHALLENGE · ' + c.name.toUpperCase(), reward);
+  sfx('record');
+  if (id !== 'ships') checkChallenges('meta');
 }

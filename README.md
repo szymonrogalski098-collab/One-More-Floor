@@ -27,11 +27,11 @@ Every upgrade has a tag. Card rolls slightly favour tags you already collect, so
 | DASH | mobility | Thruster, Twin Thrusters, Dash Nova, Adrenaline, Nova Shards, Nova Capacitor, Rush, Reflex Amp |
 | ARMOR | survival | Aegis, Blade Halo, Spin Coil, Overdrive Motor, Mender, Leech, Quick Recharge |
 
-**Upgrade lines.** Every epic effect has a common booster (offered only once you have the effect) and a rare that strengthens it and, on the first pick, also grants the effect itself. The rare is unlocked by the same Workshop blueprint as the epic.
+**Upgrade lines.** Every epic effect has a common and a rare booster. Both are offered only once you already own the effect (they never grant it). The rare is unlocked by the same Workshop blueprint as the epic.
 
-| Effect (epic) | Common booster | Rare (also grants the effect) |
+| Effect (epic) | Common booster | Rare booster |
 |---|---|---|
-| Blade Halo | Spin Coil: +5% blade spin | Overdrive Motor: +10% blade spin, +1 blade |
+| Blade Halo | Spin Coil: +5% blade spin | Overdrive Motor: +10% blade spin |
 | Volatile | Blast Radius: +12% explosion size | Fuse Primer: +15% explosion damage |
 | Dash Nova | Nova Shards: +2 bullets | Nova Capacitor: +15% nova damage |
 | Seeker Chip | Tracking Servo: +15% homing turn | Lock-On Array: +20% homing reach |
@@ -46,6 +46,16 @@ Rare effects get a common booster too: Conductor (Arc Coil +10% damage), Kindlin
 3. **The Mirror** (floor 15): splits into copies. **Only the real one has a solid white core**, and a shattered copy fires a ring of bullets. It also dashes from wall to wall leaving bullet trails and summons enemies.
 
 From floor 20 the bosses return as **II** variants (more HP, rage phase from the start). Below 50% HP every boss enters a **rage phase**.
+
+### Enemies
+
+Skitter (chaser), Spitter (ranged), Ram (telegraphed charge), Blob (splits), Fuse (suicide bomber), Sentinel (bullet rings), plus from mid floors: **Leaper** (jumps onto your spot — red circle), **Sniper** (laser sight, then a very fast shot), **Shielder** (frontal shield blocks bullets — flank it or use blades/explosions/lightning), **Brood** (hatches mites), **Mortar** (lobs shells with a landing circle). Every type has an elite variant.
+
+### Long-term goals
+
+- **Ships:** Striker, Lancer, Scatter, Phantom, Bulwark — each changes how a run plays. Unlock them through challenges or buy them in the Workshop hangar.
+- **Challenges:** 16 goals (bosses, depth, no-hit boss, speed, builds, ascension) that pay shards or unlock ships.
+- **Ascension:** beating The Mirror unlocks Ascension 1; each level adds a modifier (tougher, faster enemies, elites on every floor, fewer hearts, enraged bosses …) and +15% shards. Best floor is tracked per level.
 
 ### Permanent progression (Workshop)
 
@@ -148,6 +158,7 @@ npm run test:upgrades   # all upgrade lines + Workshop upgrades (availability an
 npm run test:dungeon    # floor generation, room locking, abandon rule, boss hall
 npm run test:resume     # Save & Quit restores the same floor, rooms and position
 npm run test:softlock   # stragglers elsewhere never stall a room
+npm run test:content    # new enemies, ascension, challenges, ships
 npm run perf            # frame cost with 4x CPU throttling
 ```
 

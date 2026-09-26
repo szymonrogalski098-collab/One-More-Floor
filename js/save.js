@@ -14,6 +14,9 @@ function defaultSave() {
     meta: {},
     history: [],
     snapshot: null,
+    ships: ['striker'], ship: 'striker',
+    asc: { unlocked: 0, selected: 0, best: {} },
+    challenges: {},
     settings: {
       sound: true, music: true, sfxVol: 0.8, musVol: 0.45,
       shake: true, quality: 'auto', lefty: false, tutorialDone: false,

@@ -34,7 +34,7 @@ const UI = {
       const card = e.target.closest('.card');
       if (card) { chooseUpgradeFromUI(card.dataset.id); return; }
       const buy = e.target.closest('.buy');
-      if (buy && !buy.disabled) { this.buyMeta(buy.dataset.id); return; }
+      if (buy && !buy.disabled) { if (buy.dataset.ship) this.buyShip(buy.dataset.ship); else this.buyMeta(buy.dataset.id); return; }
       const tog = e.target.closest('[data-set]');
       if (tog) { this.toggleSetting(tog.dataset.set); return; }
       const q = e.target.closest('[data-q]');
@@ -90,6 +90,9 @@ const UI = {
       case 'continue': sfx('select'); startGame(true); break;
       case 'meta': sfx('select'); this.renderMeta(); this.push('s-meta'); break;
       case 'records': sfx('select'); this.renderRecords(); this.push('s-records'); break;
+      case 'challenges': sfx('select'); this.renderChallenges(); this.push('s-challenges'); break;
+      case 'ship-prev': case 'ship-next': this.cycleShip(a === 'ship-next' ? 1 : -1); break;
+      case 'asc-prev': case 'asc-next': this.cycleAsc(a === 'asc-next' ? 1 : -1); break;
       case 'settings': sfx('select'); this.renderSettings(); this.push('s-settings'); break;
       case 'back': sfx('select'); this.back(); break;
       case 'resume': sfx('select'); resumeGame(); break;
@@ -188,6 +191,60 @@ const UI = {
     c.classList.toggle('hidden', !snap);
     if (snap) c.textContent = 'CONTINUE · FLOOR ' + snap.floor;
     $('m-meta-dot').classList.toggle('hidden', !this.canAffordAny());
+    // ship picker (shows locked ships too, with how to get them)
+    const sh = SHIP[S.ship] || SHIP.striker, owned = S.ships.includes(sh.id);
+    $('pk-ship-name').textContent = sh.name + (owned ? '' : ' · LOCKED');
+    $('pk-ship-name').classList.toggle('locked', !owned);
+    $('pk-ship-name').style.color = owned ? sh.color : '';
+    const ch = CHALLENGES.find((c) => c.reward.ship === sh.id);
+    $('pk-ship-desc').textContent = owned ? sh.desc : 'Unlock: ' + (ch ? ch.name + ' (' + ch.desc.replace(/\.$/, '') + ')' : '') + ' or buy in the Workshop';
+    // ascension picker
+    const A = S.asc, un = A.unlocked | 0;
+    $('pick-asc').classList.toggle('hidden', un < 1);
+    const sel = Math.min(A.selected | 0, un);
+    $('pk-asc-name').textContent = sel === 0 ? 'OFF' : 'LEVEL ' + sel + ' · +' + sel * 15 + '% SHARDS';
+    $('pk-asc-desc').textContent = sel === 0 ? 'Normal tower. Up to Ascension ' + un + ' unlocked.' : ASCENSION.slice(0, sel).slice(-2).join(' · ') + (sel > 2 ? ' · +' + (sel - 2) + ' more' : '');
+    const done = CHALLENGES.filter((c) => S.challenges[c.id]).length;
+    $('m-ch-count').textContent = done + '/' + CHALLENGES.length;
+  },
+
+  cycleShip(dir) {
+    const S = Save.data, i = SHIPS.findIndex((x) => x.id === S.ship);
+    S.ship = SHIPS[(i + dir + SHIPS.length) % SHIPS.length].id;
+    Save.save(); sfx('select'); this.renderMenu();
+  },
+  cycleAsc(dir) {
+    const A = Save.data.asc;
+    A.selected = clamp((A.selected | 0) + dir, 0, A.unlocked | 0);
+    Save.save(); sfx('select'); this.renderMenu();
+  },
+
+  toast(title, sub) {
+    const el = $('toast');
+    el.querySelector('.t-title').textContent = title;
+    el.querySelector('.t-sub').textContent = sub || '';
+    el.classList.add('show');
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => el.classList.remove('show'), 3200);
+  },
+
+  renderChallenges() {
+    const S = Save.data;
+    const done = CHALLENGES.filter((c) => S.challenges[c.id]).length;
+    $('ch-progress').textContent = done + '/' + CHALLENGES.length;
+    $('ch-list').innerHTML = CHALLENGES.map((c) => {
+      const ok = !!S.challenges[c.id];
+      const rw = c.reward.ship ? 'Ship: ' + SHIP[c.reward.ship].name : '+' + c.reward.shards + ' shards';
+      return `<div class="meta-item ${ok ? 'done maxed' : ''}"><div><div class="mi-name">${c.name}</div><div class="mi-desc">${c.desc}</div><div class="ch-reward">${rw}</div></div>${ok ? '<button class="buy max" disabled>DONE</button>' : ''}</div>`;
+    }).join('');
+  },
+
+  buyShip(id) {
+    const S = Save.data, sh = SHIP[id];
+    if (!sh || S.ships.includes(id) || S.shards < sh.cost) return;
+    S.shards -= sh.cost; S.ships.push(id); S.ship = id;
+    Save.save(); sfx('buy'); this.renderMeta();
+    if (SHIPS.every((x) => S.ships.includes(x.id)) && !S.challenges.ships) { S.challenges.ships = Date.now(); S.shards += 300; Save.save(); this.toast('CHALLENGE · HANGAR FULL', '+300 shards'); this.renderMeta(); }
   },
 
   canAffordAny() { return META.some((m) => { const l = Save.metaLvl(m.id); return l < m.max && Save.data.shards >= m.cost[l]; }); },
@@ -258,6 +315,7 @@ const UI = {
     this.showHud(false);
     $('d-record').classList.toggle('hidden', !r.record);
     $('d-title').textContent = r.abandon ? 'RUN ENDED' : 'RUN OVER';
+    $('d-title').textContent += r.asc ? ' · ASC ' + r.asc : '';
     $('d-sub').textContent = r.record ? (r.prevBest > 0 ? 'Previous best: floor ' + r.prevBest : 'Your first record. Now beat it.') : 'Best: floor ' + Save.data.best.floor;
     $('d-floor').textContent = r.floor;
     $('d-kills').textContent = r.kills;
@@ -307,6 +365,10 @@ const UI = {
         ? `<button class="buy max" disabled>${m.unlock ? 'UNLOCKED' : 'MAX'}</button>`
         : `<button class="buy" data-id="${m.id}" ${S.shards < cost ? 'disabled' : ''}><span class="shard-ico"></span>${cost}</button>`;
       return `<div class="meta-item ${maxed ? 'maxed' : ''}"><div><div class="mi-name">${m.name}</div><div class="mi-desc">${m.desc}</div>${pips}</div>${btn}</div>`;
+    }).join('') + '<div class="meta-sec">HANGAR</div>' + SHIPS.filter((x) => x.cost > 0).map((sh) => {
+      const owned = S.ships.includes(sh.id);
+      const btn = owned ? '<button class="buy max" disabled>OWNED</button>' : `<button class="buy" data-ship="${sh.id}" ${S.shards < sh.cost ? 'disabled' : ''}><span class="shard-ico"></span>${sh.cost}</button>`;
+      return `<div class="meta-item ${owned ? 'maxed' : ''}"><div><div class="mi-name" style="color:${sh.color}">${sh.name}</div><div class="mi-desc">${sh.desc}</div></div>${btn}</div>`;
     }).join('');
   },
 
@@ -338,6 +400,7 @@ const UI = {
         <div><span class="k">Total kills</span><span class="v">${S.totals.kills}</span></div>
         <div><span class="k">Time played</span><span class="v">${fmtTime(S.totals.time)}</span></div>
       </div>
+      ${(S.asc.unlocked | 0) > 0 ? '<div class="hist-title">BEST FLOOR PER ASCENSION</div><div class="rec-grid">' + Array.from({ length: (S.asc.unlocked | 0) + 1 }, (_, i) => `<div><span class="k">${i ? 'Ascension ' + i : 'Normal'}</span><span class="v">${S.asc.best[i] | 0}</span></div>`).join('') + '</div>' : ''}
       <div class="hist-title">RECENT RUNS</div>
       <div class="hist">${rows}</div>`;
   },

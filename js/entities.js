@@ -23,6 +23,8 @@ function computeStats() {
     vamp: 0, aegis: 0, regen: 0, back: 0, knock: 1,
   };
   const run = G.run;
+  (SHIP[run.ship] || SHIP.striker).mod(s);
+  if (ascMod(8)) s.maxHp -= 1;
   for (const id in run.upgrades) UPG[id].mod(s, run.upgrades[id]);
   s.dmg = s.baseDmg * s.dmgMul;
   s.rof = s.baseRof * Math.max(0.4, s.rofMul);
@@ -281,6 +283,7 @@ function updatePlayerBullets(dt) {
       const rr = e.r + b.r;
       if (segPointDist2(e.x, e.y, b.px, b.py, b.x, b.y) > rr * rr) continue; // swept: no tunnelling
       if (b.hits.length && b.hits.indexOf(e.id) !== -1) continue;
+      if (shieldBlocks(e, b)) { gone = true; break; }
       bulletHit(e, b);
       if (b.pierce > 0) { b.pierce--; b.hits.push(e.id); }
       else { gone = true; }
@@ -352,6 +355,7 @@ function updateBlades(dt) {
 function fireEB(x, y, ang, speed, o) {
   if (G.eb.length > 260) return null;
   const b = ebPool.pop() || {};
+  if (ascMod(2)) speed *= 1.12;
   b.x = x; b.y = y; b.vx = Math.cos(ang) * speed; b.vy = Math.sin(ang) * speed;
   b.r = (o && o.r) || 5; b.color = (o && o.color) || COL.eBullet;
   b.life = (o && o.life) || 7; b.hp = (o && o.hp) || 0;
@@ -567,7 +571,179 @@ const AI = {
     }
   },
   fake(e, dt, sm) { mirrorCopyAI(e, dt, sm); },
+
+  // Leaper: crouches, jumps onto where you stood (red circle), small shockwave on landing.
+  leaper(e, dt, sm) {
+    const p = G.player;
+    e.st += dt;
+    if (e.state === 'move') {
+      const tg = chaseTarget(e, dt);
+      steer(e, tg.x, tg.y, e.speed * sm, dt, 4);
+      e.atk -= dt * G.scale.fire;
+      if (e.atk <= 0 && dist2(e.x, e.y, p.x, p.y) < 270 * 270 && hasLOS(e.x, e.y, p.x, p.y)) {
+        e.state = 'crouch'; e.st = 0; e.sx = e.x; e.sy = e.y;
+        const spot = spotFree(p.x, p.y, e.r) ? p : e;
+        e.tx = spot.x; e.ty = spot.y;
+      }
+    } else if (e.state === 'crouch') {
+      brake(e, dt, 12);
+      e.charge = e.st / 0.45;
+      if (e.st >= 0.45) { e.state = 'air'; e.st = 0; e.air = true; e.untarget = true; e.sx = e.x; e.sy = e.y; e.charge = 0; sfx('jump'); }
+    } else if (e.state === 'air') {
+      const T0 = e.elite ? 0.5 : 0.6, k = Math.min(1, e.st / T0);
+      e.vx = e.vy = 0;
+      e.x = lerp(e.sx, e.tx, k); e.y = lerp(e.sy, e.ty, k);
+      e.airK = k;
+      if (k >= 1) {
+        e.air = false; e.untarget = false; e.airK = 0; e.state = 'recover'; e.st = 0;
+        const R = 40 + PLAYER_HITBOX;
+        if (dist2(e.x, e.y, p.x, p.y) < R * R) hurtPlayer(e.x, e.y);
+        ring(e.x, e.y, 6, 44, 0.25, e.color, 3); addShake(0.1); sfx('slam');
+        if (G.run.floor >= 12 || e.elite) { const n = e.elite ? 8 : 6, off = Math.random() * TAU; for (let i = 0; i < n; i++) fireEB(e.x, e.y, off + (i * TAU) / n, 105); }
+      }
+    } else if (e.state === 'recover') {
+      brake(e, dt, 8);
+      if (e.st > 0.6) { e.state = 'move'; e.st = 0; e.atk = rand(2.2, 3.0); }
+    }
+  },
+
+  // Sniper: keeps its distance, paints a laser line, then fires one very fast shot along it.
+  sniper(e, dt, sm) {
+    const p = G.player;
+    const d = Math.sqrt(dist2(e.x, e.y, p.x, p.y));
+    e.losT = (e.losT || 0) - dt;
+    if (e.losT <= 0) { e.losT = 0.25; e.seen = hasLOS(e.x, e.y, p.x, p.y); }
+    if (e.state === 'aim') {
+      brake(e, dt, 10);
+      e.st += dt;
+      if (e.st < 0.75) e.ang = Math.atan2(p.y - e.y, p.x - e.x);
+      e.charge = Math.min(1, e.st / 1.0);
+      if (e.st >= 1.0) {
+        e.state = 'move'; e.st = 0; e.charge = 0; e.atk = rand(2.8, 3.4);
+        fireEB(e.x, e.y, e.ang, 430, { r: 4, color: '#dfe3ff' });
+        if (e.elite) { fireEB(e.x, e.y, e.ang + 0.12, 430, { r: 4, color: '#dfe3ff' }); fireEB(e.x, e.y, e.ang - 0.12, 430, { r: 4, color: '#dfe3ff' }); }
+        sfx('laser');
+      }
+      return;
+    }
+    const tg = chaseTarget(e, dt);
+    if (!e.seen || d > 330) steer(e, tg.x, tg.y, e.speed * sm, dt, 4);
+    else if (d < 210) steer(e, e.x - (p.x - e.x), e.y - (p.y - e.y), e.speed * sm, dt, 4);
+    else brake(e, dt, 4);
+    e.atk -= dt * G.scale.fire;
+    if (e.atk <= 0 && e.seen) { e.state = 'aim'; e.st = 0; }
+  },
+
+  // Shielder: a frontal shield (turning slowly) blocks bullets. Rhythm: it closes in, winds up and
+  // bashes forward, then staggers with the shield DOWN for a moment — that is your window (or flank it).
+  shielder(e, dt, sm) {
+    const p = G.player;
+    const want = Math.atan2(p.y - e.y, p.x - e.x);
+    if (e.face === undefined) e.face = want;
+    e.shieldFlash = Math.max(0, (e.shieldFlash || 0) - dt);
+    e.st += dt;
+    if (e.state === 'move') {
+      e.face += clamp(angleDiff(e.face, want), -1.1 * dt, 1.1 * dt);
+      const tg = chaseTarget(e, dt);
+      steer(e, tg.x, tg.y, e.speed * sm * (e.elite ? 1.2 : 1), dt, 3);
+      if ((dist2(e.x, e.y, p.x, p.y) < 95 * 95 && e.st > 1.2) || e.st > 5) { e.state = 'windup'; e.st = 0; }
+    } else if (e.state === 'windup') {
+      brake(e, dt, 10);
+      e.face += clamp(angleDiff(e.face, want), -2 * dt, 2 * dt);
+      e.charge = e.st / 0.45;
+      if (e.st >= 0.45) { e.state = 'bash'; e.st = 0; e.charge = 0; sfx('dash'); }
+    } else if (e.state === 'bash') {
+      const sp = 330 * G.scale.spd;
+      e.vx = Math.cos(e.face) * sp; e.vy = Math.sin(e.face) * sp;
+      if (e.st > 0.32 || e.wallHit) { e.state = 'stagger'; e.st = 0; addShake(0.06); }
+    } else if (e.state === 'stagger') {
+      brake(e, dt, 8);
+      if (e.st > (e.elite ? 0.9 : 1.2)) { e.state = 'move'; e.st = 0; }
+    }
+  },
+
+  // Brood: hangs back and hatches mites.
+  brood(e, dt, sm) {
+    const p = G.player;
+    const d = Math.sqrt(dist2(e.x, e.y, p.x, p.y));
+    const tg = chaseTarget(e, dt);
+    if (d < 180) steer(e, e.x - (p.x - e.x), e.y - (p.y - e.y), e.speed * sm, dt, 3);
+    else if (d > 300 || e.wpOk === false) steer(e, tg.x, tg.y, e.speed * sm, dt, 3);
+    else brake(e, dt, 3);
+    e.atk -= dt * G.scale.fire;
+    e.charge = e.atk < 0.6 ? 1 - e.atk / 0.6 : 0;
+    if (e.atk <= 0) {
+      e.atk = rand(3.2, 3.8);
+      let mine = 0;
+      for (const o of G.enemies) if (!o.dead && o.parentId === e.id) mine++;
+      const n = Math.min(e.elite ? 3 : 2, 5 - mine);
+      for (let k = 0; k < n; k++) {
+        const a = Math.random() * TAU;
+        const m = spawnEnemy('mite', e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, false);
+        m.parentId = e.id; m.roomId = e.roomId; m.home = e.home; m.spawnIn = 0.2;
+        m.kx = Math.cos(a) * 120; m.ky = Math.sin(a) * 120;
+      }
+      if (n > 0) { burst(e.x, e.y, e.color, 8, 90, 0.35, 2); sfx('spawn'); }
+    }
+  },
+  mite(e, dt, sm) {
+    const tg = chaseTarget(e, dt);
+    e.wob += dt * 9;
+    steer(e, tg.x + Math.cos(e.wob) * 14, tg.y + Math.sin(e.wob) * 14, e.speed * sm, dt, 7);
+  },
+
+  // Mortar: lobs shells that land on your position after a visible countdown circle.
+  mortar(e, dt, sm) {
+    const p = G.player;
+    const d = Math.sqrt(dist2(e.x, e.y, p.x, p.y));
+    const tg = chaseTarget(e, dt);
+    if (d < 150) steer(e, e.x - (p.x - e.x), e.y - (p.y - e.y), e.speed * sm, dt, 3);
+    else if (d > 340) steer(e, tg.x, tg.y, e.speed * sm, dt, 3);
+    else brake(e, dt, 4);
+    e.ang = Math.atan2(p.y - e.y, p.x - e.x);
+    e.atk -= dt * G.scale.fire;
+    e.charge = e.atk < 0.5 ? 1 - e.atk / 0.5 : 0;
+    if (e.atk <= 0) {
+      e.atk = rand(2.8, 3.4);
+      const n = e.elite ? 3 : 1;
+      for (let k = 0; k < n; k++) {
+        const ox = k ? rand(-50, 50) : 0, oy = k ? rand(-50, 50) : 0;
+        G.shells.push({ x0: e.x, y0: e.y, tx: p.x + ox, ty: p.y + oy, t: 0, dur: 1.15, r: 40 });
+      }
+      sfx('eshoot');
+    }
+  },
 };
+
+// Mortar shells: parabolic lob with a landing circle; explode on the ground.
+function updateShells(dt) {
+  const p = G.player;
+  for (let i = G.shells.length - 1; i >= 0; i--) {
+    const sh = G.shells[i];
+    sh.t += dt;
+    if (sh.t < sh.dur) continue;
+    G.shells.splice(i, 1);
+    ring(sh.tx, sh.ty, 6, sh.r, 0.3, '#ffb070', 3);
+    burst(sh.tx, sh.ty, '#ffb070', 12, 160, 0.4, 3);
+    addShake(0.12); sfx('explode');
+    const R = sh.r + PLAYER_HITBOX;
+    if (p.alive && dist2(sh.tx, sh.ty, p.x, p.y) < R * R) hurtPlayer(sh.tx, sh.ty);
+  }
+}
+
+// Shielder: bullets arriving within ±60° of its facing are blocked.
+function shieldBlocks(e, b) {
+  if (e.type !== 'shielder' || e.state === 'stagger' || e.state === 'bash') return false;
+  const p = G.player;
+  if (dist2(p.x, p.y, e.x, e.y) < (e.r + 16) * (e.r + 16)) return false; // shooting from point blank goes round the shield
+  const from = Math.atan2(b.py - e.y, b.px - e.x);
+  if (Math.abs(angleDiff(e.face || 0, from)) > (e.elite ? 1.2 : 1.05)) return false;
+  e.shieldFlash = 0.12;
+  sparks(b.x, b.y, from, 1.2, '#e8ecff', 3, 120);
+  sfx('shield');
+  return true;
+}
+
 
 function updateEnemies(dt) {
   const p = G.player;
@@ -671,7 +847,7 @@ function killEnemy(e, silent) {
   if (!e.noDrop) {
     if (e.elite) dropPickup(e.x, e.y, 'shard', 5);
     else if (Math.random() < 0.55) dropPickup(e.x, e.y, 'shard', 1);
-    if (Math.random() < 0.025 + s.vamp + (e.elite ? 0.2 : 0)) dropPickup(e.x, e.y, 'heart', 1);
+    if (Math.random() < (0.025 + s.vamp + (e.elite ? 0.2 : 0)) * (ascMod(4) ? 0.5 : 1)) dropPickup(e.x, e.y, 'heart', 1);
   }
   if (e.type === 'blob') {
     const n = e.elite ? 3 : 2;

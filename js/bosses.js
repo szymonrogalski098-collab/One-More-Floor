@@ -10,10 +10,10 @@ function spawnBoss(floor) {
   const kind = BOSS_ORDER[(Math.floor(floor / 5) - 1) % BOSS_ORDER.length];
   const cyc = Math.floor((floor - 5) / 15);
   const def = BOSSES[kind];
-  const hp = def.hp * G.scale.hp * (floor === 5 ? 0.75 : 0.88) * (1 + cyc * 0.2);
+  const hp = def.hp * G.scale.hp * (floor === 5 ? 0.75 : 0.88) * (1 + cyc * 0.2) * (ascMod(5) ? 1.25 : 1);
   const b = {
     id: G.nextId++, t: 0, type: 'boss', kind, name: def.name + (cyc > 0 ? ' ' + roman(cyc + 1) : ''),
-    x: arenaCenter().x, y: arenaCenter().y - (G.circle ? G.circle.R : G.H / 2) + def.r + 4, r: def.r, hp, maxHp: hp, color: def.color, hard: cyc > 0, phase2: false,
+    x: arenaCenter().x, y: arenaCenter().y - (G.circle ? G.circle.R : G.H / 2) + def.r + 4, r: def.r, hp, maxHp: hp, color: def.color, hard: cyc > 0 || ascMod(9), phase2: false,
     enter: 1.6, pat: null, pt: 0, cool: 1.2, sub: '', st: 0, step: 0, last: '', spinA: 0, spinDir: 1,
     alpha: 1, air: false, untarget: true, invuln: true, charge: 0,
     vx: 0, vy: 0, kx: 0, ky: 0, flash: 0, slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, burnAcc: 0, orbitCd: 0,
@@ -21,6 +21,7 @@ function spawnBoss(floor) {
   };
   G.enemies.push(b);
   G.boss = b;
+  G.run.hurtAtBoss = G.run.hurt;
   showBanner(b.name, def.sub, 'boss');
   UI.bossBar(b);
   sfx('roar');
@@ -420,6 +421,12 @@ function updateBeams(dt) {
 function onBossDeath(b) {
   const run = G.run;
   run.bosses++;
+  const noHit = run.hurt === run.hurtAtBoss;
+  if (b.kind === 'mirror') {
+    const S = Save.data, next = Math.min(10, (run.asc | 0) + 1);
+    if (next > (S.asc.unlocked | 0)) { S.asc.unlocked = next; Save.save(); setTimeout(() => UI.toast('ASCENSION ' + next + ' UNLOCKED', 'Pick it in the menu for more shards'), 1800); }
+  }
+  checkChallenges('boss', { kind: b.kind, noHit });
   G.boss = null;
   slowmo(1.4, 0.25);
   hitstop(0.2);

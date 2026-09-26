@@ -48,6 +48,8 @@
 
   <div id="stair-info" class="stair-info hidden"><div class="si-title"></div><canvas id="si-map" class="si-map"></canvas><div class="si-sub"></div><div class="si-hint"></div></div>
 
+  <div id="toast" class="toast"><div class="t-title"></div><div class="t-sub"></div></div>
+
   <div id="banner" class="banner"><div class="b-title"></div><div class="b-sub"></div></div>
 
   <!-- MENU -->
@@ -63,12 +65,25 @@
         <div><span class="k">Shards</span><span id="m-shards" class="v shard-v">0</span></div>
         <div><span class="k">Runs</span><span id="m-runs" class="v">0</span></div>
       </div>
+      <div class="pickers">
+        <div class="picker" id="pick-ship">
+          <button class="pk-arrow" data-action="ship-prev" aria-label="Previous ship">‹</button>
+          <div class="pk-body"><div class="pk-k">SHIP</div><div class="pk-v" id="pk-ship-name">Striker</div><div class="pk-d" id="pk-ship-desc"></div></div>
+          <button class="pk-arrow" data-action="ship-next" aria-label="Next ship">›</button>
+        </div>
+        <div class="picker hidden" id="pick-asc">
+          <button class="pk-arrow" data-action="asc-prev" aria-label="Lower ascension">‹</button>
+          <div class="pk-body"><div class="pk-k">ASCENSION</div><div class="pk-v" id="pk-asc-name">0</div><div class="pk-d" id="pk-asc-desc"></div></div>
+          <button class="pk-arrow" data-action="asc-next" aria-label="Higher ascension">›</button>
+        </div>
+      </div>
       <button id="btn-continue" class="btn btn-secondary hidden" data-action="continue">CONTINUE</button>
       <button class="btn btn-primary" data-action="play">PLAY</button>
       <div class="row">
         <button class="btn btn-ghost" data-action="meta">Workshop<span id="m-meta-dot" class="dot hidden"></span></button>
-        <button class="btn btn-ghost" data-action="records">Records</button>
+        <button class="btn btn-ghost" data-action="challenges">Challenges<span id="m-ch-count" class="count"></span></button>
       </div>
+      <button class="btn btn-ghost small" data-action="records">Records</button>
       <button class="btn btn-ghost small" data-action="settings">Settings</button>
       <p class="hint">Drag anywhere to move · auto-fire · DASH to dodge</p>
       <p id="install-hint" class="hint small-hint hidden"></p>
@@ -148,6 +163,19 @@
         <div></div>
       </div>
       <div id="rec-body" class="scroll"></div>
+    </div>
+  </section>
+
+  <!-- CHALLENGES -->
+  <section id="s-challenges" class="screen">
+    <div class="panel-wrap tall">
+      <div class="head-row">
+        <button class="icon-btn back" data-action="back" aria-label="Back">‹</button>
+        <h2>CHALLENGES</h2>
+        <div id="ch-progress" class="shard-count"></div>
+      </div>
+      <div class="sub-h">Goals that unlock ships and shards.</div>
+      <div id="ch-list" class="meta-list scroll"></div>
     </div>
   </section>
 

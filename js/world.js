@@ -403,7 +403,7 @@ function decorateRoom(rm, floor) {
 }
 
 function placeTraps(rm, floor, reserve) {
-  if (floor < 3 || Math.random() < 0.55) return;
+  if (ascMod(7) ? Math.random() < 0.15 : (floor < 3 || Math.random() < 0.55)) return;
   const n = randInt(2, floor >= 10 ? 5 : 3);
   for (let k = 0, tries = 0; k < n && tries < 40; tries++) {
     const tx = rm.tx + randInt(1, rm.tw - 3), ty = rm.ty + randInt(1, rm.th - 3);

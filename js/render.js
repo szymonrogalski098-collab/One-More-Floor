@@ -203,6 +203,7 @@ const Render = {
     this.drawShrine(ctx);
     this.drawMarkers(ctx);
     this.drawTelegraphs(ctx);
+    this.drawShells(ctx);
     this.drawPickups(ctx);
     this.drawEnemies(ctx);
     this.drawPlayer(ctx);
@@ -488,6 +489,17 @@ const Render = {
         ctx.beginPath(); ctx.arc(e.x, e.y, R * Math.min(1, e.charge * 1.1), 0, TAU); ctx.fill();
         ctx.globalAlpha = 0.8; ctx.strokeStyle = '#ff4f3d'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(e.x, e.y, R, 0, TAU); ctx.stroke();
+      } else if (e.type === 'leaper' && (e.state === 'crouch' || e.state === 'air')) {
+        const k = e.state === 'air' ? e.airK || 0 : 0;
+        ctx.globalAlpha = 0.15 + 0.3 * k; ctx.fillStyle = '#ff4f3d';
+        ctx.beginPath(); ctx.arc(e.tx, e.ty, 40 * Math.max(0.15, k), 0, TAU); ctx.fill();
+        ctx.globalAlpha = 0.85; ctx.strokeStyle = '#ff4f3d'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(e.tx, e.ty, 40, 0, TAU); ctx.stroke();
+      } else if (e.type === 'sniper' && e.state === 'aim') {
+        let len = 0; const ca = Math.cos(e.ang), sa = Math.sin(e.ang);
+        while (len < 650 && !solidAt(e.x + ca * len, e.y + sa * len)) len += 10;
+        ctx.globalAlpha = 0.25 + 0.6 * e.charge; ctx.strokeStyle = e.st > 0.75 ? '#ffffff' : '#ff4f6b'; ctx.lineWidth = 1 + e.charge * 2;
+        ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + ca * len, e.y + sa * len); ctx.stroke();
       } else if (e.type === 'boss' && e.kind === 'warden' && e.air) {
         const R = SLAM_R, k = e.airK || 0;
         ctx.globalAlpha = 0.18 + 0.3 * k;
@@ -498,6 +510,21 @@ const Render = {
         ctx.globalAlpha = 0.5; ctx.fillStyle = '#000';
         ctx.beginPath(); ctx.ellipse(e.tx, e.ty, e.r * (0.5 + k * 0.5), e.r * (0.3 + k * 0.3), 0, 0, TAU); ctx.fill();
       }
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  drawShells(ctx) {
+    for (const sh of G.shells) {
+      const k = sh.t / sh.dur;
+      ctx.globalAlpha = 0.15 + 0.3 * k; ctx.fillStyle = '#ff8a3d';
+      ctx.beginPath(); ctx.arc(sh.tx, sh.ty, sh.r * k, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.8; ctx.strokeStyle = '#ff8a3d'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(sh.tx, sh.ty, sh.r, 0, TAU); ctx.stroke();
+      const x = lerp(sh.x0, sh.tx, k), y = lerp(sh.y0, sh.ty, k) - Math.sin(k * Math.PI) * 90;
+      ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(lerp(sh.x0, sh.tx, k), lerp(sh.y0, sh.ty, k), 5, 3, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1; ctx.fillStyle = '#ffd0a0'; ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#6a3a10'; ctx.lineWidth = 1.5; ctx.stroke();
     }
     ctx.globalAlpha = 1;
   },
@@ -612,6 +639,61 @@ const Render = {
           break;
         }
         case 'fake': this.mirrorShape(ctx, e, fill, false); break;
+        case 'leaper': {
+          const r = e.r, sq = e.state === 'crouch' ? 1 - Math.min(1, e.charge) * 0.25 : 1;
+          if (e.air) { const h = Math.sin((e.airK || 0) * Math.PI); ctx.scale(1 + h * 0.4, 1 + h * 0.4); }
+          ctx.scale(1 / sq, sq);
+          ctx.strokeStyle = fill; ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          for (const a of [0.7, 2.44, 3.84, 5.58]) { ctx.moveTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6); ctx.lineTo(Math.cos(a) * r * 1.35, Math.sin(a) * r * 1.35); }
+          ctx.stroke();
+          ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#0a2440'; ctx.beginPath(); ctx.arc(0, -r * 0.2, r * 0.35, 0, TAU); ctx.fill();
+          break;
+        }
+        case 'sniper': {
+          const r = e.r, a = e.state === 'aim' ? e.ang : Math.atan2(G.player.y - e.y, G.player.x - e.x);
+          ctx.rotate(a);
+          ctx.fillStyle = fill;
+          ctx.beginPath(); ctx.moveTo(r * 1.7, 0); ctx.lineTo(0, -r * 0.8); ctx.lineTo(-r, 0); ctx.lineTo(0, r * 0.8); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = e.charge > 0 ? '#ffffff' : '#1a1c40'; ctx.beginPath(); ctx.arc(r * 0.2, 0, r * 0.3, 0, TAU); ctx.fill();
+          break;
+        }
+        case 'shielder': {
+          const r = e.r;
+          ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#2a2f45'; ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, TAU); ctx.fill();
+          const w = e.elite ? 1.2 : 1.05;
+          ctx.rotate(e.face || 0);
+          const down = e.state === 'stagger' || e.state === 'bash';
+          ctx.strokeStyle = down ? 'rgba(159,216,255,0.25)' : e.shieldFlash > 0 || e.state === 'windup' ? '#ffffff' : '#9fd8ff';
+          ctx.lineWidth = down ? 2 : 5; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.arc(0, 0, r + (down ? 2 : 5), -w, w); ctx.stroke(); ctx.lineCap = 'butt';
+          if (e.state === 'stagger') { ctx.rotate(-(e.face || 0)); ctx.fillStyle = '#ffd44d'; for (let i = 0; i < 3; i++) { const a = e.t * 5 + (i * TAU) / 3; ctx.beginPath(); ctx.arc(Math.cos(a) * 7, -r - 6 + Math.sin(a) * 2, 2, 0, TAU); ctx.fill(); } }
+          break;
+        }
+        case 'brood': {
+          const r = e.r, pul = 1 + Math.sin(e.t * 4) * 0.06 + (e.charge || 0) * 0.12;
+          ctx.scale(pul, pul);
+          ctx.fillStyle = fill; ctx.beginPath();
+          for (let i = 0; i < 10; i++) { const a = (i * TAU) / 10, rr = r * (i % 2 ? 0.85 : 1.05); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#26400a';
+          for (let i = 0; i < 4; i++) { const a = e.t + (i * TAU) / 4; ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45, r * 0.18, 0, TAU); ctx.fill(); }
+          break;
+        }
+        case 'mite': {
+          const r = e.r; ctx.rotate(Math.atan2(e.vy, e.vx));
+          ctx.fillStyle = fill; ctx.beginPath(); ctx.moveTo(r * 1.4, 0); ctx.lineTo(-r, -r); ctx.lineTo(-r, r); ctx.closePath(); ctx.fill();
+          break;
+        }
+        case 'mortar': {
+          const r = e.r;
+          ctx.fillStyle = fill; ctx.fillRect(-r, -r * 0.8, r * 2, r * 1.6);
+          ctx.rotate(e.ang || 0);
+          ctx.fillStyle = e.charge > 0 ? '#ffe0b0' : '#5a3a18'; ctx.fillRect(0, -r * 0.3, r * 1.4, r * 0.6);
+          break;
+        }
         case 'boss': this.drawBoss(ctx, e, fill); break;
       }
       ctx.restore();
@@ -714,8 +796,16 @@ const Render = {
     const a = t - (p.lastShot || -9) < 0.35 ? p.aim : p.face;
     ctx.save();
     ctx.translate(p.x, p.y); ctx.rotate(a);
+    const ship = G.run ? G.run.ship : 'striker';
     ctx.fillStyle = p.dashT > 0 ? '#ffffff' : COL.player;
-    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-7, -8); ctx.lineTo(-3, 0); ctx.lineTo(-7, 8); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    if (ship === 'lancer') { ctx.moveTo(15, 0); ctx.lineTo(-6, -5); ctx.lineTo(-2, 0); ctx.lineTo(-6, 5); }
+    else if (ship === 'scatter') { ctx.moveTo(10, 0); ctx.lineTo(-6, -11); ctx.lineTo(-2, 0); ctx.lineTo(-6, 11); }
+    else if (ship === 'phantom') { ctx.moveTo(12, 0); ctx.lineTo(-9, -9); ctx.lineTo(-4, -2); ctx.lineTo(-4, 2); ctx.lineTo(-9, 9); }
+    else if (ship === 'bulwark') { ctx.moveTo(11, 0); ctx.lineTo(3, -9); ctx.lineTo(-7, -8); ctx.lineTo(-7, 8); ctx.lineTo(3, 9); }
+    else { ctx.moveTo(12, 0); ctx.lineTo(-7, -8); ctx.lineTo(-3, 0); ctx.lineTo(-7, 8); }
+    ctx.closePath(); ctx.fill();
+    if (ship !== 'striker' && SHIP[ship]) { ctx.strokeStyle = SHIP[ship].color; ctx.lineWidth = 1.6; ctx.stroke(); }
     ctx.fillStyle = COL.playerCore;
     ctx.beginPath(); ctx.arc(1, 0, 2.6, 0, TAU); ctx.fill();
     ctx.restore();

@@ -104,6 +104,32 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .dash-pips i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .dash-pips i.off { background: rgba(255, 255, 255, 0.18); }
 
+/* ---------- Menu pickers ---------- */
+.pickers { display: flex; flex-direction: column; gap: 8px; }
+.picker { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 14px; min-height: 64px; }
+.pk-arrow { height: 100%; min-height: 60px; font-size: 30px; color: var(--accent); }
+.pk-arrow:active { background: rgba(255, 255, 255, 0.08); }
+.pk-body { text-align: center; padding: 6px 2px; }
+.pk-k { font-size: 10px; letter-spacing: 0.16em; color: var(--muted); font-weight: 800; }
+.pk-v { font-size: 17px; font-weight: 900; letter-spacing: 0.06em; }
+.pk-d { font-size: 11px; color: #cfc9f5; line-height: 1.3; margin-top: 2px; }
+.pk-v.locked { color: var(--muted); }
+.count { margin-left: 6px; font-size: 11px; color: var(--gold); }
+.meta-sec { font-size: 11px; letter-spacing: 0.16em; color: var(--muted); font-weight: 800; margin: 8px 2px 0; }
+.meta-item.done { border-color: rgba(141, 255, 106, 0.45); }
+.ch-reward { font-size: 12px; color: var(--gold); margin-top: 4px; font-weight: 700; }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed; left: 50%; top: calc(var(--safe-t) + 70px); transform: translate(-50%, -20px); z-index: 12;
+  min-width: 240px; max-width: 90vw; padding: 10px 16px; border-radius: 14px; text-align: center; pointer-events: none;
+  background: rgba(12, 10, 28, 0.95); border: 1.5px solid var(--gold); box-shadow: 0 0 22px rgba(255, 212, 77, 0.35);
+  opacity: 0; transition: opacity 0.25s, transform 0.25s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.t-title { font-weight: 900; letter-spacing: 0.12em; font-size: 13px; color: var(--gold); }
+.t-sub { font-size: 12px; color: #e8e3ff; margin-top: 2px; }
+
 /* ---------- Stairs preview ---------- */
 .stair-info {
   position: fixed; left: 50%; bottom: calc(var(--safe-b) + 110px); transform: translateX(-50%); z-index: 7;
@@ -142,7 +168,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .screen.active { display: flex; animation: fadein 0.18s ease-out; }
 .screen.overlay { background: rgba(7, 6, 15, 0.72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
 /* full screens opened over a run (Workshop, Records, Settings) get a solid backdrop */
-#s-meta, #s-records, #s-settings { background: var(--bg-2); }
+#s-meta, #s-records, #s-settings, #s-challenges { background: var(--bg-2); }
 .screen.locked button { pointer-events: none; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
@@ -325,6 +351,13 @@ h2 { text-align: center; font-weight: 900; letter-spacing: 0.16em; font-size: 22
 }
 @media (max-height: 700px) and (orientation: portrait) {
   .dash { width: 72px; height: 72px; bottom: calc(var(--safe-b) + 14px); opacity: 0.9; }
+}
+@media (max-height: 740px) and (orientation: portrait) {
+  .logo-bot { font-size: 52px; }
+  .tagline { display: none; }
+  .pk-d { display: none; }
+  .picker { min-height: 50px; }
+  .pk-arrow { min-height: 48px; }
 }
 @media (max-height: 640px) and (orientation: portrait) {
   .card { min-height: 80px; padding: 10px; }

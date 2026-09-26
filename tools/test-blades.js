@@ -12,12 +12,12 @@ const { chromium, devices } = require('playwright');
     out.lockedOverdriveOffered = offered('overdrive');
     out.spinWithoutHaloOffered = offered('spin');
     OMF.Save.data.meta.u_halo = 1;
-    out.overdriveOfferedAfterBlueprint = offered('overdrive');
-    OMF.addUpgrade('overdrive', true);
-    out.bladesFromOverdrive = OMF.G.stats.orbit;
-    out.spdAfterOverdrive = OMF.G.stats.orbitSpd;
+    out.overdriveWithoutHalo = offered('overdrive');
     OMF.addUpgrade('halo', true);
+    out.overdriveWithHalo = offered('overdrive');
+    OMF.addUpgrade('overdrive', true);
     out.bladesWithHalo = OMF.G.stats.orbit;
+    out.spdAfterOverdrive = OMF.G.stats.orbitSpd;
     out.spinOfferedWithHalo = offered('spin');
     for (let k = 0; k < 2; k++) OMF.addUpgrade('spin', true);
     out.spdFinal = +OMF.G.stats.orbitSpd.toFixed(2);
@@ -28,8 +28,8 @@ const { chromium, devices } = require('playwright');
     return out;
   });
   console.log(JSON.stringify(r, null, 1));
-  const ok = !r.lockedOverdriveOffered && !r.spinWithoutHaloOffered && r.overdriveOfferedAfterBlueprint && r.bladesFromOverdrive === 1
-    && r.bladesWithHalo === 2 && r.spinOfferedWithHalo && r.spdFinal === 1.2 && Math.abs(r.radPerSec - 3.6 * 1.2) < 0.05;
+  const ok = !r.lockedOverdriveOffered && !r.spinWithoutHaloOffered && !r.overdriveWithoutHalo && r.overdriveWithHalo
+    && r.bladesWithHalo === 1 && r.spinOfferedWithHalo && r.spdFinal === 1.2 && Math.abs(r.radPerSec - 3.6 * 1.2) < 0.05;
   console.log(ok ? 'PASS' : 'FAIL');
   await b.close(); process.exit(ok ? 0 : 1);
 })();

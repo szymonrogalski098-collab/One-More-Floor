@@ -21,11 +21,13 @@ const { chromium, devices } = require('playwright');
       check(rare + ' locked without blueprint', !offered(rare));
       check(boost + ' hidden without ' + epic, !offered(boost, 'normal'));
       fresh({ [bp]: 1 });
-      check(rare + ' offered with blueprint', offered(rare));
-      OMF.addUpgrade(rare, true);
+      check(rare + ' hidden until you own ' + epic, !offered(rare));
+      OMF.addUpgrade(epic, true);
+      check(rare + ' offered once you own ' + epic, offered(rare));
+      check(boost + ' offered once you own ' + epic, offered(boost, 'normal'));
       const statOf = { volatile: 'volatile', nova: 'nova', seeker: 'homing', adren: 'adren', halo: 'orbit' }[epic];
-      check(rare + ' grants ' + epic, G.stats[statOf] === 1, G.stats[statOf]);
-      check(boost + ' offered after ' + rare, offered(boost, 'normal'));
+      OMF.addUpgrade(rare, true);
+      check(rare + ' does not add another ' + epic, G.stats[statOf] === 1, G.stats[statOf]);
     }
     for (const [boost, base] of [['conduct', 'arc'], ['kindling', 'ember'], ['deepfreeze', 'cryo'], ['recharge', 'aegis']]) {
       fresh({});
@@ -38,15 +40,15 @@ const { chromium, devices } = require('playwright');
     fresh({ u_nova: 1 }); OMF.addUpgrade('nova', true); OMF.addUpgrade('novashard', true); OMF.addUpgrade('capacitor', true);
     G.pb.length = 0; G.player.x = G.spawn.x; G.player.y = G.spawn.y; G.player.dashDx = 1; G.player.dashDy = 0;
     endDash(); // ring fires at the end of a dash
-    // nova stacks: epic 1 + capacitor grant 1 = 2 -> 16 bullets, +2 shards
-    check('nova ring bullet count', G.pb.length === 18, G.pb.length);
+    // nova 1 stack -> 10 bullets, +2 from Nova Shards
+    check('nova ring bullet count', G.pb.length === 12, G.pb.length);
     check('nova damage bonus', Math.abs(G.pb[0].dmg - G.stats.dmg * 0.7 * 1.15) < 1e-6, G.pb[0].dmg);
 
     fresh({}); OMF.addUpgrade('aegis', true); const cd0 = G.stats.aegisCd; OMF.addUpgrade('recharge', true);
     check('Quick Recharge shortens aegis', Math.abs(cd0 - G.stats.aegisCd - 1.5) < 1e-6, [cd0, G.stats.aegisCd]);
     fresh({}); OMF.addUpgrade('ember', true); OMF.addUpgrade('kindling', true);
     check('Kindling stats', Math.abs(G.stats.burnD - 1.1) < 1e-9 && G.stats.burnDur === 0.5);
-    fresh({ u_adren: 1 }); OMF.addUpgrade('reflex', true);
+    fresh({ u_adren: 1 }); OMF.addUpgrade('adren', true); OMF.addUpgrade('reflex', true);
     check('Reflex Amp dodge window', Math.abs(G.stats.dodgeWin - 0.02) < 1e-9 && G.stats.adren === 1);
 
     // --- Workshop

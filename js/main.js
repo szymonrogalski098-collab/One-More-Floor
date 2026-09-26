@@ -1,7 +1,7 @@
 'use strict';
 // Boot, main loop (fixed 60 Hz simulation + variable render), app lifecycle, PWA registration.
 
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.3.0';
 const STEP = 1 / 60;
 
 const Loop = { last: 0, acc: 0, frameAvg: 1 / 60, slowFor: 0, hudT: 0, raf: 0 };
@@ -19,6 +19,7 @@ function startGame(resume) {
   UI.show(null);
   UI.showHud(true);
   const snap = resume ? Save.data.snapshot : null;
+  if (!snap && !Save.data.ships.includes(Save.data.ship)) UI.toast('SHIP LOCKED', 'Flying the Striker this run');
   newRun(snap);
   G.fade = 1; G.fadeDir = -1;
 }

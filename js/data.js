@@ -28,6 +28,12 @@ const ENEMY = {
   blob:     { name: 'Blob',       hp: 46, r: 13, speed: 42, color: '#5dff8f', cost: 2,   minFloor: 4, w: 1.3 },
   bomber:   { name: 'Fuse',       hp: 16, r: 9,  speed: 98, color: '#ffe14d', cost: 1.5, minFloor: 6, w: 1.3 },
   sentinel: { name: 'Sentinel',   hp: 64, r: 14, speed: 24, color: '#b36bff', cost: 3,   minFloor: 8, w: 0.9 },
+  leaper:   { name: 'Leaper',     hp: 30, r: 10, speed: 58, color: '#4fb8ff', cost: 1.5, minFloor: 4, w: 1.3 },
+  sniper:   { name: 'Sniper',     hp: 22, r: 9,  speed: 50, color: '#9aa0ff', cost: 2,   minFloor: 7, w: 1.0 },
+  shielder: { name: 'Shielder',   hp: 55, r: 13, speed: 40, color: '#c4cbe0', cost: 2.5, minFloor: 9, w: 1.0 },
+  brood:    { name: 'Brood',      hp: 60, r: 14, speed: 30, color: '#b8ff3d', cost: 3,   minFloor: 11, w: 0.8 },
+  mortar:   { name: 'Mortar',     hp: 42, r: 12, speed: 26, color: '#d8a058', cost: 2.5, minFloor: 12, w: 0.8 },
+  mite:     { name: 'Mite',       hp: 6,  r: 5,  speed: 115, color: '#b8ff3d', cost: 0.3, minFloor: 99, w: 0 },
   mini:     { name: 'Blobling',   hp: 13, r: 7,  speed: 90, color: '#5dff8f', cost: 0.5, minFloor: 99, w: 0 },
   fake:     { name: 'Reflection', hp: 40, r: 24, speed: 60, color: COL.mirror, cost: 0, minFloor: 99, w: 0 },
 };
@@ -94,8 +100,8 @@ const UPGRADES = [
     mod: (s, n) => { s.vamp += 0.05 * n; } },
   { id: 'heavy',   name: 'Heavy Slugs',      icon: 'HVY', rarity: 1, tag: 'crit',    max: 2, desc: '+50% damage, bigger bullets and knockback, −15% fire rate.',
     mod: (s, n) => { s.dmgMul += 0.5 * n; s.bSize *= 1 + 0.45 * n; s.rofMul -= 0.15 * n; s.knock += 0.8 * n; } },
-  { id: 'overdrive', name: 'Overdrive Motor', icon: 'OVR', rarity: 1, tag: 'tank',   max: 3, desc: 'Blade Halo spins 10% faster. The first pick also adds a blade.', lock: true, unlockBy: 'halo',
-    mod: (s, n) => { s.orbitSpd += 0.1 * n; s.orbit += 1; } },
+  { id: 'overdrive', name: 'Overdrive Motor', icon: 'OVR', rarity: 1, tag: 'tank',   max: 3, desc: 'Blade Halo spins 10% faster.', lock: true, unlockBy: 'halo', req: 'orbit',
+    mod: (s, n) => { s.orbitSpd += 0.1 * n; } },
 
   { id: 'halo',    name: 'Blade Halo',       icon: 'ORB', rarity: 2, tag: 'tank',    max: 3, desc: '+1 blade orbiting you. Cuts enemies and destroys bullets.', lock: true,
     mod: (s, n) => { s.orbit += n; } },
@@ -109,23 +115,23 @@ const UPGRADES = [
     mod: (s, n) => { s.dmgMul += 0.7 * n; s.maxHp -= 2 * n; } },
   { id: 'seeker',  name: 'Seeker Chip',      icon: 'HOM', rarity: 2, tag: 'spray',   max: 1, desc: 'Bullets gently home in on enemies.', lock: true,
     mod: (s, n) => { s.homing += n; } },
-  // ---- support lines: a common booster (needs the effect) + a rare that also grants the effect ----
+  // ---- support lines: a common and a rare booster, both offered only once you own the effect ----
   { id: 'blast',    name: 'Blast Radius',     icon: 'RAD', rarity: 0, tag: 'element', max: 4, desc: 'Volatile explosions are 12% larger.', req: 'volatile',
     mod: (s, n) => { s.volR += 0.12 * n; } },
-  { id: 'primer',   name: 'Fuse Primer',      icon: 'PRM', rarity: 1, tag: 'element', max: 3, desc: 'Volatile explosions deal 15% more damage. The first pick also grants Volatile.', lock: true, unlockBy: 'volatile',
-    mod: (s, n) => { s.volD += 0.15 * n; s.volatile += 1; } },
+  { id: 'primer',   name: 'Fuse Primer',      icon: 'PRM', rarity: 1, tag: 'element', max: 3, desc: 'Volatile explosions deal 15% more damage.', lock: true, unlockBy: 'volatile', req: 'volatile',
+    mod: (s, n) => { s.volD += 0.15 * n; } },
   { id: 'novashard',name: 'Nova Shards',      icon: 'NSH', rarity: 0, tag: 'dash',    max: 4, desc: 'Dash Nova fires +2 bullets.', req: 'nova',
     mod: (s, n) => { s.novaExtra += 2 * n; } },
-  { id: 'capacitor',name: 'Nova Capacitor',   icon: 'CAP', rarity: 1, tag: 'dash',    max: 3, desc: 'Dash Nova bullets deal 15% more damage. The first pick also grants Dash Nova.', lock: true, unlockBy: 'nova',
-    mod: (s, n) => { s.novaD += 0.15 * n; s.nova += 1; } },
+  { id: 'capacitor',name: 'Nova Capacitor',   icon: 'CAP', rarity: 1, tag: 'dash',    max: 3, desc: 'Dash Nova bullets deal 15% more damage.', lock: true, unlockBy: 'nova', req: 'nova',
+    mod: (s, n) => { s.novaD += 0.15 * n; } },
   { id: 'servo',    name: 'Tracking Servo',   icon: 'SRV', rarity: 0, tag: 'spray',   max: 4, desc: 'Homing bullets turn 15% harder.', req: 'homing',
     mod: (s, n) => { s.homTurn += 0.15 * n; } },
-  { id: 'lockon',   name: 'Lock-On Array',    icon: 'LCK', rarity: 1, tag: 'spray',   max: 3, desc: 'Homing reaches 20% further. The first pick also grants Seeker Chip homing.', lock: true, unlockBy: 'seeker',
-    mod: (s, n) => { s.homRange += 0.2 * n; s.homing += 1; } },
+  { id: 'lockon',   name: 'Lock-On Array',    icon: 'LCK', rarity: 1, tag: 'spray',   max: 3, desc: 'Homing reaches 20% further.', lock: true, unlockBy: 'seeker', req: 'homing',
+    mod: (s, n) => { s.homRange += 0.2 * n; } },
   { id: 'rush',     name: 'Rush',             icon: 'RSH', rarity: 0, tag: 'dash',    max: 4, desc: 'Adrenaline frenzy lasts 0.5 s longer.', req: 'adren',
     mod: (s, n) => { s.adrenDur += 0.5 * n; } },
-  { id: 'reflex',   name: 'Reflex Amp',       icon: 'RFX', rarity: 1, tag: 'dash',    max: 3, desc: 'Perfect-dodge window +25%. The first pick also grants Adrenaline.', lock: true, unlockBy: 'adren',
-    mod: (s, n) => { s.dodgeWin += 0.02 * n; s.adren += 1; } },
+  { id: 'reflex',   name: 'Reflex Amp',       icon: 'RFX', rarity: 1, tag: 'dash',    max: 3, desc: 'Perfect-dodge window +25%.', lock: true, unlockBy: 'adren', req: 'adren',
+    mod: (s, n) => { s.dodgeWin += 0.02 * n; } },
   { id: 'conduct',  name: 'Conductor',        icon: 'CND', rarity: 0, tag: 'element', max: 4, desc: 'Arc Coil lightning deals 10% more damage.', req: 'chain',
     mod: (s, n) => { s.chainD += 0.1 * n; } },
   { id: 'kindling', name: 'Kindling',         icon: 'KND', rarity: 0, tag: 'element', max: 4, desc: 'Ember burns 10% hotter and 0.5 s longer.', req: 'burn',
@@ -174,12 +180,64 @@ const BOSSES = {
 };
 const BOSS_ORDER = ['warden', 'loom', 'mirror'];
 
+// ---------- Ships (playable craft) ----------
+// mod(s): applied before run upgrades. Unlocked by a challenge or bought with shards.
+const SHIPS = [
+  { id: 'striker', name: 'Striker', color: '#4df3ff', cost: 0, desc: 'Balanced all-rounder.', mod: () => {} },
+  { id: 'lancer',  name: 'Lancer',  color: '#ffd44d', cost: 450, desc: 'Heavy piercing shots: +70% damage, +1 pierce, faster bullets, −35% fire rate.',
+    mod: (s) => { s.dmgMul += 0.7; s.rofMul -= 0.35; s.pierce += 1; s.bSpeed *= 1.3; s.bSize *= 1.2; } },
+  { id: 'scatter', name: 'Scatter', color: '#8dff6a', cost: 450, desc: 'Three-shot spread from the start, −20% range.',
+    mod: (s) => { s.proj += 2; s.range *= 0.8; } },
+  { id: 'phantom', name: 'Phantom', color: '#c38bff', cost: 550, desc: '+1 dash charge, −25% dash cooldown, +10% speed, −1 max HP.',
+    mod: (s) => { s.dashCharges += 1; s.dashCd *= 0.75; s.move *= 1.1; s.maxHp -= 1; } },
+  { id: 'bulwark', name: 'Bulwark', color: '#ff9e5e', cost: 550, desc: '+2 max HP and an Aegis shield, −10% speed.',
+    mod: (s) => { s.maxHp += 2; s.aegis += 1; s.move *= 0.9; } },
+];
+const SHIP = {};
+for (const sh of SHIPS) SHIP[sh.id] = sh;
+
+// ---------- Ascension (difficulty tiers after beating floor 15) ----------
+const ASCENSION = [
+  'Enemies have +15% HP',
+  'Enemy bullets are 12% faster',
+  'An elite joins every combat floor',
+  'Hearts drop half as often',
+  'Bosses have +25% HP',
+  'Enemies move 12% faster',
+  'Spike traps in most rooms',
+  'Start with 1 less max HP',
+  'Bosses start enraged',
+  'Enemies have another +20% HP',
+];
+function ascMod(n) { const a = (G.run && G.run.asc) | 0; return a >= n; }
+
+// ---------- Challenges ----------
+// check(ctx) is evaluated on events; reward: shards and/or a ship.
+const CHALLENGES = [
+  { id: 'f5',      name: 'First Steps',     desc: 'Reach floor 5.',                         reward: { shards: 50 } },
+  { id: 'warden',  name: 'Warden Down',     desc: 'Defeat the Tower Warden.',               reward: { shards: 60 } },
+  { id: 'loom',    name: 'Loom Breaker',    desc: 'Defeat The Loom.',                       reward: { ship: 'lancer' } },
+  { id: 'mirror',  name: 'Shattered',       desc: 'Defeat The Mirror (unlocks Ascension).', reward: { shards: 150 } },
+  { id: 'f20',     name: 'Deep Climber',    desc: 'Reach floor 20.',                        reward: { ship: 'scatter' } },
+  { id: 'f30',     name: 'Summit Seeker',   desc: 'Reach floor 30.',                        reward: { shards: 400 } },
+  { id: 'nohit',   name: 'Untouchable',     desc: 'Defeat a boss without taking damage.',   reward: { ship: 'phantom' } },
+  { id: 'build12', name: 'Full Arsenal',    desc: 'Own 12 different upgrades in one run.',  reward: { ship: 'bulwark' } },
+  { id: 'kills1k', name: 'Exterminator',    desc: 'Defeat 1000 enemies in total.',          reward: { shards: 150 } },
+  { id: 'hoard',   name: 'Hoarder',         desc: 'Collect 200 shards in one run.',         reward: { shards: 100 } },
+  { id: 'speed10', name: 'Speed Climber',   desc: 'Reach floor 10 in under 8 minutes.',     reward: { shards: 120 } },
+  { id: 'dodge25', name: 'Perfect Reflexes', desc: 'Make 25 perfect dodges in one run.',    reward: { shards: 100 } },
+  { id: 'elite20', name: 'Elite Hunter',    desc: 'Defeat 20 elites in one run.',           reward: { shards: 120 } },
+  { id: 'asc3',    name: 'Ascended',        desc: 'Defeat The Mirror on Ascension 3+.',     reward: { shards: 250 } },
+  { id: 'asc10',   name: 'Top of the Tower', desc: 'Defeat The Mirror on Ascension 10.',    reward: { shards: 1000 } },
+  { id: 'ships',   name: 'Hangar Full',     desc: 'Own every ship.',                        reward: { shards: 300 } },
+];
+
 // Difficulty curve per floor.
 function floorScale(f) {
   const k = f - 1;
   return {
-    hp: 1 + 0.17 * k + 0.011 * k * k,
-    spd: Math.min(1.35, 1 + 0.018 * k),
+    hp: (1 + 0.17 * k + 0.011 * k * k) * (ascMod(1) ? 1.15 : 1) * (ascMod(10) ? 1.2 : 1),
+    spd: Math.min(1.35, 1 + 0.018 * k) * (ascMod(6) ? 1.12 : 1),
     fire: Math.min(1.6, 1 + 0.03 * k),
     budget: Math.min(34, 5 + f * 1.5),
     maxAlive: Math.min(16, 6 + Math.floor(f * 0.6)),
