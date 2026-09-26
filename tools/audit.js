@@ -1,0 +1,122 @@
+// Automated audit: runs the game in mobile Chromium under a GitHub-Pages-like sub-path,
+// drives it with a simple bot at accelerated speed and checks invariants.
+// Usage: node tools/serve.js 8080 &  then  node tools/audit.js
+const { chromium, devices } = require('playwright');
+const SHOTS = process.env.SHOTS || '/tmp/shots';
+const URL = 'http://localhost:8080/One-More-Floor/';
+
+const BOT = `
+window.__bot = function (G) {
+  const p = G.player;
+  let mx = 0, my = 0;
+  if (G.room.phase === 'doors' && G.doors.length) {
+    const d = G.doors[0]; let tx = d.x + d.w / 2, ty = d.y;
+    const w = routeTo(p.x, p.y, p.r, tx, ty); if (w) { tx = w.x; ty = w.y; }
+    mx = tx - p.x; my = ty - p.y;
+  } else if (G.room.phase === 'rest' && G.shrine && !G.shrine.used) {
+    mx = G.shrine.x - p.x; my = G.shrine.y - p.y;
+  } else {
+    mx = (G.W / 2 - p.x) * 0.004; my = (G.H * 0.6 - p.y) * 0.004;
+    for (const e of G.enemies) { const dx = p.x - e.x, dy = p.y - e.y, d2 = dx*dx + dy*dy + 1; if (d2 < 150*150) { mx += dx / d2 * 60; my += dy / d2 * 60; } }
+    let near = null, nd = 1e9;
+    for (const e of G.enemies) { const d = (e.x-p.x)**2 + (e.y-p.y)**2; if (d < nd) { nd = d; near = e; } }
+    if (near && (nd > 190*190 || !hasLOS(p.x, p.y, near.x, near.y))) { const w = routeTo(p.x, p.y, p.r, near.x, near.y) || near; const l = Math.hypot(w.x - p.x, w.y - p.y) || 1; mx += (w.x - p.x) / l * 0.8; my += (w.y - p.y) / l * 0.8; }
+    let danger = false;
+    for (const b of G.eb) { const dx = p.x - b.x, dy = p.y - b.y, d2 = dx*dx + dy*dy + 1; if (d2 < 70*70) { mx += dx / d2 * 40; my += dy / d2 * 40; } if (d2 < 22*22) danger = true; }
+    for (const bm of G.beams) { if (bm.t > bm.warn - 0.2) { const ax = bm.bx - bm.ax, ay = bm.by - bm.ay; const n = Math.hypot(ax, ay) || 1; const cross = ((p.x - bm.ax) * ay - (p.y - bm.ay) * ax) / n; if (Math.abs(cross) < 30) { mx += -ay / n * Math.sign(cross || 1); my += ax / n * Math.sign(cross || 1); } } }
+    const bs = G.boss;
+    if (bs && bs.air) { const dx = p.x - bs.tx, dy = p.y - bs.ty, d = Math.hypot(dx, dy) || 1; if (d < 90) { mx += dx / d * 3; my += dy / d * 3; } }
+    if (danger && p.dashCharges > 0) OMF.Input.dashQueued = true;
+  }
+  const l = Math.hypot(mx, my);
+  const st = OMF.Input.stick;
+  if (l > 0.0001) { st.x = mx / l; st.y = my / l; st.mag = 1; } else { st.x = st.y = st.mag = 0; }
+};`;
+
+async function simulate(page, opts) {
+  return page.evaluate(async (o) => {
+    const G = OMF.G, res = { floors: [], errors: [], maxEnemies: 0, maxEB: 0, maxParts: 0, bossesSeen: [], stepsMs: 0, steps: 0 };
+    const t0 = performance.now();
+    let steps = 0;
+    try {
+      while (steps < o.maxSteps) {
+        if (G.state === 'reward') {
+          const cards = [...document.querySelectorAll('#up-cards .card')];
+          const id = cards.length ? cards[(Math.random() * cards.length) | 0].dataset.id : null;
+          OMF.UI.show(null); OMF.chooseUpgrade(id);
+        }
+        if (G.state === 'trans') { const cb = G.transCb; G.transCb = null; G.fadeDir = 0; G.fade = 0; cb(); res.floors.push(G.run.floor + ':' + G.room.type); }
+        if (G.state === 'dead') break;
+        if (G.state !== 'play' && G.state !== 'dying') break;
+        if (o.god && G.player.hp < 3) G.player.hp = 3;
+        if (G.boss && res.bossesSeen.indexOf(G.boss.kind + '@' + G.run.floor) === -1) res.bossesSeen.push(G.boss.kind + '@' + G.run.floor);
+        if (o.fastBoss && G.boss && G.boss.enter <= 0 && G.boss.pt > 3) G.boss.hp -= G.boss.maxHp * 0.004;
+        window.__bot(G);
+        OMF.step(1 / 60);
+        steps++;
+        res.maxEnemies = Math.max(res.maxEnemies, G.enemies.length);
+        res.maxEB = Math.max(res.maxEB, G.eb.length);
+        res.maxParts = Math.max(res.maxParts, G.parts.length);
+        if (o.untilFloor && G.run && G.run.floor >= o.untilFloor) break;
+        // invariants
+        const p = G.player;
+        if (!isFinite(p.x) || !isFinite(p.y)) throw new Error('player NaN');
+        if (p.x < 0 || p.x > G.W || p.y < 0 || p.y > G.H) throw new Error('player out of arena ' + p.x + ',' + p.y);
+        for (const e of G.enemies) if (!isFinite(e.x) || !isFinite(e.hp)) throw new Error('enemy NaN ' + e.type);
+        if (steps % 600 === 0) OMF.Render.draw();
+      }
+    } catch (e) { res.errors.push(e.message + ' ' + (e.stack || '').split('\n').slice(0, 3).join(' | ')); }
+    res.steps = steps; res.stepsMs = performance.now() - t0;
+    res.bossLeft = G.boss ? +(G.boss.hp / G.boss.maxHp).toFixed(2) : null; res.hurtBy = G.run && G.run.hurt;
+    res.final = { state: G.state, floor: G.run ? G.run.floor : null, hp: G.player && G.player.hp, kills: G.run && G.run.kills, time: G.run && G.run.time, ups: G.run && JSON.stringify(G.run.upgrades) };
+    return res;
+  }, opts);
+}
+
+(async () => {
+  const browser = await chromium.launch();
+  const report = [];
+  const log = (...a) => { console.log(...a); };
+  const ctx = await browser.newContext({ ...devices['Pixel 7'] });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  await page.goto(URL + '?debug');
+  await page.addScriptTag({ content: BOT });
+  await page.waitForTimeout(500);
+
+  // 1) Honest bot runs (no god mode) — difficulty sanity
+  for (let i = 0; i < (+process.env.RUNS || 3); i++) {
+    await page.evaluate(() => { OMF.Save.data.snapshot = null; OMF.startGame(false); });
+    const r = await simulate(page, { maxSteps: 60 * 60 * 12, god: false });
+    log('BOT RUN', i, 'bossLeft', r.bossLeft, JSON.stringify(r.final), 'floors', r.floors.join(' '), 'max', r.maxEnemies, r.maxEB, r.maxParts, 'ms/step', (r.stepsMs / r.steps).toFixed(3), r.errors);
+    await page.waitForTimeout(300);
+    const dead = await page.evaluate(() => ({ state: OMF.G.state, screen: OMF.UI.current, shards: OMF.Save.data.shards, runs: OMF.Save.data.runs, best: OMF.Save.data.best.floor, snap: OMF.Save.data.snapshot }));
+    log('  after:', JSON.stringify(dead));
+  }
+  await page.screenshot({ path: SHOTS + '/death.png' });
+
+  // 2) God-mode run through 3 boss cycles (+ II variants)
+  await page.evaluate(() => { OMF.startGame(false); });
+  const g = await simulate(page, { maxSteps: 60 * 60 * 40, god: true, fastBoss: true, untilFloor: 31 });
+  log('GOD RUN', JSON.stringify(g.final), 'bosses', g.bossesSeen.join(','), 'max', g.maxEnemies, g.maxEB, g.maxParts, g.errors);
+  log('  floors', g.floors.join(' '));
+
+  // 3) All upgrades maxed stress test on a boss floor
+  const s = await page.evaluate(() => {
+    const G = OMF.G;
+    OMF.startGame(false);
+    for (const u of UPGRADES) for (let k = 0; k < u.max; k++) OMF.addUpgrade(u.id, true);
+    OMF.enterFloor(10, 'boss');
+    return OMF.G.stats;
+  });
+  log('MAXED stats dmg', s.dmg.toFixed(1), 'rof', s.rof.toFixed(2), 'proj', s.proj, 'maxHp', s.maxHp);
+  const m = await simulate(page, { maxSteps: 60 * 40, god: true });
+  log('MAXED RUN', JSON.stringify(m.final), 'max', m.maxEnemies, m.maxEB, m.maxParts, 'ms/step', (m.stepsMs / m.steps).toFixed(3), m.errors);
+  await page.evaluate(() => OMF.Render.draw());
+  await page.screenshot({ path: SHOTS + '/maxed.png' });
+
+  log('PAGE ERRORS', errors);
+  await browser.close();
+})();
