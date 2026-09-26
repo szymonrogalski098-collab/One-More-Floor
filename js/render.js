@@ -335,6 +335,61 @@ const Render = {
     }
   },
 
+  // Whole-map preview of the floor behind a staircase (drawn once when you step on it).
+  drawMapPreview(cv, lay, type) {
+    const d = Math.min(2, window.devicePixelRatio || 1);
+    const cw = cv.clientWidth || 300, ch = cv.clientHeight || 190;
+    cv.width = Math.round(cw * d); cv.height = Math.round(ch * d);
+    const g = cv.getContext('2d');
+    g.setTransform(d, 0, 0, d, 0, 0);
+    g.fillStyle = '#07060f'; g.fillRect(0, 0, cw, ch);
+    const z = zoneFor(lay.floor), col = ROOM[type].color;
+    const icon = (x, y, tp, c, sz) => { g.save(); g.translate(x, y); g.scale(sz, sz); this.drawRoomIcon(g, tp, 0, 0, c); g.restore(); };
+    if (lay.circle) {
+      const R = Math.min(cw, ch) * 0.42, cx = cw / 2, cy = ch / 2 + 6;
+      g.fillStyle = z.b; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
+      g.strokeStyle = z.edge; g.lineWidth = 2; g.stroke();
+      const b = BOSSES[BOSS_ORDER[(Math.floor(lay.floor / 5) - 1) % BOSS_ORDER.length]];
+      g.fillStyle = b.color; g.beginPath(); g.arc(cx, cy - R * 0.3, 9, 0, TAU); g.fill();
+      icon(cx, cy - R * 0.3 - 18, 'boss', '#ff4f6b', 0.9);
+      g.fillStyle = '#4df3ff'; g.beginPath(); g.arc(cx, cy + R - 10, 4, 0, TAU); g.fill();
+      return;
+    }
+    // crop to the open area
+    const cols = lay.cols, rows = lay.rows, sol = lay.solid;
+    let x0 = cols, y0 = rows, x1 = 0, y1 = 0;
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (sol.charCodeAt(y * cols + x) === 48) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    for (const st of lay.stairs) { y0 = Math.min(y0, st.ty); }
+    x0 -= 1; y0 -= 1; x1 += 2; y1 += 2;
+    const k = Math.min((cw - 12) / (x1 - x0), (ch - 12) / (y1 - y0));
+    const ox = (cw - (x1 - x0) * k) / 2 - x0 * k, oy = (ch - (y1 - y0) * k) / 2 - y0 * k;
+    const open = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows && sol.charCodeAt(y * cols + x) === 48;
+    g.fillStyle = z.b;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (open(x, y)) g.fillRect(ox + x * k, oy + y * k, k + 0.5, k + 0.5);
+    g.strokeStyle = z.edge; g.lineWidth = 1.2; g.beginPath();
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      if (!open(x, y)) continue;
+      const X = ox + x * k, Y = oy + y * k;
+      if (!open(x - 1, y)) { g.moveTo(X, Y); g.lineTo(X, Y + k); }
+      if (!open(x + 1, y)) { g.moveTo(X + k, Y); g.lineTo(X + k, Y + k); }
+      if (!open(x, y - 1)) { g.moveTo(X, Y); g.lineTo(X + k, Y); }
+      if (!open(x, y + 1)) { g.moveTo(X, Y + k); g.lineTo(X + k, Y + k); }
+    }
+    g.stroke();
+    const tr = (r) => [ox + (r.x / T) * k, oy + (r.y / T) * k, (r.w / T) * k, (r.h / T) * k];
+    for (const p of lay.pillars) { const [x, y, w, h] = tr(p); g.fillStyle = p.crate ? '#8a5a26' : '#3d3670'; g.fillRect(x, y, w, h); }
+    for (const t of lay.traps) { const [x, y, w, h] = tr(t); g.fillStyle = 'rgba(255,138,61,0.7)'; g.fillRect(x + 1, y + 1, w - 2, h - 2); }
+    // fight rooms get a crossed-swords mark, the exit room a gold outline
+    lay.rooms.forEach((rm) => {
+      const [x, y, w, h] = tr(rm);
+      if (rm.kind === 'exit') { g.strokeStyle = type === 'elite' ? COL.gold : '#ffffff'; g.globalAlpha = 0.7; g.lineWidth = 1.5; g.strokeRect(x + 1, y + 1, w - 2, h - 2); g.globalAlpha = 1; }
+      if (rm.kind !== 'start' && type !== 'rest') icon(x + w / 2, y + h / 2, type === 'elite' && rm.kind === 'exit' ? 'elite' : 'combat', 'rgba(255,79,107,0.8)', Math.max(0.45, Math.min(0.8, k / 10)));
+    });
+    if (type === 'rest' && lay.rooms[0]) { const [x, y, w, h] = tr(lay.rooms[0]); icon(x + w / 2, y + h / 2, 'rest', '#8dff6a', 0.8); }
+    for (const st of lay.stairs) { const [x, y, w, h] = tr(st); g.fillStyle = ROOM[st.type].color; g.globalAlpha = 0.85; g.fillRect(x, y, w, h); g.globalAlpha = 1; }
+    if (lay.arrival) { const [x, y, w, h] = tr(lay.arrival); g.fillStyle = '#4df3ff'; g.fillRect(x, y, w, h); g.beginPath(); g.arc(x + w / 2, y - 3, 3, 0, TAU); g.fill(); }
+  },
+
   drawStairShape(ctx, r, col, alpha, up) {
     const steps = Math.max(3, Math.round(r.h / 10));
     ctx.globalAlpha = alpha;

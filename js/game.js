@@ -47,13 +47,13 @@ function resetArrays() {
   G.stairs = []; G.stairOn = null; G.traps = []; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null;
 }
 
-function enterFloor(n, type, restore) {
+function enterFloor(n, type, restore, layout) {
   const run = G.run;
   run.floor = n;
   if (n % 5 === 0) type = 'boss';
   G.scale = floorScale(n);
   resetArrays();
-  if (restore) restoreFloor(restore); else buildFloorGeometry(type);
+  if (restore) restoreFloor(restore); else if (layout) restoreFloor(layout); else buildFloorGeometry(type, n);
   const p = G.player;
   p.x = G.spawn.x; p.y = G.spawn.y; p.vx = 0; p.vy = -60; p.face = -Math.PI / 2; p.trail.length = 0;
   p.iframes = 0.8; p.dashT = 0; p.dashIfr = 0; p.fireT = 0.3;
@@ -70,23 +70,24 @@ function enterFloor(n, type, restore) {
   else showBanner('FLOOR ' + n, 'Something is coming…', 'boss');
   G.state = 'play';
   G.hudDirty = true;
+  makePreviews();
   saveSnapshot();
   if (!Save.data.settings.tutorialDone && n === 1) G.tutorial = 0.01; else G.tutorial = 0;
 }
 
-function buildFloorGeometry(type) {
-  const next = nextDoorTypes(G.run.floor + 1);
+function buildFloorGeometry(type, floor) {
+  const next = nextDoorTypes(floor + 1);
   if (type === 'boss') { buildBossHall(); placeStairs(next); return; }
   if (type === 'rest') { buildSingleRoom(); placeStairs(next); return; }
   for (let i = 0; i < 30; i++) {
-    buildDungeon(G.run.floor, type);
+    buildDungeon(floor, type);
     placeStairs(next);
-    for (const rm of G.rooms) decorateRoom(rm, G.run.floor);
+    for (const rm of G.rooms) decorateRoom(rm, floor);
     if (dungeonConnected()) return;
   }
   const rm = buildSingleRoom(); // fallback: one big arena
   placeStairs(next);
-  decorateRoom(rm, G.run.floor);
+  decorateRoom(rm, floor);
   rm.state = 'idle';
 }
 
@@ -119,18 +120,27 @@ function saveSnapshot() {
 }
 function pendingShards() { let n = 0; for (const k of G.pickups) if (k.type === 'shard') n += k.value; return n; }
 
-function serializeFloor() {
+// Floor geometry as plain data (used by saves and by the stair previews of the next floor).
+function serializeLayout() {
+  if (G.circle) return { circle: true, R: G.circle.R, stairs: G.stairs.map((st) => ({ ...st })), spawn: G.spawn };
   const g = G.grid, solid = g.solid.slice();
   for (const rm of G.rooms) for (const gt of rm.gates) for (const i of gt.tiles) solid[i] = 0; // gates saved open
-  const R = G.room, active = R.active;
-  const safe = active ? (G.safePos || G.spawn) : { x: G.player.x, y: G.player.y };
+  const active = G.room && G.room.active;
   return {
     cols: g.cols, rows: g.rows, solid: Array.from(solid).join(''),
     rooms: G.rooms.map((rm) => ({ id: rm.id, kind: rm.kind, tx: rm.tx, ty: rm.ty, tw: rm.tw, th: rm.th, layout: rm.layout,
-      state: rm.state === 'active' ? 'idle' : rm.state, waves: rm.waves || [], waveIdx: rm.state === 'active' ? 0 : rm.waveIdx || 0,
+      state: rm.state === 'active' ? 'idle' : rm.state, waves: rm.waves || [], waveIdx: rm === active ? 0 : rm.waveIdx || 0,
       gates: rm.gates.map((gt) => ({ tiles: gt.tiles, horiz: gt.horiz })) })),
     halls: G.halls, pillars: G.pillars, traps: G.traps.map((t) => ({ ...t, hitCycle: -1 })),
-    stairs: G.stairs.map((st) => ({ ...st })), arrival: G.arrival, exitId: G.rooms.indexOf(G.exitRoom),
+    stairs: G.stairs.map((st) => ({ ...st })), arrival: G.arrival, exitId: G.rooms.indexOf(G.exitRoom), spawn: G.spawn,
+  };
+}
+
+function serializeFloor() {
+  const R = G.room, active = R.active;
+  const safe = active ? (G.safePos || G.spawn) : { x: G.player.x, y: G.player.y };
+  return {
+    ...serializeLayout(),
     enemies: G.enemies.filter((e) => !e.dead && e.type !== 'boss' && e.type !== 'fake' && !(active && e.roomId === active.id))
       .map((e) => ({ t: e.type, x: e.x, y: e.y, elite: e.elite, sleep: e.sleep, hp: e.hp / e.maxHp, roomId: e.roomId })),
     phase: R.phase === 'clear' ? 'fight' : R.phase, shrineUsed: !!(G.shrine && G.shrine.used),
@@ -139,14 +149,32 @@ function serializeFloor() {
 }
 
 function restoreFloor(fs) {
+  if (fs.circle) { buildBossHall(); G.stairs = fs.stairs.map((st) => ({ ...st })); if (fs.safe) G.spawn = { x: fs.safe.x, y: fs.safe.y }; return; }
   makeGrid(fs.cols, fs.rows);
   for (let i = 0; i < fs.solid.length; i++) G.grid.solid[i] = fs.solid.charCodeAt(i) === 49 ? 1 : 0;
   G.gridVer = 1;
   G.rooms = fs.rooms.map((r) => ({ ...r, ...tileRect(r.tx, r.ty, r.tw, r.th), gates: r.gates.map((gt) => ({ ...gt, locked: false })) }));
   G.halls = fs.halls; G.pillars = fs.pillars; G.traps = fs.traps;
-  G.stairs = fs.stairs; G.arrival = fs.arrival;
+  G.stairs = fs.stairs.map((st) => ({ ...st })); G.arrival = fs.arrival;
   G.exitRoom = G.rooms[fs.exitId] || G.rooms[G.rooms.length - 1];
-  G.spawn = { x: fs.safe.x, y: fs.safe.y };
+  const sp = fs.safe || fs.spawn;
+  G.spawn = { x: sp.x, y: sp.y };
+}
+
+// Pre-build the floor behind every staircase so standing on it can show its full map,
+// and climbing it leads to exactly that floor.
+const WORLD_KEYS = ['grid', 'W', 'H', 'circle', 'fields', 'gridVer', 'rooms', 'halls', 'pillars', 'traps', 'stairs', 'exitRoom', 'spawn', 'arrival'];
+function makePreviews() {
+  const saved = {};
+  for (const k of WORLD_KEYS) saved[k] = G[k];
+  const next = G.run.floor + 1;
+  G.previews = saved.stairs.map((st) => {
+    buildFloorGeometry(st.type, next);
+    const lay = serializeLayout();
+    lay.type = st.type; lay.floor = next;
+    return lay;
+  });
+  for (const k of WORLD_KEYS) G[k] = saved[k];
 }
 
 function applyRestoreState(fs) {
@@ -467,7 +495,10 @@ function updateClimb(dt) {
   p.y -= 70 * dt;
   p.face = -Math.PI / 2; p.vx = 0; p.vy = -70;
   G.fade = clamp((c.t - 0.2) / 0.45, 0, 1);
-  if (c.t > 0.7) { G.climb = null; enterFloor(G.run.floor + 1, c.st.type); G.arriveT = 0.55; G.fade = 1; }
+  if (c.t > 0.7) {
+    const idx = G.stairs.indexOf(c.st), lay = G.previews && G.previews[idx];
+    G.climb = null; enterFloor(G.run.floor + 1, c.st.type, null, lay && lay.type === c.st.type ? lay : null); G.arriveT = 0.55; G.fade = 1;
+  }
 }
 function goThroughDoor(st) { startClimb(st); } // kept for tests/debug
 

@@ -37,6 +37,30 @@ const { chromium, devices } = require('playwright');
     }
     OMF.startGame(false); OMF.enterFloor(2, 'combat'); G.run.shards = 20;
     check('dying on floor 2 still pays', finalizeRun(false).earned > 0);
+    // stairs are nooks in the top wall of the exit room; the floor you climb into is the one previewed
+    let nookOk = true, sameAsPreview = true, previewsOk = true;
+    for (let t = 0; t < 12; t++) {
+      OMF.startGame(false); OMF.enterFloor([3, 4, 6, 7, 8, 9][t % 6], t % 2 ? 'combat' : 'elite');
+      const ex = G.exitRoom;
+      for (const st of G.stairs) if (st.y + st.h !== ex.y || !st.locked || !solidAt(st.x + st.w / 2, st.y + st.h / 2)) nookOk = false;
+      if (!G.previews || G.previews.length !== G.stairs.length || G.previews.some((p, i) => p.type !== G.stairs[i].type)) previewsOk = false;
+      for (let k = 0; k < 6 && G.state === 'play'; k++) { OMF.clearFloor(); for (let i = 0; i < 40; i++) OMF.step(1 / 60); } // blob splits spawn late
+      if (G.state === 'reward') { OMF.UI.show(null); OMF.chooseUpgrade(document.querySelector('#up-cards .card').dataset.id); }
+      const idx = G.stairs.length - 1, st = G.stairs[idx], pv = G.previews[idx];
+      G.player.x = st.x + st.w / 2; G.player.y = st.y + st.h + 14;
+      for (let i = 0; i < 200 && G.state !== 'climb'; i++) { OMF.Input.stick.x = 0; OMF.Input.stick.y = -1; OMF.Input.stick.mag = 1; OMF.step(1 / 60); }
+      OMF.Input.stick.mag = 0; OMF.Input.stick.y = 0;
+      for (let i = 0; i < 80 && G.state === 'climb'; i++) OMF.step(1 / 60);
+      if (pv.circle) { if (!G.circle) sameAsPreview = false; }
+      else {
+        const grid = Array.from(G.grid.solid).join('');
+        // the new floor's own stairs are still locked (wall) exactly as in the preview
+        if (grid !== pv.solid) sameAsPreview = false;
+      }
+    }
+    check('stairs are locked nooks in the exit room top wall', nookOk);
+    check('each staircase has a preview of its floor', previewsOk);
+    check('climbing leads to the previewed floor', sameAsPreview);
     // boss hall
     OMF.startGame(false); OMF.enterFloor(5, 'boss');
     check('boss floor is a circular hall', !!G.circle && G.circle.R >= 200);

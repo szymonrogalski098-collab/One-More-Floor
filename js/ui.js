@@ -168,6 +168,8 @@ const UI = {
     el.querySelector('.si-hint').textContent = st.locked ? 'Locked — clear the floor first' : 'Walk up the stairs to climb';
     el.style.setProperty('--sc', st.locked ? '#9c96c9' : R.color);
     el.classList.remove('hidden');
+    const lay = G.previews && G.previews[G.stairs.indexOf(st)];
+    if (lay) Render.drawMapPreview($('si-map'), lay, st.type);
   },
 
   bossBar(b) {

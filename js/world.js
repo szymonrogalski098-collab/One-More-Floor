@@ -31,7 +31,6 @@ function solidAt(x, y) {
   if (G.circle) {
     const c = G.circle;
     if (dist2(x, y, c.x, c.y) > c.R * c.R) return true;
-    for (const st of G.stairs) if (st.locked && pointInRect(x, y, st, 0)) return true;
     return false;
   }
   return solidTile(Math.floor(x / T), Math.floor(y / T));
@@ -52,8 +51,12 @@ function collideWorld(o, r) {
   if (G.circle) {
     const c = G.circle, dx = o.x - c.x, dy = o.y - c.y, d = Math.hypot(dx, dy), lim = c.R - r;
     let hit = 0;
+    if (o === G.player) for (const st of G.stairs) {
+      if (st.locked || o.x < st.x + r - 2 || o.x > st.x + st.w - r + 2 || o.y > st.y + st.h + 6) continue;
+      o.x = clamp(o.x, st.x + r, st.x + st.w - r); o.y = Math.max(o.y, st.y + r);
+      return 0; // inside the nook
+    }
     if (d > lim && d > 0) { o.x = c.x + (dx / d) * lim; o.y = c.y + (dy / d) * lim; hit = 1; }
-    for (const st of G.stairs) if (st.locked && pushOutRect(o, r, st)) hit = 2;
     return hit;
   }
   let hit = 0;
@@ -182,8 +185,9 @@ function buildSingleRoom(type) {
   const { VW, VH } = viewDims();
   const cols = Math.round(VW / T), rows = Math.round(VH / T);
   makeGrid(cols, rows);
-  carve(1, 1, cols - 2, rows - 2);
-  const room = { id: 0, kind: 'exit', ...tileRect(1, 1, cols - 2, rows - 2), gates: [], state: 'clear' };
+  // walls are 4 tiles deep at the top (stair nook) and 3 at the bottom (arrival nook)
+  carve(1, 4, cols - 2, rows - 7);
+  const room = { id: 0, tx: 1, ty: 4, tw: cols - 2, th: rows - 7, kind: 'exit', ...tileRect(1, 4, cols - 2, rows - 7), gates: [], state: 'clear' };
   G.rooms = [room];
   G.halls = [];
   G.exitRoom = room;
@@ -195,7 +199,7 @@ function buildSingleRoom(type) {
 
 function buildBossHall() {
   const R = viewDims().VW > viewDims().VH ? 215 : 250; // smaller in landscape (short view)
-  const size = Math.ceil((R * 2 + T * 4) / T);
+  const size = Math.ceil((R * 2 + T * 10) / T); // room above the circle for the stair nook
   makeGrid(size, size);
   const c = { x: G.W / 2, y: G.H / 2, R };
   // grid mirrors the circle for spawn/queries; collision uses the exact circle
@@ -226,7 +230,7 @@ function buildDungeon(floor, type) {
   }
   const minR = Math.min(...path.map((p) => p.r)), minC = Math.min(...path.map((p) => p.c)), maxC = Math.max(...path.map((p) => p.c));
   const rowsCells = -minR + 1, colsCells = maxC - minC + 1;
-  makeGrid(colsCells * CELL_W + 2, rowsCells * CELL_H + 2);
+  makeGrid(colsCells * CELL_W + 2, rowsCells * CELL_H + 4);
   G.gridVer = 1;
 
   // rooms (tile coords), each constrained to overlap its predecessor so a straight corridor fits
@@ -236,7 +240,7 @@ function buildDungeon(floor, type) {
     const kind = i === 0 ? 'start' : i === path.length - 1 ? 'exit' : 'fight';
     const tw = kind === 'start' ? 9 : kind === 'exit' ? randInt(13, 16) : randInt(11, 16);
     const th = kind === 'start' ? 9 : randInt(9, 13);
-    const cx0 = 1 + (cell.c - minC) * CELL_W, cy0 = 1 + (cell.r - minR) * CELL_H;
+    const cx0 = 1 + (cell.c - minC) * CELL_W, cy0 = 3 + (cell.r - minR) * CELL_H;
     let tx = cx0 + randInt(2, CELL_W - tw - 2), ty = cy0 + randInt(2, CELL_H - th - 2);
     const prev = rooms[i - 1];
     if (prev) {
@@ -322,8 +326,8 @@ function roomReserve(rm) {
       res.push([x - 2, y - 2, 5, 5]);
     }
   }
-  for (const s of G.stairs || []) res.push([s.tx - 1, s.ty, s.tw + 2, s.th + 2]);
-  if (G.arrival) res.push([G.arrival.tx - 1, G.arrival.ty - 2, G.arrival.tw + 2, G.arrival.th + 2]);
+  for (const s of G.stairs || []) if (s.tx !== undefined) res.push([s.tx - 1, s.ty + s.th, s.tw + 2, 3]); // landing in front of the nook
+  if (G.arrival && G.arrival.tx !== undefined) res.push([G.arrival.tx - 1, G.arrival.ty - 3, G.arrival.tw + 2, 3]);
   return res;
 }
 const overlaps = (a, b) => a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
@@ -418,17 +422,20 @@ function placeStairs(types) {
   G.stairs = [];
   const ex = G.exitRoom, tw = 3, th = 3;
   if (G.circle) {
-    const c = G.circle, y = c.y - c.R + 34;
-    const xs = types.length === 1 ? [c.x] : [c.x - 58, c.x + 58];
-    types.forEach((type, i) => G.stairs.push({ type, x: xs[i] - 30, y, w: 60, h: 60, locked: true }));
+    const c = G.circle;
+    const xs = types.length === 1 ? [c.x] : [c.x - 36, c.x + 36];
+    types.forEach((type, i) => {
+      const x = xs[i] - 28, edge = c.y - Math.sqrt(Math.max(0, c.R * c.R - (xs[i] - c.x) ** 2));
+      G.stairs.push({ type, x, y: edge - 58, w: 56, h: 62, locked: true, circle: true });
+    });
     return;
   }
   const ctx = ex.tx + Math.floor(ex.tw / 2);
   // two staircases leave a 2-tile passage between them (no 1-tile pockets)
   const xs = types.length === 1 ? [ctx - 1] : [ctx - 4, ctx + 1];
   types.forEach((type, i) => {
-    const s = { type, ...tileRect(xs[i], ex.ty, tw, th), locked: true };
-    fillSolid(s.tx, s.ty, tw, th);
+    const s = { type, ...tileRect(xs[i], ex.ty - th, tw, th), locked: true };
+    fillSolid(s.tx, s.ty, tw, th); // stays wall until unlocked
     G.stairs.push(s);
   });
 }
@@ -440,10 +447,12 @@ function unlockStairs() {
   G.gridVer++; G.fields.clear();
 }
 function placeArrival(rm) {
-  if (G.circle) { const c = G.circle; G.arrival = { x: c.x - 30, y: c.y + c.R - 70, w: 60, h: 40 }; G.spawn = { x: c.x, y: c.y + c.R - 40 }; return; }
-  const tx = rm.tx + Math.floor(rm.tw / 2) - 1, ty = rm.ty + rm.th - 2;
+  if (G.circle) { const c = G.circle; G.arrival = { x: c.x - 28, y: c.y + c.R - 22, w: 56, h: 44 }; G.spawn = { x: c.x, y: c.y + c.R - 16 }; return; }
+  // arrival stairs: a nook in the bottom wall, the top step flush with the wall line
+  const tx = rm.tx + Math.floor(rm.tw / 2) - 1, ty = rm.ty + rm.th;
+  carve(tx, ty, 3, 2);
   G.arrival = tileRect(tx, ty, 3, 2);
-  G.spawn = { x: G.arrival.x + G.arrival.w / 2, y: G.arrival.y + G.arrival.h - 10 };
+  G.spawn = { x: G.arrival.x + G.arrival.w / 2, y: G.arrival.y + G.arrival.h - 12 };
 }
 function stairAt(x, y) {
   for (const s of G.stairs || []) if (x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h + 10) return s;

@@ -42,11 +42,12 @@ async function touchEnd(cdp) { await cdp.send('Input.dispatchTouchEvent', { type
     const cdp = await ctx.newCDPSession(page);
     const before = await page.evaluate(() => ({ x: OMF.G.player.x, y: OMF.G.player.y }));
     const vp = page.viewportSize();
-    await touchDrag(page, cdp, vp.width * 0.4, vp.height * 0.7, vp.width * 0.4 + 60, vp.height * 0.7, 500);
+    // the run starts in the arrival stair nook: drag up to walk out into the room
+    await touchDrag(page, cdp, vp.width * 0.4, vp.height * 0.7, vp.width * 0.4, vp.height * 0.7 - 60, 500);
     await page.screenshot({ path: `${SHOTS}/${name}-joystick.png` });
     await touchEnd(cdp);
     const after = await page.evaluate(() => ({ x: OMF.G.player.x, y: OMF.G.player.y }));
-    ok(name + ': touch joystick moves player right', after.x - before.x > 25, (after.x - before.x).toFixed(1) + 'px');
+    ok(name + ': touch joystick moves player up', before.y - after.y > 25, (before.y - after.y).toFixed(1) + 'px');
     // dash button
     const c0 = await page.evaluate(() => OMF.G.player.dashCharges);
     const box = await page.locator('#btn-dash').boundingBox();
