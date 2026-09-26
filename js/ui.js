@@ -123,9 +123,9 @@ const UI = {
     }
     if (h.floor !== run.floor) {
       h.floor = run.floor;
-      $('hud-floor').textContent = 'PIĘTRO ' + run.floor;
+      $('hud-floor').textContent = 'FLOOR ' + run.floor;
       const best = Save.data.best.floor;
-      $('hud-best').textContent = run.floor > best && best > 0 ? 'NOWY REKORD' : 'REKORD ' + best;
+      $('hud-best').textContent = run.floor > best && best > 0 ? 'NEW RECORD' : 'BEST ' + best;
       $('hud-best').style.color = run.floor > best && best > 0 ? 'var(--gold)' : '';
     }
     if (h.shards !== run.shards) { h.shards = run.shards; $('hud-shards').textContent = run.shards; }
@@ -166,7 +166,7 @@ const UI = {
     const snap = S.snapshot;
     const c = $('btn-continue');
     c.classList.toggle('hidden', !snap);
-    if (snap) c.textContent = 'KONTYNUUJ · PIĘTRO ' + snap.floor;
+    if (snap) c.textContent = 'CONTINUE · FLOOR ' + snap.floor;
     $('m-meta-dot').classList.toggle('hidden', !this.canAffordAny());
   },
 
@@ -185,36 +185,36 @@ const UI = {
   // ---------- Upgrade cards ----------
   showUpgrade(choices, kind) {
     const run = G.run;
-    $('up-title').textContent = kind === 'boss' ? 'NAGRODA ZA BOSSA' : kind === 'elite' ? 'NAGRODA ELITY' : 'WYBIERZ ULEPSZENIE';
-    $('up-sub').textContent = 'Piętro ' + run.floor + ' oczyszczone';
+    $('up-title').textContent = kind === 'boss' ? 'BOSS REWARD' : kind === 'elite' ? 'ELITE REWARD' : 'CHOOSE AN UPGRADE';
+    $('up-sub').textContent = 'Floor ' + run.floor + ' cleared';
     $('up-cards').innerHTML = choices.map((u) => {
       const lvl = (run.upgrades[u.id] || 0) + 1;
       return `<button class="card r${u.rarity}" data-id="${u.id}" style="--tc:${TAGS[u.tag].color}">
         ${upgBadge(u)}
         <div class="card-body">
           <div class="card-top"><span class="rar">${RARITY[u.rarity].name}</span><span class="tg">${TAGS[u.tag].name}</span></div>
-          <div class="card-name">${u.name}${u.max > 1 ? `<span class="lvl">poz. ${lvl}/${u.max}</span>` : ''}</div>
+          <div class="card-name">${u.name}${u.max > 1 ? `<span class="lvl">lvl ${lvl}/${u.max}</span>` : ''}</div>
           <div class="card-desc">${u.desc}</div>
         </div></button>`;
     }).join('');
     const rr = $('btn-reroll');
     rr.classList.toggle('hidden', run.rerolls <= 0);
-    rr.textContent = 'Przelosuj (' + run.rerolls + ')';
+    rr.textContent = 'Reroll (' + run.rerolls + ')';
     this.show('s-upgrade', { lock: 450 });
   },
 
   showRest() {
     const p = G.player, s = G.stats;
     const heal = Math.max(2, Math.ceil(s.maxHp * 0.5));
-    $('up-title').textContent = 'ODPOCZYNEK';
+    $('up-title').textContent = 'REST';
     $('up-sub').textContent = 'HP: ' + p.hp + '/' + s.maxHp;
     const card = (id, icon, tag, rar, name, desc) => `<button class="card r${rar}" data-id="${id}" style="--tc:${TAGS[tag].color}">
       <div class="badge" style="--tc:${TAGS[tag].color}">${icon}</div>
       <div class="card-body"><div class="card-top"><span class="tg">${TAGS[tag].name}</span></div>
       <div class="card-name">${name}</div><div class="card-desc">${desc}</div></div></button>`;
     $('up-cards').innerHTML =
-      card('__heal', '+HP', 'tank', 0, 'Odpocznij', 'Ulecz ' + heal + ' HP.') +
-      card('__train', 'UP', 'core', 1, 'Trenuj', 'Otrzymaj losowe ulepszenie.');
+      card('__heal', '+HP', 'tank', 0, 'Rest', 'Heal ' + heal + ' HP.') +
+      card('__train', 'UP', 'core', 1, 'Train', 'Get a random upgrade.');
     $('btn-reroll').classList.add('hidden');
     this.show('s-upgrade', { lock: 450 });
   },
@@ -222,11 +222,11 @@ const UI = {
   // ---------- Pause ----------
   showPause() {
     const run = G.run;
-    $('p-info').textContent = 'Piętro ' + run.floor + ' · ' + fmtTime(run.time) + ' · ' + run.kills + ' zabójstw';
+    $('p-info').textContent = 'Floor ' + run.floor + ' · ' + fmtTime(run.time) + ' · ' + run.kills + ' kills';
     $('p-build').innerHTML = run.order.length ? run.order.map((id) => {
       const u = UPG[id];
       return `<div class="build-item">${upgBadge(u)}<div><div class="bi-name">${u.name} ×${run.upgrades[id]}</div><div class="bi-desc">${u.desc}</div></div></div>`;
-    }).join('') : '<div class="hint">Brak ulepszeń — oczyść piętro, aby wybrać pierwsze.</div>';
+    }).join('') : '<div class="hint">No upgrades yet — clear a floor to pick your first one.</div>';
     this.stack = [];
     this.show('s-pause');
   },
@@ -236,8 +236,8 @@ const UI = {
     this.stack = [];
     this.showHud(false);
     $('d-record').classList.toggle('hidden', !r.record);
-    $('d-title').textContent = r.abandon ? 'RUN ZAKOŃCZONY' : 'KONIEC RUNU';
-    $('d-sub').textContent = r.record ? (r.prevBest > 0 ? 'Poprzedni rekord: piętro ' + r.prevBest : 'Twój pierwszy rekord. Pobij go.') : 'Rekord: piętro ' + Save.data.best.floor;
+    $('d-title').textContent = r.abandon ? 'RUN ENDED' : 'RUN OVER';
+    $('d-sub').textContent = r.record ? (r.prevBest > 0 ? 'Previous best: floor ' + r.prevBest : 'Your first record. Now beat it.') : 'Best: floor ' + Save.data.best.floor;
     $('d-floor').textContent = r.floor;
     $('d-kills').textContent = r.kills;
     $('d-time').textContent = fmtTime(r.time);
@@ -260,12 +260,12 @@ const UI = {
     // goal gradient
     let next = '';
     const aff = this.cheapestAffordable();
-    if (aff) next = 'Stać Cię na: ' + aff.m.name;
+    if (aff) next = 'You can afford: ' + aff.m.name;
     else {
       const nx = this.cheapestNext();
-      if (nx) next = 'Do „' + nx.m.name + '” brakuje ' + (nx.cost - Save.data.shards) + ' odłamków';
+      if (nx) next = (nx.cost - Save.data.shards) + ' more shards for “' + nx.m.name + '”';
     }
-    if (!r.record && Save.data.best.floor - r.floor > 0 && Save.data.best.floor - r.floor <= 3) next = 'Tylko ' + (Save.data.best.floor - r.floor) + ' ' + (Save.data.best.floor - r.floor === 1 ? 'piętro' : 'piętra') + ' do rekordu. ' + next;
+    if (!r.record && Save.data.best.floor - r.floor > 0 && Save.data.best.floor - r.floor <= 3) next = 'Only ' + (Save.data.best.floor - r.floor) + ' ' + (Save.data.best.floor - r.floor === 1 ? 'floor' : 'floors') + ' short of your record. ' + next;
     $('d-next').textContent = next;
     this.refreshDeathDots();
     this.show('s-dead', { lock: 700 });
@@ -282,7 +282,7 @@ const UI = {
       let pips = '';
       if (m.max > 1) { pips = '<div class="mi-lvl">'; for (let i = 0; i < m.max; i++) pips += `<i class="${i < l ? 'on' : ''}"></i>`; pips += '</div>'; }
       const btn = maxed
-        ? `<button class="buy max" disabled>${m.unlock ? 'ODBLOK.' : 'MAKS.'}</button>`
+        ? `<button class="buy max" disabled>${m.unlock ? 'UNLOCKED' : 'MAX'}</button>`
         : `<button class="buy" data-id="${m.id}" ${S.shards < cost ? 'disabled' : ''}><span class="shard-ico"></span>${cost}</button>`;
       return `<div class="meta-item ${maxed ? 'maxed' : ''}"><div><div class="mi-name">${m.name}</div><div class="mi-desc">${m.desc}</div>${pips}</div>${btn}</div>`;
     }).join('');
@@ -305,18 +305,18 @@ const UI = {
     const rows = S.history.map((h) => {
       const d = new Date(h.date);
       const tg = TAGS[h.build] || TAGS.core;
-      return `<div class="hist-item"><span><b>Piętro ${h.floor}</b> <span class="muted">· ${h.kills} zab. · ${fmtTime(h.time)}</span></span><span class="chip" style="--c:${tg.color}">${tg.name}</span></div>`;
-    }).join('') || '<div class="hint">Jeszcze nic. Zagraj pierwszy run!</div>';
+      return `<div class="hist-item"><span><b>Floor ${h.floor}</b> <span class="muted">· ${h.kills} kills · ${fmtTime(h.time)}</span></span><span class="chip" style="--c:${tg.color}">${tg.name}</span></div>`;
+    }).join('') || '<div class="hint">Nothing yet. Play your first run!</div>';
     $('rec-body').innerHTML = `
       <div class="rec-grid">
-        <div><span class="k">Najwyższe piętro</span><span class="v">${S.best.floor}</span></div>
-        <div><span class="k">Najwięcej zabójstw</span><span class="v">${S.best.kills}</span></div>
-        <div><span class="k">Rozegrane runy</span><span class="v">${S.runs}</span></div>
-        <div><span class="k">Pokonani bossowie</span><span class="v">${S.totals.bosses}</span></div>
-        <div><span class="k">Zabójstwa łącznie</span><span class="v">${S.totals.kills}</span></div>
-        <div><span class="k">Czas gry</span><span class="v">${fmtTime(S.totals.time)}</span></div>
+        <div><span class="k">Highest floor</span><span class="v">${S.best.floor}</span></div>
+        <div><span class="k">Most kills</span><span class="v">${S.best.kills}</span></div>
+        <div><span class="k">Runs played</span><span class="v">${S.runs}</span></div>
+        <div><span class="k">Bosses defeated</span><span class="v">${S.totals.bosses}</span></div>
+        <div><span class="k">Total kills</span><span class="v">${S.totals.kills}</span></div>
+        <div><span class="k">Time played</span><span class="v">${fmtTime(S.totals.time)}</span></div>
       </div>
-      <div class="hist-title">OSTATNIE RUNY</div>
+      <div class="hist-title">RECENT RUNS</div>
       <div class="hist">${rows}</div>`;
   },
 

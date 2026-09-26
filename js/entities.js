@@ -15,7 +15,7 @@ function computeStats() {
     crit: 0.05, critMult: 2,
     move: 150, dashCd: 1.5, dashCharges: 1,
     maxHp: 5 + (meta.hull | 0),
-    chain: 0, frost: 0, burn: 0, orbit: 0, volatile: 0, nova: 0, adren: 0, homing: 0,
+    chain: 0, frost: 0, burn: 0, orbit: 0, orbitSpd: 1, volatile: 0, nova: 0, adren: 0, homing: 0,
     vamp: 0, aegis: 0, regen: 0, back: 0, knock: 1,
   };
   const run = G.run;
@@ -95,7 +95,7 @@ function perfectDodge() {
   if (G.time - p.lastDodge < 0.6) return;
   p.lastDodge = G.time;
   slowmo(0.35, 0.3);
-  floatText(p.x, p.y - 18, 'UNIK!', COL.player, 13, 0.7);
+  floatText(p.x, p.y - 18, 'DODGE!', COL.player, 13, 0.7);
   ring(p.x, p.y, 8, 34, 0.3, COL.player, 2);
   sfx('dodge');
   G.run.dodges++;
@@ -321,7 +321,7 @@ function updateBlades(dt) {
   const p = G.player, s = G.stats;
   p.blades.length = 0;
   if (s.orbit <= 0) return;
-  p.orbitA += dt * 3.6;
+  p.orbitA += dt * 3.6 * s.orbitSpd;
   const R = 40;
   for (let k = 0; k < s.orbit; k++) {
     const a = p.orbitA + (k * TAU) / s.orbit;
@@ -331,7 +331,7 @@ function updateBlades(dt) {
       if (e.dead || e.untarget || e.orbitCd > 0) continue;
       const rr = e.r + 8;
       if (dist2(bx, by, e.x, e.y) < rr * rr) {
-        e.orbitCd = 0.28;
+        e.orbitCd = 0.28 / s.orbitSpd;
         damageEnemy(e, s.dmg * 0.75, false, Math.cos(a + Math.PI / 2), Math.sin(a + Math.PI / 2), true);
         sparks(bx, by, a + Math.PI / 2, 1, '#ffffff', 3, 120);
       }
@@ -743,7 +743,7 @@ function hurtPlayer(sx, sy) {
       clearEnemyBullets(true);
       ring(p.x, p.y, 10, 160, 0.6, COL.player, 5);
       slowmo(0.8, 0.3);
-      showBanner('DRUGI ODDECH', 'Jeszcze nie koniec.');
+      showBanner('SECOND WIND', 'Not over yet.');
       sfx('upgrade');
     } else playerDie();
   }

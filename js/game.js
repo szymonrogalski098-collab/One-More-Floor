@@ -65,8 +65,8 @@ function enterFloor(n, type) {
   Render.buildFloor();
   UI.bossBar(null);
   const R = ROOM[type];
-  if (type !== 'boss') showBanner('PIĘTRO ' + n, R.name + (type === 'elite' ? ' — ' + R.sub.toLowerCase() : ''), type);
-  else showBanner('PIĘTRO ' + n, 'Coś nadchodzi…', 'boss');
+  if (type !== 'boss') showBanner('FLOOR ' + n, R.name + (type === 'elite' ? ' — ' + R.sub.toLowerCase() : ''), type);
+  else showBanner('FLOOR ' + n, 'Something is coming…', 'boss');
   G.state = 'play';
   G.hudDirty = true;
   saveSnapshot(n, type);
@@ -211,7 +211,7 @@ function rollChoices(kind) {
   const odds = kind === 'boss' ? [0, 50, 50] : kind === 'elite' ? [20, 55, 25] : [64 - Math.min(14, run.floor), 29 + Math.min(10, run.floor * 0.7), 7 + Math.min(6, run.floor * 0.3)];
   const ownedTags = {};
   for (const id in run.upgrades) ownedTags[UPG[id].tag] = (ownedTags[UPG[id].tag] || 0) + run.upgrades[id];
-  const avail = UPGRADES.filter((u) => (run.upgrades[u.id] || 0) < u.max && Save.isUnlocked(u.id));
+  const avail = UPGRADES.filter((u) => (run.upgrades[u.id] || 0) < u.max && Save.isUnlocked(u.id) && (!u.req || G.stats[u.req] > 0));
   const out = [];
   for (let i = 0; i < 3; i++) {
     let r = weightedPick([0, 1, 2], (x) => odds[x]);

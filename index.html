@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0b0a1a">
   <meta name="color-scheme" content="dark">
-  <meta name="description" content="One More Floor — szybki roguelike na telefon. Wejdź jak najwyżej. Jeszcze jedno piętro.">
+  <meta name="description" content="One More Floor — a fast roguelike for your phone. Climb as high as you can. Just one more floor.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,18 +17,18 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <canvas id="cv" aria-label="Plansza gry"></canvas>
+  <canvas id="cv" aria-label="Game board"></canvas>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
     <div class="hud-top">
       <div class="hud-left">
-        <button id="btn-pause" class="icon-btn" aria-label="Pauza"><span class="pause-ico"></span></button>
+        <button id="btn-pause" class="icon-btn" aria-label="Pause"><span class="pause-ico"></span></button>
         <div id="hud-hp" class="hp"></div>
       </div>
       <div class="hud-mid">
-        <div id="hud-floor" class="floor">PIĘTRO 1</div>
-        <div id="hud-best" class="sub">REKORD 0</div>
+        <div id="hud-floor" class="floor">FLOOR 1</div>
+        <div id="hud-best" class="sub">BEST 0</div>
       </div>
       <div class="hud-right">
         <span class="shard-ico"></span><span id="hud-shards">0</span>
@@ -54,21 +54,21 @@
       <div class="logo">
         <div class="logo-top">ONE MORE</div>
         <div class="logo-bot">FLOOR</div>
-        <div class="tagline">Jeszcze jedno piętro.</div>
+        <div class="tagline">Just one more floor.</div>
       </div>
       <div class="menu-stats">
-        <div><span class="k">Rekord</span><span id="m-best" class="v">0</span></div>
-        <div><span class="k">Odłamki</span><span id="m-shards" class="v shard-v">0</span></div>
-        <div><span class="k">Runy</span><span id="m-runs" class="v">0</span></div>
+        <div><span class="k">Best</span><span id="m-best" class="v">0</span></div>
+        <div><span class="k">Shards</span><span id="m-shards" class="v shard-v">0</span></div>
+        <div><span class="k">Runs</span><span id="m-runs" class="v">0</span></div>
       </div>
-      <button id="btn-continue" class="btn btn-secondary hidden" data-action="continue">KONTYNUUJ</button>
-      <button class="btn btn-primary" data-action="play">GRAJ</button>
+      <button id="btn-continue" class="btn btn-secondary hidden" data-action="continue">CONTINUE</button>
+      <button class="btn btn-primary" data-action="play">PLAY</button>
       <div class="row">
-        <button class="btn btn-ghost" data-action="meta">Warsztat<span id="m-meta-dot" class="dot hidden"></span></button>
-        <button class="btn btn-ghost" data-action="records">Rekordy</button>
+        <button class="btn btn-ghost" data-action="meta">Workshop<span id="m-meta-dot" class="dot hidden"></span></button>
+        <button class="btn btn-ghost" data-action="records">Records</button>
       </div>
-      <button class="btn btn-ghost small" data-action="settings">Ustawienia</button>
-      <p class="hint">Przeciągnij w dowolnym miejscu = ruch · strzał automatyczny · DASH = unik</p>
+      <button class="btn btn-ghost small" data-action="settings">Settings</button>
+      <p class="hint">Drag anywhere to move · auto-fire · DASH to dodge</p>
       <p id="install-hint" class="hint small-hint hidden"></p>
     </div>
   </section>
@@ -76,48 +76,48 @@
   <!-- UPGRADE CHOICE -->
   <section id="s-upgrade" class="screen overlay">
     <div class="panel-wrap">
-      <h2 id="up-title">WYBIERZ ULEPSZENIE</h2>
+      <h2 id="up-title">CHOOSE AN UPGRADE</h2>
       <div id="up-sub" class="sub-h"></div>
       <div id="up-cards" class="cards"></div>
-      <button id="btn-reroll" class="btn btn-ghost small hidden" data-action="reroll">Przelosuj</button>
+      <button id="btn-reroll" class="btn btn-ghost small hidden" data-action="reroll">Reroll</button>
     </div>
   </section>
 
   <!-- PAUSE -->
   <section id="s-pause" class="screen overlay">
     <div class="panel-wrap">
-      <h2>PAUZA</h2>
+      <h2>PAUSED</h2>
       <div id="p-info" class="sub-h"></div>
-      <button class="btn btn-primary" data-action="resume">WZNÓW</button>
+      <button class="btn btn-primary" data-action="resume">RESUME</button>
       <div id="p-build" class="build-list scroll"></div>
       <div class="row">
-        <button class="btn btn-ghost" data-action="settings">Ustawienia</button>
-        <button class="btn btn-ghost" data-action="save-quit">Zapisz i wyjdź</button>
+        <button class="btn btn-ghost" data-action="settings">Settings</button>
+        <button class="btn btn-ghost" data-action="save-quit">Save &amp; quit</button>
       </div>
-      <button class="btn btn-danger small" data-action="abandon">Zakończ run</button>
+      <button class="btn btn-danger small" data-action="abandon">End run</button>
     </div>
   </section>
 
   <!-- DEATH -->
   <section id="s-dead" class="screen overlay">
     <div class="panel-wrap">
-      <div id="d-record" class="record-badge hidden">NOWY REKORD!</div>
-      <h2 id="d-title">KONIEC RUNU</h2>
+      <div id="d-record" class="record-badge hidden">NEW RECORD!</div>
+      <h2 id="d-title">RUN OVER</h2>
       <div id="d-sub" class="sub-h"></div>
       <div class="stat-grid">
-        <div><span class="k">Piętro</span><span id="d-floor" class="v">0</span></div>
-        <div><span class="k">Zabójstwa</span><span id="d-kills" class="v">0</span></div>
-        <div><span class="k">Czas</span><span id="d-time" class="v">0:00</span></div>
-        <div><span class="k">Bossowie</span><span id="d-bosses" class="v">0</span></div>
-        <div><span class="k">Obrażenia</span><span id="d-dmg" class="v">0</span></div>
-        <div><span class="k">Idealne uniki</span><span id="d-dodges" class="v">0</span></div>
+        <div><span class="k">Floor</span><span id="d-floor" class="v">0</span></div>
+        <div><span class="k">Kills</span><span id="d-kills" class="v">0</span></div>
+        <div><span class="k">Time</span><span id="d-time" class="v">0:00</span></div>
+        <div><span class="k">Bosses</span><span id="d-bosses" class="v">0</span></div>
+        <div><span class="k">Damage</span><span id="d-dmg" class="v">0</span></div>
+        <div><span class="k">Perfect dodges</span><span id="d-dodges" class="v">0</span></div>
       </div>
-      <div class="earned"><span class="shard-ico"></span> +<span id="d-earned">0</span> <span class="muted">odłamków</span></div>
+      <div class="earned"><span class="shard-ico"></span> +<span id="d-earned">0</span> <span class="muted">shards</span></div>
       <div id="d-next" class="next-goal"></div>
       <div id="d-build" class="chip-row"></div>
-      <button class="btn btn-primary big" data-action="play">JESZCZE RAZ</button>
+      <button class="btn btn-primary big" data-action="play">ONE MORE RUN</button>
       <div class="row">
-        <button class="btn btn-ghost" data-action="meta">Warsztat<span id="d-meta-dot" class="dot hidden"></span></button>
+        <button class="btn btn-ghost" data-action="meta">Workshop<span id="d-meta-dot" class="dot hidden"></span></button>
         <button class="btn btn-ghost" data-action="menu">Menu</button>
       </div>
     </div>
@@ -127,11 +127,11 @@
   <section id="s-meta" class="screen">
     <div class="panel-wrap tall">
       <div class="head-row">
-        <button class="icon-btn back" data-action="back" aria-label="Wróć">‹</button>
-        <h2>WARSZTAT</h2>
+        <button class="icon-btn back" data-action="back" aria-label="Back">‹</button>
+        <h2>WORKSHOP</h2>
         <div class="shard-count"><span class="shard-ico"></span><span id="meta-shards">0</span></div>
       </div>
-      <div class="sub-h">Trwałe ulepszenia. Umiejętności wciąż decydują.</div>
+      <div class="sub-h">Permanent upgrades. Skill still decides.</div>
       <div id="meta-list" class="meta-list scroll"></div>
     </div>
   </section>
@@ -140,8 +140,8 @@
   <section id="s-records" class="screen">
     <div class="panel-wrap tall">
       <div class="head-row">
-        <button class="icon-btn back" data-action="back" aria-label="Wróć">‹</button>
-        <h2>REKORDY</h2>
+        <button class="icon-btn back" data-action="back" aria-label="Back">‹</button>
+        <h2>RECORDS</h2>
         <div></div>
       </div>
       <div id="rec-body" class="scroll"></div>
@@ -152,25 +152,25 @@
   <section id="s-settings" class="screen">
     <div class="panel-wrap tall">
       <div class="head-row">
-        <button class="icon-btn back" data-action="back" aria-label="Wróć">‹</button>
-        <h2>USTAWIENIA</h2>
+        <button class="icon-btn back" data-action="back" aria-label="Back">‹</button>
+        <h2>SETTINGS</h2>
         <div></div>
       </div>
       <div class="settings scroll">
-        <button class="toggle" data-set="sound"><span>Dźwięk</span><i></i></button>
-        <label class="slider"><span>Głośność efektów</span><input type="range" min="0" max="1" step="0.05" data-range="sfxVol"></label>
-        <button class="toggle" data-set="music"><span>Muzyka</span><i></i></button>
-        <label class="slider"><span>Głośność muzyki</span><input type="range" min="0" max="1" step="0.05" data-range="musVol"></label>
-        <button class="toggle" data-set="shake"><span>Wstrząsy ekranu</span><i></i></button>
-        <button class="toggle" data-set="lefty"><span>DASH po lewej (leworęczni)</span><i></i></button>
+        <button class="toggle" data-set="sound"><span>Sound</span><i></i></button>
+        <label class="slider"><span>Effects volume</span><input type="range" min="0" max="1" step="0.05" data-range="sfxVol"></label>
+        <button class="toggle" data-set="music"><span>Music</span><i></i></button>
+        <label class="slider"><span>Music volume</span><input type="range" min="0" max="1" step="0.05" data-range="musVol"></label>
+        <button class="toggle" data-set="shake"><span>Screen shake</span><i></i></button>
+        <button class="toggle" data-set="lefty"><span>DASH on the left (left-handed)</span><i></i></button>
         <div class="seg" id="seg-quality">
-          <span>Jakość grafiki</span>
+          <span>Graphics quality</span>
           <div class="seg-btns">
-            <button data-q="auto">Auto</button><button data-q="high">Wysoka</button><button data-q="low">Niska</button>
+            <button data-q="auto">Auto</button><button data-q="high">High</button><button data-q="low">Low</button>
           </div>
         </div>
-        <button class="btn btn-danger small" data-action="reset">Resetuj postęp</button>
-        <p class="hint small-hint">v<span id="ver"></span> · zapis lokalny na tym urządzeniu</p>
+        <button class="btn btn-danger small" data-action="reset">Reset progress</button>
+        <p class="hint small-hint">v<span id="ver"></span> · saved locally on this device</p>
       </div>
     </div>
   </section>
@@ -178,14 +178,14 @@
   <!-- CONFIRM -->
   <section id="s-confirm" class="screen overlay">
     <div class="panel-wrap">
-      <h2>NA PEWNO?</h2>
-      <div class="sub-h">Stracisz odłamki, ulepszenia warsztatu i rekordy.</div>
-      <button class="btn btn-danger" data-action="reset-yes">Tak, resetuj</button>
-      <button class="btn btn-ghost" data-action="back">Anuluj</button>
+      <h2>ARE YOU SURE?</h2>
+      <div class="sub-h">You will lose your shards, Workshop upgrades and records.</div>
+      <button class="btn btn-danger" data-action="reset-yes">Yes, reset</button>
+      <button class="btn btn-ghost" data-action="back">Cancel</button>
     </div>
   </section>
 
-  <noscript><div class="noscript">One More Floor wymaga JavaScriptu.</div></noscript>
+  <noscript><div class="noscript">One More Floor requires JavaScript.</div></noscript>
 
   <script src="js/util.js"></script>
   <script src="js/data.js"></script>

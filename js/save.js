@@ -53,7 +53,8 @@ const Save = {
   isUnlocked(upgId) {
     const u = UPG[upgId];
     if (!u || !u.lock) return true;
-    const m = META.find((x) => x.unlock === upgId);
+    const key = u.unlockBy || upgId;
+    const m = META.find((x) => x.unlock === key);
     return !!m && this.metaLvl(m.id) > 0;
   },
 };

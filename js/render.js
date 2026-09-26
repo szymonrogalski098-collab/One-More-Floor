@@ -3,11 +3,11 @@
 // glows are cached radial sprites; bullets are batched into single paths.
 
 const ZONES = [
-  { a: '#14122c', b: '#171534', edge: '#6c5cff', name: 'Fundamenty' },
-  { a: '#0e1922', b: '#11202a', edge: '#2fd6c3', name: 'Zalane Hale' },
-  { a: '#1c0f1f', b: '#221226', edge: '#ff4f8b', name: 'Szkarłatne Piętra' },
-  { a: '#1b150c', b: '#211a0f', edge: '#ffb13d', name: 'Kuźnia' },
-  { a: '#140f23', b: '#1a122f', edge: '#b36bff', name: 'Szczyt' },
+  { a: '#14122c', b: '#171534', edge: '#6c5cff', name: 'Foundations' },
+  { a: '#0e1922', b: '#11202a', edge: '#2fd6c3', name: 'Flooded Halls' },
+  { a: '#1c0f1f', b: '#221226', edge: '#ff4f8b', name: 'Crimson Floors' },
+  { a: '#1b150c', b: '#211a0f', edge: '#ffb13d', name: 'The Forge' },
+  { a: '#140f23', b: '#1a122f', edge: '#b36bff', name: 'The Summit' },
 ];
 function zoneFor(floor) { return ZONES[Math.floor((floor - 1) / 5) % ZONES.length]; }
 
@@ -247,7 +247,7 @@ const Render = {
     ctx.moveTo(s.x, s.y - 10); ctx.lineTo(s.x, s.y + 10); ctx.moveTo(s.x - 10, s.y); ctx.lineTo(s.x + 10, s.y); ctx.stroke();
     if (!s.used) {
       ctx.font = '800 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillStyle = '#8dff6a'; ctx.fillText('PODEJDŹ', s.x, s.y + 28);
+      ctx.fillStyle = '#8dff6a'; ctx.fillText('STEP IN', s.x, s.y + 28);
     }
   },
 
@@ -718,10 +718,10 @@ const Render = {
   drawTutorial(ctx) {
     const t = G.tutorial;
     const lines = [
-      [0.8, 'Przeciągnij palcem w dowolnym miejscu, aby się ruszać'],
-      [4.5, 'Strzelasz automatycznie w najbliższego wroga'],
-      [8.5, 'DASH (lub tap drugim palcem) = unik z nietykalnością'],
-      [13, 'Dash przez atak = IDEALNY UNIK'],
+      [0.8, 'Drag anywhere on the screen to move'],
+      [4.5, 'You fire automatically at the nearest enemy'],
+      [8.5, 'DASH (or tap with a second finger) = invulnerable dodge'],
+      [13, 'Dash through an attack = PERFECT DODGE'],
     ];
     let msg = null, a = 0;
     for (let i = 0; i < lines.length; i++) {

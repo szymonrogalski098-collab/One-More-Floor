@@ -1,6 +1,6 @@
 'use strict';
 // Bosses: each has a learnable pattern set and a phase-2 escalation below 50% HP.
-//  - Warden (Strażnik): spiral streams, telegraphed jump-slams (watch the shadow), aimed fans.
+//  - Warden: spiral streams, telegraphed jump-slams (watch the shadow), aimed fans.
 //  - Loom (Krosno): rotating laser sweeps (chevrons show direction), laser grids, homing orbs you can shoot down.
 //  - Mirror (Lustro): splits into copies (only the real one has a solid core), wall-to-wall dashes leaving bullet trails, summons.
 
@@ -42,7 +42,7 @@ function updateBoss(b, dt, sm) {
     hitstop(0.12); addShake(0.5); sfx('roar');
     ring(b.x, b.y, b.r, b.r * 5, 0.5, b.color, 5);
     burst(b.x, b.y, b.color, 24, 220, 0.6, 4);
-    floatText(b.x, b.y - b.r - 10, 'FURIA!', '#ff4f6b', 16, 1.2);
+    floatText(b.x, b.y - b.r - 10, 'RAGE!', '#ff4f6b', 16, 1.2);
     if (b.pat && b.kind !== 'mirror') endPattern(b, 0.6);
   }
   const hard = b.phase2 || b.hard;

@@ -1,7 +1,7 @@
 'use strict';
 // Boot, main loop (fixed 60 Hz simulation + variable render), app lifecycle, PWA registration.
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const STEP = 1 / 60;
 
 const Loop = { last: 0, acc: 0, frameAvg: 1 / 60, slowFor: 0, hudT: 0, raf: 0 };
@@ -162,7 +162,7 @@ function setupInstallHint() {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstall = e;
-    hint.innerHTML = '<button class="btn btn-ghost small" id="btn-install">Zainstaluj aplikację</button>';
+    hint.innerHTML = '<button class="btn btn-ghost small" id="btn-install">Install app</button>';
     hint.classList.remove('hidden');
     $('btn-install').addEventListener('click', async () => {
       if (!deferredInstall) return;
@@ -173,7 +173,7 @@ function setupInstallHint() {
     });
   });
   if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
-    hint.textContent = 'iOS: Udostępnij → „Do ekranu początkowego”, aby zainstalować.';
+    hint.textContent = 'iOS: tap Share → “Add to Home Screen” to install.';
     hint.classList.remove('hidden');
   }
 }
