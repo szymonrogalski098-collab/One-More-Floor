@@ -26,7 +26,7 @@ function newRun(snapshot) {
   }
   G.player.dashCharges = G.stats.dashCharges;
   Input.reset();
-  enterFloor(floor, type);
+  enterFloor(floor, type, snapshot && snapshot.floorState);
   Sound.music(true, 'normal');
 }
 
@@ -44,23 +44,24 @@ function resetArrays() {
   while (G.eb.length) ebPool.push(G.eb.pop());
   G.enemies.length = 0; G.newEnemies.length = 0; G.markers.length = 0; G.pickups.length = 0;
   G.rings.length = 0; G.texts.length = 0; G.bolts.length = 0; G.beams.length = 0; G.explosions.length = 0;
-  G.doors = []; G.shrine = null; G.boss = null;
+  G.stairs = []; G.stairOn = null; G.traps = []; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null;
 }
 
-function enterFloor(n, type) {
+function enterFloor(n, type, restore) {
   const run = G.run;
   run.floor = n;
   if (n % 5 === 0) type = 'boss';
   G.scale = floorScale(n);
   resetArrays();
-  buildFloorGeometry(type);
+  if (restore) restoreFloor(restore); else buildFloorGeometry(type);
   const p = G.player;
   p.x = G.spawn.x; p.y = G.spawn.y; p.vx = 0; p.vy = -60; p.face = -Math.PI / 2; p.trail.length = 0;
   p.iframes = 0.8; p.dashT = 0; p.dashIfr = 0; p.fireT = 0.3;
   G.room = { type, phase: 'intro', t: 0, active: null, waveT: 0, queue: [], queueT: 0, rewardShown: false,
     waveThresh: Math.max(2, Math.floor(G.scale.maxAlive / 4)) };
-  if (type === 'combat' || type === 'elite') planFloor(n, type);
-  if (type === 'rest') { const ex = G.exitRoom; G.shrine = { x: ex.x + ex.w / 2, y: ex.y + ex.h * 0.42, used: false, t: 0 }; }
+  if (!restore && (type === 'combat' || type === 'elite')) planFloor(n, type);
+  if (type === 'rest') { const ex = G.exitRoom; G.shrine = { x: ex.x + ex.w / 2, y: ex.y + ex.h * 0.5, used: false, t: 0 }; }
+  if (restore) { applyRestoreState(restore); p.vx = p.vy = 0; }
   Render.buildFloor();
   Render.snapCamera();
   UI.bossBar(null);
@@ -69,18 +70,23 @@ function enterFloor(n, type) {
   else showBanner('FLOOR ' + n, 'Something is coming…', 'boss');
   G.state = 'play';
   G.hudDirty = true;
-  saveSnapshot(n, type);
+  saveSnapshot();
   if (!Save.data.settings.tutorialDone && n === 1) G.tutorial = 0.01; else G.tutorial = 0;
 }
 
 function buildFloorGeometry(type) {
-  if (type === 'boss') { buildBossHall(); return; }
-  if (type === 'rest') { buildSingleRoom(); return; }
+  const next = nextDoorTypes(G.run.floor + 1);
+  if (type === 'boss') { buildBossHall(); placeStairs(next); return; }
+  if (type === 'rest') { buildSingleRoom(); placeStairs(next); return; }
   for (let i = 0; i < 30; i++) {
     buildDungeon(G.run.floor, type);
+    placeStairs(next);
+    for (const rm of G.rooms) decorateRoom(rm, G.run.floor);
     if (dungeonConnected()) return;
   }
   const rm = buildSingleRoom(); // fallback: one big arena
+  placeStairs(next);
+  decorateRoom(rm, G.run.floor);
   rm.state = 'idle';
 }
 
@@ -89,18 +95,69 @@ function dungeonConnected() {
   const f = distField(Math.floor((ex.x + ex.w / 2) / T), Math.floor((ex.y + ex.h / 2) / T));
   const reach = (x, y) => f[Math.floor(y / T) * G.grid.cols + Math.floor(x / T)] >= 0;
   if (!reach(G.spawn.x, G.spawn.y)) return false;
-  for (const rm of G.rooms) if (!reach(rm.x + rm.w / 2, rm.y + rm.h / 2)) return false;
+  for (const rm of G.rooms) {
+    let ok = false; // any open tile of the room (decor may cover the centre)
+    for (let y = rm.ty; y < rm.ty + rm.th && !ok; y++) for (let x = rm.tx; x < rm.tx + rm.tw && !ok; x++) if (!solidTile(x, y)) ok = f[y * G.grid.cols + x] >= 0;
+    if (!ok) return false;
+  }
+  for (const st of G.stairs) if (!reach(st.x + st.w / 2, st.y + st.h + T / 2)) return false; // stair landing
   return true;
 }
 
-function saveSnapshot(floor, type) {
+// The snapshot holds the run and (outside boss fights) the whole floor: layout, room progress,
+// surviving enemies and a safe player position. A fight that was in progress restarts cleanly.
+function saveSnapshot() {
   const run = G.run;
+  if (!run || !G.room) return;
   Save.data.snapshot = {
-    floor, type, hp: G.player.hp, order: expandOrder(),
-    run: { kills: run.kills, shards: run.shards, dmg: run.dmg, time: run.time, bosses: run.bosses, elites: run.elites,
+    v: 2, floor: run.floor, type: G.room.type, hp: G.player.hp, order: expandOrder(),
+    run: { kills: run.kills, shards: run.shards + pendingShards(), dmg: run.dmg, time: run.time, bosses: run.bosses, elites: run.elites,
       hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed },
+    floorState: G.room.type === 'boss' ? null : serializeFloor(),
   };
   Save.save();
+}
+function pendingShards() { let n = 0; for (const k of G.pickups) if (k.type === 'shard') n += k.value; return n; }
+
+function serializeFloor() {
+  const g = G.grid, solid = g.solid.slice();
+  for (const rm of G.rooms) for (const gt of rm.gates) for (const i of gt.tiles) solid[i] = 0; // gates saved open
+  const R = G.room, active = R.active;
+  const safe = active ? (G.safePos || G.spawn) : { x: G.player.x, y: G.player.y };
+  return {
+    cols: g.cols, rows: g.rows, solid: Array.from(solid).join(''),
+    rooms: G.rooms.map((rm) => ({ id: rm.id, kind: rm.kind, tx: rm.tx, ty: rm.ty, tw: rm.tw, th: rm.th, layout: rm.layout,
+      state: rm.state === 'active' ? 'idle' : rm.state, waves: rm.waves || [], waveIdx: rm.state === 'active' ? 0 : rm.waveIdx || 0,
+      gates: rm.gates.map((gt) => ({ tiles: gt.tiles, horiz: gt.horiz })) })),
+    halls: G.halls, pillars: G.pillars, traps: G.traps.map((t) => ({ ...t, hitCycle: -1 })),
+    stairs: G.stairs.map((st) => ({ ...st })), arrival: G.arrival, exitId: G.rooms.indexOf(G.exitRoom),
+    enemies: G.enemies.filter((e) => !e.dead && e.type !== 'boss' && e.type !== 'fake' && !(active && e.roomId === active.id))
+      .map((e) => ({ t: e.type, x: e.x, y: e.y, elite: e.elite, sleep: e.sleep, hp: e.hp / e.maxHp, roomId: e.roomId })),
+    phase: R.phase === 'clear' ? 'fight' : R.phase, shrineUsed: !!(G.shrine && G.shrine.used),
+    safe, zoneSeed: 0,
+  };
+}
+
+function restoreFloor(fs) {
+  makeGrid(fs.cols, fs.rows);
+  for (let i = 0; i < fs.solid.length; i++) G.grid.solid[i] = fs.solid.charCodeAt(i) === 49 ? 1 : 0;
+  G.gridVer = 1;
+  G.rooms = fs.rooms.map((r) => ({ ...r, ...tileRect(r.tx, r.ty, r.tw, r.th), gates: r.gates.map((gt) => ({ ...gt, locked: false })) }));
+  G.halls = fs.halls; G.pillars = fs.pillars; G.traps = fs.traps;
+  G.stairs = fs.stairs; G.arrival = fs.arrival;
+  G.exitRoom = G.rooms[fs.exitId] || G.rooms[G.rooms.length - 1];
+  G.spawn = { x: fs.safe.x, y: fs.safe.y };
+}
+
+function applyRestoreState(fs) {
+  for (const e of fs.enemies) {
+    const en = spawnEnemy(e.t, e.x, e.y, e.elite, G.enemies);
+    en.sleep = e.sleep; en.hp = Math.max(1, en.maxHp * e.hp); en.roomId = e.roomId; en.spawnIn = 0;
+  }
+  if (G.shrine && fs.shrineUsed) G.shrine.used = true;
+  if (fs.phase === 'doors') { G.room.restorePhase = 'doors'; }
+  else if (fs.phase === 'rest') G.room.restorePhase = 'rest';
+  G.restored = true;
 }
 
 // Snapshot keeps upgrades as a flat list with repeats (id per stack).
@@ -187,6 +244,7 @@ function clearRoomSection(rm) {
   R.active = null;
   if (rm.gates.length) setGates(rm, false);
   for (const k of G.pickups) k.magnet = true;
+  saveSnapshot();
   const more = G.rooms.some((r) => r.state === 'idle');
   if (more) {
     sfx('clear');
@@ -212,7 +270,12 @@ function aliveCount() {
 }
 function aliveIn(rm) {
   let n = 0;
-  for (const e of G.enemies) if (!e.dead && e.roomId === rm.id) n++;
+  for (const e of G.enemies) {
+    if (e.dead || e.roomId !== rm.id) continue;
+    // an enemy that somehow left its room no longer holds the room hostage: it becomes a wanderer
+    if (e.x < rm.x - 4 || e.x > rm.x + rm.w + 4 || e.y < rm.y - 4 || e.y > rm.y + rm.h + 4) { e.roomId = -1; e.sleep = false; continue; }
+    n++;
+  }
   for (const m of G.markers) if (m.roomId === rm.id) n++;
   return n;
 }
@@ -223,14 +286,18 @@ function updateRoom(dt) {
   if (R.phase === 'intro') {
     if (R.t > 0.75) {
       if (R.type === 'boss') { R.phase = 'fight'; spawnBoss(G.run.floor); }
-      else if (R.type === 'rest') R.phase = 'rest';
+      else if (R.restorePhase === 'doors') { R.phase = 'doors'; unlockStairs(); }
+      else if (R.type === 'rest') R.phase = G.shrine && G.shrine.used ? 'doors' : 'rest';
       else R.phase = 'fight';
+      if (R.type === 'rest' && R.phase === 'doors') unlockStairs();
     }
     return;
   }
   if (R.phase === 'fight') {
     R.queueT -= dt;
-    if (R.queue.length && R.queueT <= 0 && aliveCount() < G.scale.maxAlive) {
+    // the spawn cap only counts the room being fought (sleepers/stragglers elsewhere must not stall it)
+    const capCount = R.queue.length ? (R.queue[0].room ? aliveIn(R.queue[0].room) : aliveCount()) : 0;
+    if (R.queue.length && R.queueT <= 0 && capCount < G.scale.maxAlive) {
       const s = R.queue.shift();
       addMarker(s.t, s.elite, s.room);
       R.queueT = 0.12;
@@ -267,23 +334,26 @@ function updateRoom(dt) {
     }
     return;
   }
-  if (R.phase === 'doors') {
-    const p = G.player;
-    for (const d of G.doors) {
-      d.t += dt;
-      if (p.x > d.x - 2 && p.x < d.x + d.w + 2 && p.y - p.r < d.y + d.h + 8) {
-        goThroughDoor(d);
-        break;
-      }
-    }
+  updateStairs();
+}
+
+// Standing on (or against) a staircase shows what is up there; reaching its top climbs.
+function updateStairs() {
+  const p = G.player;
+  let near = null;
+  for (const st of G.stairs) {
+    if (p.x > st.x - 4 && p.x < st.x + st.w + 4 && p.y > st.y - 4 && p.y < st.y + st.h + 24) { near = st; break; }
   }
+  if (near !== G.stairOn) { G.stairOn = near; UI.stairInfo(near); }
+  if (near && !near.locked && G.room.phase === 'doors' && p.y - p.r < near.y + 10) startClimb(near);
 }
 
 // Where the guide arrow should point (next room, a straggler, or the doors).
 function guideTarget() {
   const R = G.room;
   if (!R) return null;
-  if (R.phase === 'doors' && G.doors.length) { const d = G.doors[0]; return { x: d.x + d.w / 2, y: d.y + d.h + 20 }; }
+  if (R.phase === 'doors' && G.stairOn && !G.stairOn.locked) return null; // already on the stairs
+  if (R.phase === 'doors' && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.x + d.w / 2, y: d.y + d.h + 16 }; }
   if (R.phase !== 'fight' || R.active || R.type === 'boss') return null;
   const next = G.rooms.find((r) => r.state === 'idle');
   if (next) return { x: next.x + next.w / 2, y: next.y + next.h / 2 };
@@ -374,18 +444,32 @@ function afterReward() {
   G.state = 'play';
   Input.reset();
   G.room.phase = 'doors'; G.room.t = 0;
-  makeDoors(nextDoorTypes(G.run.floor + 1));
+  unlockStairs();
   sfx('door');
+  floatText(G.player.x, G.player.y - 24, 'STAIRS OPEN', '#8dff6a', 13, 1.2);
+  saveSnapshot();
   G.hudDirty = true;
 }
 
-function goThroughDoor(d) {
+// Walk up the stairs: the player keeps moving up while the view darkens, then arrives on the next floor.
+function startClimb(st) {
   if (G.state !== 'play') return;
   sfx('door');
-  G.state = 'trans';
-  G.fadeDir = 1;
-  G.transCb = () => enterFloor(G.run.floor + 1, d.type);
+  G.state = 'climb';
+  G.climb = { st, t: 0 };
+  Input.reset();
+  UI.stairInfo(null);
 }
+function updateClimb(dt) {
+  const c = G.climb, p = G.player;
+  c.t += dt;
+  p.x += (c.st.x + c.st.w / 2 - p.x) * Math.min(1, dt * 8);
+  p.y -= 70 * dt;
+  p.face = -Math.PI / 2; p.vx = 0; p.vy = -70;
+  G.fade = clamp((c.t - 0.2) / 0.45, 0, 1);
+  if (c.t > 0.7) { G.climb = null; enterFloor(G.run.floor + 1, c.st.type); G.arriveT = 0.55; G.fade = 1; }
+}
+function goThroughDoor(st) { startClimb(st); } // kept for tests/debug
 
 // ---------- death ----------
 function playerDie() {
@@ -445,9 +529,21 @@ function abandonRun() {
 // ---------- main simulation step ----------
 function step(dt) {
   G.time += dt;
+  if (G.state === 'climb') { updateClimb(dt); updatePickups(dt); updateFx(dt); return; }
   if (G.state === 'play' || G.state === 'dying') {
     G.run.time += G.state === 'play' ? dt : 0;
-    if (G.state === 'play') updatePlayer(dt);
+    if (G.arriveT > 0) { // stepping off the arrival stairs
+      const p = G.player;
+      G.arriveT -= dt; p.y -= 75 * dt; p.vx = 0; p.vy = -75; p.face = -Math.PI / 2;
+      collideWorld(p, p.r);
+      G.fade = clamp(G.arriveT * 2.2, 0, 1);
+      Input.consumeDash();
+    } else if (G.state === 'play') updatePlayer(dt);
+    updateTraps(dt);
+    if (G.player.alive) { // safe = corridor or an already cleared room (never a room that is or will be fought)
+      const here = roomAt(G.player.x, G.player.y, -2);
+      if (!here || here.state === 'clear') G.safePos = { x: G.player.x, y: G.player.y };
+    }
     updateMarkers(dt);
     updateEnemies(dt);
     if (G.newEnemies.length) { for (const e of G.newEnemies) G.enemies.push(e); G.newEnemies.length = 0; }
@@ -478,4 +574,27 @@ function debugClearFloor() {
   for (const rm of G.rooms) { if (rm.gates.length) setGates(rm, false); rm.state = 'clear'; rm.waveIdx = (rm.waves || []).length; }
   R.active = null;
   if (R.phase === 'intro') R.phase = 'fight';
+}
+
+// ---------- spike traps (only armed while their room is being fought) ----------
+function trapState(tr) {
+  const cyc = TRAP_CYCLE.idle + TRAP_CYCLE.warn + TRAP_CYCLE.active;
+  const t = (G.time + tr.off) % cyc;
+  return { cycle: Math.floor((G.time + tr.off) / cyc), s: t < TRAP_CYCLE.idle ? 0 : t < TRAP_CYCLE.idle + TRAP_CYCLE.warn ? 1 : 2, k: t };
+}
+function trapArmed(tr) { const rm = G.rooms[tr.roomId]; return !!rm && rm.state === 'active'; }
+function updateTraps() {
+  if (!G.traps.length) return;
+  const p = G.player;
+  for (const tr of G.traps) {
+    if (!trapArmed(tr)) continue;
+    const st = trapState(tr);
+    if (st.s !== 2) continue;
+    if (p.alive && pointInRect(p.x, p.y, tr, 2)) hurtPlayer(tr.x + tr.w / 2, tr.y + tr.h / 2);
+    if (tr.hitCycle !== st.cycle) {
+      tr.hitCycle = st.cycle;
+      for (const e of G.enemies) if (!e.dead && e.type !== 'boss' && pointInRect(e.x, e.y, tr, e.r * 0.5)) damageEnemy(e, 22 * G.scale.hp, false, 0, 0, true);
+      sfx('fuse');
+    }
+  }
 }

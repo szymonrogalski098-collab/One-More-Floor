@@ -104,6 +104,7 @@ const UI = {
 
   // ---------- HUD ----------
   showHud(on) {
+    if (!on) this.stairInfo(null);
     $('hud').classList.toggle('hidden', !on);
     $('btn-dash').classList.toggle('hidden', !on);
     $('btn-dash').classList.toggle('left', !!Save.data.settings.lefty);
@@ -150,6 +151,23 @@ const UI = {
     }
     // boss
     if (G.boss) $('boss-fill').style.transform = 'scaleX(' + Math.max(0, G.boss.hp / G.boss.maxHp).toFixed(3) + ')';
+  },
+
+  // Preview of the floor behind a staircase (shown while standing on / against it).
+  stairInfo(st) {
+    const el = $('stair-info');
+    if (!st) { el.classList.add('hidden'); return; }
+    const next = G.run.floor + 1, R = ROOM[st.type];
+    let title = R.name + ' · FLOOR ' + next, sub = '';
+    if (st.type === 'combat') sub = 'Fight rooms and corridors. Reward: 1 upgrade.';
+    else if (st.type === 'elite') sub = 'Elite enemies guard the last room. Reward: a rare or better upgrade and extra shards.';
+    else if (st.type === 'rest') sub = 'No enemies. Heal or train for a random upgrade.';
+    else { const b = BOSSES[BOSS_ORDER[(Math.floor(next / 5) - 1) % BOSS_ORDER.length]]; title = 'BOSS · ' + b.name; sub = 'A boss waits upstairs. Reward: boss upgrade and healing.'; }
+    el.querySelector('.si-title').textContent = title;
+    el.querySelector('.si-sub').textContent = sub;
+    el.querySelector('.si-hint').textContent = st.locked ? 'Locked — clear the floor first' : 'Walk up the stairs to climb';
+    el.style.setProperty('--sc', st.locked ? '#9c96c9' : R.color);
+    el.classList.remove('hidden');
   },
 
   bossBar(b) {

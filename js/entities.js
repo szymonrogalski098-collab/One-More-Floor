@@ -547,9 +547,13 @@ const AI = {
   sentinel(e, dt, sm) {
     const p = G.player;
     e.wob += dt;
+    // a turret hiding behind cover for too long walks out until it can see the player
+    e.losT = (e.losT || 0) - dt;
+    if (e.losT <= 0) { e.losT = 0.3; e.blind = hasLOS(e.x, e.y, p.x, p.y) ? 0 : (e.blind || 0) + 0.3; }
+    if (e.blind > 2.5) { const tg = chaseTarget(e, dt); steer(e, tg.x, tg.y, Math.max(40, e.speed * 2) * sm, dt, 2); }
     const hm = e.home || (G.circle ? { x: G.circle.x - G.circle.R * 0.7, y: G.circle.y - G.circle.R * 0.7, w: G.circle.R * 1.4, h: G.circle.R * 1.4 } : { x: 0, y: 0, w: G.W, h: G.H });
     const tx = hm.x + hm.w / 2 + Math.cos(e.wob * 0.4 + e.id) * hm.w * 0.3, ty = hm.y + hm.h / 2 + Math.sin(e.wob * 0.3 + e.id) * hm.h * 0.3;
-    steer(e, tx, ty, e.speed * sm, dt, 1.5);
+    if (!(e.blind > 2.5)) steer(e, tx, ty, e.speed * sm, dt, 1.5);
     e.atk -= dt * G.scale.fire;
     if (e.atk <= 0.7 && e.charge === 0) e.charge = 0.001;
     if (e.charge > 0) e.charge = Math.min(1, 1 - e.atk / 0.7);
@@ -598,6 +602,12 @@ function updateEnemies(dt) {
     e.x += (e.vx + e.kx) * dt; e.y += (e.vy + e.ky) * dt;
     const kd = Math.exp(-dt * 9); e.kx *= kd; e.ky *= kd;
     if (collideWorld(e, e.r)) e.wallHit = true;
+    // enemies of the room being fought can never leave it (locked gates are only one tile thick)
+    const act = G.room && G.room.active;
+    if (act && e.roomId === act.id) {
+      const nx = clamp(e.x, act.x + e.r, act.x + act.w - e.r), ny = clamp(e.y, act.y + e.r, act.y + act.h - e.r);
+      if (nx !== e.x || ny !== e.y) { e.x = nx; e.y = ny; e.wallHit = true; }
+    }
     if (p.alive && !e.air && e.spawnIn <= 0) {
       const rr = e.r + PLAYER_HITBOX;
       if (dist2(e.x, e.y, p.x, p.y) < rr * rr) hurtPlayer(e.x, e.y);

@@ -146,8 +146,14 @@ const Render = {
     // pillars (drawn before edges so the neon outline sits on top)
     for (const p of G.pillars) {
       g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(p.x + 3, p.y + 5, p.w, p.h);
-      g.fillStyle = '#1f1b40'; g.fillRect(p.x, p.y, p.w, p.h);
-      g.fillStyle = '#2c2758'; g.fillRect(p.x, p.y, p.w, Math.min(6, p.h / 3));
+      if (p.crate) {
+        g.fillStyle = '#3a2717'; g.fillRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
+        g.strokeStyle = '#b8742e'; g.lineWidth = 1.5; g.strokeRect(p.x + 2, p.y + 2, p.w - 4, p.h - 4);
+        g.beginPath(); g.moveTo(p.x + 3, p.y + 3); g.lineTo(p.x + p.w - 3, p.y + p.h - 3); g.moveTo(p.x + p.w - 3, p.y + 3); g.lineTo(p.x + 3, p.y + p.h - 3); g.stroke();
+      } else {
+        g.fillStyle = '#1f1b40'; g.fillRect(p.x, p.y, p.w, p.h);
+        g.fillStyle = '#2c2758'; g.fillRect(p.x, p.y, p.w, Math.min(6, p.h / 3));
+      }
     }
     // neon wall edges
     g.strokeStyle = z.edge;
@@ -192,7 +198,8 @@ const Render = {
     ctx.drawImage(this.floorCv, 0, 0, G.W, G.H);
 
     this.drawGates(ctx);
-    this.drawDoors(ctx);
+    this.drawTraps(ctx);
+    this.drawStairs(ctx);
     this.drawShrine(ctx);
     this.drawMarkers(ctx);
     this.drawTelegraphs(ctx);
@@ -293,30 +300,74 @@ const Render = {
     ctx.drawImage(this.glowSprite(color), x - r, y - r, r * 2, r * 2);
   },
 
-  drawDoors(ctx) {
-    if (!G.doors.length) return;
+  // Exit staircases (steps rising toward the top wall) and the arrival staircase.
+  drawStairs(ctx) {
     const t = G.time;
-    for (const dr of G.doors) {
-      const col = ROOM[dr.type].color;
-      const cx = dr.x + dr.w / 2, pulse = 0.6 + Math.sin(t * 4 + cx) * 0.25;
-      ctx.globalCompositeOperation = 'lighter';
-      this.drawGlow(ctx, cx, dr.y + dr.h / 2, 60, col, pulse);
-      ctx.globalCompositeOperation = 'source-over';
+    if (G.arrival) this.drawStairShape(ctx, G.arrival, '#6c5cff', 0.45, false);
+    for (const st of G.stairs || []) {
+      const col = ROOM[st.type].color, on = G.stairOn === st;
+      if (!st.locked) {
+        ctx.globalCompositeOperation = 'lighter';
+        this.drawGlow(ctx, st.x + st.w / 2, st.y + st.h / 2, 55, col, 0.5 + Math.sin(t * 4 + st.x) * 0.2);
+        ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      }
+      this.drawStairShape(ctx, st, st.locked ? '#5a5680' : col, st.locked ? 0.5 : 1, true);
+      // type hint: small icon on the top step, full preview when standing on the stairs
+      ctx.globalAlpha = st.locked ? 0.35 : on ? 1 : 0.6;
+      this.drawRoomIcon(ctx, st.type, st.x + st.w / 2, st.y + 11, st.locked ? '#9c96c9' : col);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#04030a';
-      ctx.fillRect(dr.x, dr.y, dr.w, dr.h);
-      ctx.strokeStyle = col; ctx.lineWidth = 2.5;
-      ctx.strokeRect(dr.x, dr.y, dr.w, dr.h);
-      this.drawRoomIcon(ctx, dr.type, cx, dr.y + dr.h / 2, col);
-      ctx.font = '800 10px system-ui, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillStyle = col;
-      ctx.fillText(ROOM[dr.type].name, cx, dr.y + dr.h + 6);
-      // bouncing chevron
-      const by = dr.y + dr.h + 24 + Math.sin(t * 6) * 3;
-      ctx.globalAlpha = 0.7; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(cx - 6, by + 5); ctx.lineTo(cx, by); ctx.lineTo(cx + 6, by + 5); ctx.stroke();
-      ctx.globalAlpha = 1;
+      if (st.locked) {
+        // energy bar across the bottom step
+        ctx.strokeStyle = '#ff4f6b'; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.55 + Math.sin(t * 8) * 0.2;
+        ctx.beginPath(); ctx.moveTo(st.x + 2, st.y + st.h - 2); ctx.lineTo(st.x + st.w - 2, st.y + st.h - 2); ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else {
+        // chevrons drifting up the steps
+        const k = (t * 1.2) % 1;
+        ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        for (let i = 0; i < 2; i++) {
+          const y = st.y + st.h - 8 - ((k + i * 0.5) % 1) * (st.h - 22);
+          ctx.globalAlpha = 0.8 * Math.sin(((k + i * 0.5) % 1) * Math.PI);
+          ctx.beginPath(); ctx.moveTo(st.x + st.w / 2 - 7, y + 4); ctx.lineTo(st.x + st.w / 2, y - 2); ctx.lineTo(st.x + st.w / 2 + 7, y + 4); ctx.stroke();
+        }
+        ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+      }
+    }
+  },
+
+  drawStairShape(ctx, r, col, alpha, up) {
+    const steps = Math.max(3, Math.round(r.h / 10));
+    ctx.globalAlpha = alpha;
+    for (let i = 0; i < steps; i++) {
+      // up-stairs get lighter toward the top, arrival stairs darker toward the bottom
+      const k = up ? 1 - i / steps : i / steps;
+      const y = r.y + (i * r.h) / steps, h = r.h / steps;
+      ctx.fillStyle = `rgba(${30 + 40 * k | 0},${26 + 34 * k | 0},${62 + 60 * k | 0},1)`;
+      ctx.fillRect(r.x, y, r.w, h);
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.05 + 0.12 * k) + ')';
+      ctx.fillRect(r.x, y, r.w, 1.5);
+    }
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+    ctx.globalAlpha = 1;
+  },
+
+  drawTraps(ctx) {
+    if (!G.traps || !G.traps.length) return;
+    for (const tr of G.traps) {
+      const armed = trapArmed(tr), st = armed ? trapState(tr) : { s: 0 };
+      ctx.fillStyle = st.s === 1 ? 'rgba(255,138,61,' + (0.25 + 0.25 * Math.abs(Math.sin(G.time * 14))) + ')' : 'rgba(0,0,0,0.35)';
+      ctx.fillRect(tr.x + 1, tr.y + 1, tr.w - 2, tr.h - 2);
+      ctx.strokeStyle = armed ? '#ff8a3d' : 'rgba(255,138,61,0.35)'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(tr.x + 1.5, tr.y + 1.5, tr.w - 3, tr.h - 3);
+      // spikes: holes when retracted, bright cones when active
+      for (let yy = 0; yy < 3; yy++) for (let xx = 0; xx < 3; xx++) {
+        const cx = tr.x + tr.w * (0.2 + 0.3 * xx), cy = tr.y + tr.h * (0.2 + 0.3 * yy);
+        if (st.s === 2) {
+          ctx.fillStyle = '#ffe0d0';
+          ctx.beginPath(); ctx.moveTo(cx, cy - 6); ctx.lineTo(cx + 4, cy + 3); ctx.lineTo(cx - 4, cy + 3); ctx.closePath(); ctx.fill();
+        } else { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3); }
+      }
     }
   },
 

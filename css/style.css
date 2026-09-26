@@ -104,6 +104,17 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .dash-pips i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .dash-pips i.off { background: rgba(255, 255, 255, 0.18); }
 
+/* ---------- Stairs preview ---------- */
+.stair-info {
+  position: fixed; left: 50%; bottom: calc(var(--safe-b) + 118px); transform: translateX(-50%); z-index: 7;
+  width: min(86vw, 340px); padding: 12px 14px; border-radius: 14px; text-align: center; pointer-events: none;
+  background: rgba(12, 10, 28, 0.94); border: 1.5px solid var(--sc, var(--accent)); box-shadow: 0 0 22px color-mix(in srgb, var(--sc, #4df3ff) 30%, transparent);
+  animation: fadein 0.15s ease-out;
+}
+.si-title { font-weight: 900; letter-spacing: 0.14em; font-size: 16px; color: var(--sc, var(--accent)); }
+.si-sub { font-size: 13px; color: #d6d0ff; margin-top: 3px; line-height: 1.35; }
+.si-hint { font-size: 11px; color: var(--muted); margin-top: 6px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; }
+
 /* ---------- Banner ---------- */
 .banner {
   position: fixed; left: 0; right: 0; top: 38%; z-index: 7;

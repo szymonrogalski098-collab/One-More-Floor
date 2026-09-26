@@ -28,7 +28,12 @@ function solidTile(tx, ty) {
   return g.solid[ty * g.cols + tx] === 1;
 }
 function solidAt(x, y) {
-  if (G.circle) { const c = G.circle; return dist2(x, y, c.x, c.y) > c.R * c.R; }
+  if (G.circle) {
+    const c = G.circle;
+    if (dist2(x, y, c.x, c.y) > c.R * c.R) return true;
+    for (const st of G.stairs) if (st.locked && pointInRect(x, y, st, 0)) return true;
+    return false;
+  }
   return solidTile(Math.floor(x / T), Math.floor(y / T));
 }
 function carve(tx, ty, tw, th) {
@@ -46,12 +51,27 @@ const _tileRc = { x: 0, y: 0, w: T, h: T };
 function collideWorld(o, r) {
   if (G.circle) {
     const c = G.circle, dx = o.x - c.x, dy = o.y - c.y, d = Math.hypot(dx, dy), lim = c.R - r;
-    if (d > lim && d > 0) { o.x = c.x + (dx / d) * lim; o.y = c.y + (dy / d) * lim; return 1; }
-    return 0;
+    let hit = 0;
+    if (d > lim && d > 0) { o.x = c.x + (dx / d) * lim; o.y = c.y + (dy / d) * lim; hit = 1; }
+    for (const st of G.stairs) if (st.locked && pushOutRect(o, r, st)) hit = 2;
+    return hit;
   }
   let hit = 0;
   // clamp into the world first (cheap guard against tunnelling out of the map)
   o.x = clamp(o.x, r, G.W - r); o.y = clamp(o.y, r, G.H - r);
+  // centre inside a wall/block (shoved there by crowd pushes or knockback): per-tile resolution could
+  // bounce it around inside a thick block forever, so hop to the nearest open tile first
+  const ctx = Math.floor(o.x / T), cty = Math.floor(o.y / T);
+  if (solidTile(ctx, cty)) {
+    let bx = 0, by = 0, bd = Infinity;
+    for (let oy = -3; oy <= 3; oy++) for (let ox = -3; ox <= 3; ox++) {
+      if (solidTile(ctx + ox, cty + oy)) continue;
+      const px = clamp(o.x, (ctx + ox) * T, (ctx + ox + 1) * T), py = clamp(o.y, (cty + oy) * T, (cty + oy + 1) * T);
+      const d = dist2(o.x, o.y, px, py);
+      if (d < bd) { bd = d; bx = px; by = py; }
+    }
+    if (bd < Infinity) { o.x = bx; o.y = by; hit = 1; }
+  }
   const x0 = Math.floor((o.x - r) / T), x1 = Math.floor((o.x + r) / T);
   const y0 = Math.floor((o.y - r) / T), y1 = Math.floor((o.y + r) / T);
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
@@ -73,7 +93,7 @@ function hasLOS(ax, ay, bx, by) {
 
 // Is a circle of radius r at (x,y) fully in open space?
 function spotFree(x, y, r) {
-  if (G.circle) { const c = G.circle; return dist2(x, y, c.x, c.y) < (c.R - r) * (c.R - r); }
+  if (G.circle) { const c = G.circle; if (dist2(x, y, c.x, c.y) >= (c.R - r) * (c.R - r)) return false; }
   return !solidAt(x, y) && !solidAt(x - r, y) && !solidAt(x + r, y) && !solidAt(x, y - r) && !solidAt(x, y + r)
     && !solidAt(x - r * 0.7, y - r * 0.7) && !solidAt(x + r * 0.7, y + r * 0.7) && !solidAt(x - r * 0.7, y + r * 0.7) && !solidAt(x + r * 0.7, y - r * 0.7);
 }
@@ -167,8 +187,8 @@ function buildSingleRoom(type) {
   G.rooms = [room];
   G.halls = [];
   G.exitRoom = room;
-  G.pillars = [];
-  G.spawn = { x: G.W / 2, y: G.H - T - 46 };
+  G.pillars = []; G.traps = [];
+  placeArrival(room);
   G.gridVer = 1;
   return room;
 }
@@ -183,9 +203,9 @@ function buildBossHall() {
     if (dist2((tx + 0.5) * T, (ty + 0.5) * T, c.x, c.y) < (R - T * 0.5) * (R - T * 0.5)) G.grid.solid[ty * size + tx] = 0;
   }
   G.circle = c;
-  G.rooms = []; G.halls = []; G.pillars = [];
+  G.rooms = []; G.halls = []; G.pillars = []; G.traps = [];
   G.exitRoom = { x: c.x - R * 0.6, y: c.y - R, w: R * 1.2, h: R * 2, circleTop: true };
-  G.spawn = { x: c.x, y: c.y + R - 60 };
+  placeArrival(null);
   G.gridVer = 1;
 }
 
@@ -263,21 +283,11 @@ function buildDungeon(floor, type) {
     halls.push(hall);
   }
 
-  // cover pillars in bigger fight rooms (2x2 tiles, kept away from walls so paths stay open)
-  const pillars = [];
-  for (const rm of rooms) {
-    if (rm.kind === 'start' || rm.tw < 13 || rm.th < 11 || Math.random() < 0.35) continue;
-    const py = rm.ty + Math.floor(rm.th / 2) - 1;
-    const pxL = rm.tx + Math.floor(rm.tw * 0.3) - 1, pxR = rm.tx + rm.tw - Math.floor(rm.tw * 0.3) - 1;
-    for (const px of [pxL, pxR]) { fillSolid(px, py, 2, 2); pillars.push(tileRect(px, py, 2, 2)); }
-  }
-
   G.rooms = rooms;
   G.halls = halls;
-  G.pillars = pillars;
+  G.pillars = []; G.traps = [];
   G.exitRoom = rooms[rooms.length - 1];
-  const st = rooms[0];
-  G.spawn = { x: st.x + st.w / 2, y: st.y + st.h / 2 };
+  placeArrival(rooms[0]);
   return rooms;
 }
 
@@ -286,20 +296,158 @@ function roomAt(x, y, inset = 0) {
   return null;
 }
 
-// ---------- doors (top wall of the exit room) ----------
-function makeDoors(types) {
-  const w = 66, h = 26, ex = G.exitRoom;
-  let xs, y;
-  if (ex.circleTop) {
-    const c = G.circle;
-    xs = types.length === 1 ? [c.x] : [c.x - 70, c.x + 70];
-    y = c.y - c.R + 18;
-  } else {
-    const cx = ex.x + ex.w / 2;
-    xs = types.length === 1 ? [cx] : [ex.x + ex.w * 0.28, ex.x + ex.w * 0.72];
-    y = ex.y - h + 4;
+// ---------- room variety: shapes, cover layouts, spike traps ----------
+// Layouts return tile rects relative to the room interior (x, y, w, h in tiles).
+const ROOM_LAYOUTS = {
+  pillars4: (w, h) => [[Math.floor(w * 0.25) - 1, Math.floor(h * 0.3) - 1, 2, 2], [w - Math.floor(w * 0.25) - 1, Math.floor(h * 0.3) - 1, 2, 2],
+    [Math.floor(w * 0.25) - 1, h - Math.floor(h * 0.3) - 1, 2, 2], [w - Math.floor(w * 0.25) - 1, h - Math.floor(h * 0.3) - 1, 2, 2]],
+  twin: (w, h) => [[Math.floor(w * 0.3) - 1, Math.floor(h / 2) - 1, 2, 2], [w - Math.floor(w * 0.3) - 1, Math.floor(h / 2) - 1, 2, 2]],
+  block: (w, h) => [[Math.floor(w / 2) - 2, Math.floor(h / 2) - 1, 4, 2 + (h > 11 ? 1 : 0)]],
+  zigzag: (w, h) => [[2, Math.floor(h * 0.35), Math.floor(w * 0.45), 1], [w - 2 - Math.floor(w * 0.45), Math.floor(h * 0.68), Math.floor(w * 0.45), 1]],
+  columns: (w, h) => [[Math.floor(w * 0.3), 3, 1, Math.max(3, h - 7)], [w - 1 - Math.floor(w * 0.3), 3, 1, Math.max(3, h - 7)]],
+  ring: (w, h) => { const out = [], cx = w / 2, cy = h / 2, rx = w * 0.3, ry = h * 0.3; for (let i = 0; i < 8; i++) { const a = (i * TAU) / 8 + TAU / 16; out.push([Math.round(cx + Math.cos(a) * rx - 0.5), Math.round(cy + Math.sin(a) * ry - 0.5), 1, 1]); } return out; },
+  crates: (w, h) => { const out = []; const n = randInt(4, 7); for (let i = 0; i < n; i++) out.push([randInt(2, w - 4), randInt(2, h - 4), chance(0.3) ? 2 : 1, 1]); return out; },
+  cross: (w, h) => [[Math.floor(w / 2) - 3, Math.floor(h / 2), 6, 1], [Math.floor(w / 2), Math.floor(h / 2) - 2, 1, 5]],
+  diagonal: (w, h) => { const out = []; for (let i = 0; i < 5; i++) out.push([Math.round(2 + ((w - 5) * i) / 4), Math.round(2 + ((h - 5) * i) / 4), 1, 1]); return out; },
+};
+const LAYOUT_KEYS = Object.keys(ROOM_LAYOUTS);
+
+// Tiles that must stay open inside a room: corridor mouths, stairs landings, spawn areas.
+function roomReserve(rm) {
+  const res = [];
+  const g = G.grid;
+  for (const gt of rm.gates) {
+    for (const i of gt.tiles) {
+      const x = i % g.cols, y = (i / g.cols) | 0;
+      res.push([x - 2, y - 2, 5, 5]);
+    }
   }
-  G.doors = types.map((type, i) => ({ type, x: xs[i] - w / 2, y, w, h, t: 0 }));
+  for (const s of G.stairs || []) res.push([s.tx - 1, s.ty, s.tw + 2, s.th + 2]);
+  if (G.arrival) res.push([G.arrival.tx - 1, G.arrival.ty - 2, G.arrival.tw + 2, G.arrival.th + 2]);
+  return res;
+}
+const overlaps = (a, b) => a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
+
+// All open tiles of the room must form one connected area touching every corridor mouth.
+function roomConnected(rm) {
+  const g = G.grid, inRoom = (x, y) => x >= rm.tx && x < rm.tx + rm.tw && y >= rm.ty && y < rm.ty + rm.th;
+  let start = -1, total = 0;
+  for (let y = rm.ty; y < rm.ty + rm.th; y++) for (let x = rm.tx; x < rm.tx + rm.tw; x++) if (!solidTile(x, y)) { total++; if (start < 0) start = y * g.cols + x; }
+  if (start < 0) return false;
+  const seen = new Uint8Array(g.cols * g.rows), q = [start];
+  seen[start] = 1;
+  let n = 0;
+  while (q.length) {
+    const i = q.pop(); n++;
+    const x = i % g.cols, y = (i / g.cols) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy, j = ny * g.cols + nx;
+      if (inRoom(nx, ny) && !seen[j] && !solidTile(nx, ny)) { seen[j] = 1; q.push(j); }
+    }
+  }
+  if (n !== total) return false;
+  for (const gt of rm.gates) { // tile just inside each corridor mouth must be open
+    const i = gt.tiles[1], x = i % g.cols, y = (i / g.cols) | 0;
+    const inner = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].find(([ix, iy]) => inRoom(ix, iy));
+    if (inner && solidTile(inner[0], inner[1])) return false;
+  }
+  return true;
+}
+
+function decorateRoom(rm, floor) {
+  if (rm.kind === 'start' || rm.tw < 9 || rm.th < 8) return;
+  const reserve = roomReserve(rm);
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const placed = [], shape = [];
+    // 1) room shape: cut corners (chamfer / L / plus)
+    const shapeRoll = Math.random();
+    const cw = Math.max(2, Math.floor(rm.tw * 0.3)), ch = Math.max(2, Math.floor(rm.th * 0.3));
+    if (shapeRoll < 0.25) for (const [cx, cy] of [[0, 0], [rm.tw - 2, 0], [0, rm.th - 2], [rm.tw - 2, rm.th - 2]]) shape.push([cx, cy, 2, 2]);
+    else if (shapeRoll < 0.45) { const c = pick([[0, 0], [rm.tw - cw, 0], [0, rm.th - ch], [rm.tw - cw, rm.th - ch]]); shape.push([c[0], c[1], cw, ch]); }
+    else if (shapeRoll < 0.6) for (const [cx, cy] of [[0, 0], [rm.tw - cw, 0], [0, rm.th - ch], [rm.tw - cw, rm.th - ch]]) shape.push([cx, cy, Math.max(2, cw - 1), Math.max(2, ch - 1)]);
+    // 2) cover layout (never empty)
+    const key = pick(LAYOUT_KEYS);
+    for (const r of ROOM_LAYOUTS[key](rm.tw, rm.th)) placed.push(r);
+    const abs = (r) => [rm.tx + r[0], rm.ty + r[1], r[2], r[3]];
+    const ok = (r) => r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= rm.tw && r[1] + r[3] <= rm.th && !reserve.some((z) => overlaps(abs(r), z));
+    const shapeOk = shape.filter(ok), placedOk = placed.filter((r) => ok(r) && r[0] >= 1 && r[1] >= 1 && r[0] + r[2] <= rm.tw - 1 && r[1] + r[3] <= rm.th - 1);
+    if (!placedOk.length) continue;
+    for (const r of shapeOk) fillSolid(...abs(r));
+    // obstacles keep >= 2 open tiles to walls and to each other, so big enemies never jam in a 1-tile slot
+    const kept = [];
+    for (const r of placedOk) {
+      const a = abs(r);
+      let clear = true;
+      for (let y = a[1] - 2; y < a[1] + a[3] + 2 && clear; y++) for (let x = a[0] - 2; x < a[0] + a[2] + 2 && clear; x++) {
+        const inside = x >= rm.tx && x < rm.tx + rm.tw && y >= rm.ty && y < rm.ty + rm.th;
+        if (inside && solidTile(x, y)) clear = false;
+        if (!inside && (x === rm.tx - 1 || x === rm.tx + rm.tw || y === rm.ty - 1 || y === rm.ty + rm.th) && (x === a[0] - 1 || x === a[0] + a[2] || y === a[1] - 1 || y === a[1] + a[3])) clear = false; // 1-tile gap to the room wall
+      }
+      if (clear) { fillSolid(...a); kept.push(r); }
+    }
+    placedOk.length = 0; placedOk.push(...kept);
+    if (!placedOk.length) { for (const r of shapeOk) carve(...abs(r)); continue; }
+    if (roomConnected(rm)) {
+      for (const r of placedOk) G.pillars.push({ ...tileRect(...abs(r)), crate: key === 'crates' || (r[2] === 1 && r[3] === 1) });
+      rm.layout = key;
+      placeTraps(rm, floor, reserve);
+      return;
+    }
+    // undo and retry
+    for (const r of shapeOk.concat(placedOk)) carve(...abs(r));
+  }
+}
+
+function placeTraps(rm, floor, reserve) {
+  if (floor < 3 || Math.random() < 0.55) return;
+  const n = randInt(2, floor >= 10 ? 5 : 3);
+  for (let k = 0, tries = 0; k < n && tries < 40; tries++) {
+    const tx = rm.tx + randInt(1, rm.tw - 3), ty = rm.ty + randInt(1, rm.th - 3);
+    const r = [tx, ty, 2, 2];
+    if (reserve.some((z) => overlaps(r, z))) continue;
+    if (solidTile(tx, ty) || solidTile(tx + 1, ty) || solidTile(tx, ty + 1) || solidTile(tx + 1, ty + 1)) continue;
+    if (G.traps.some((t) => overlaps(r, [t.tx - 1, t.ty - 1, 4, 4]))) continue;
+    G.traps.push({ ...tileRect(tx, ty, 2, 2), roomId: rm.id, off: k * 0.7 + Math.random() * 0.4, hitCycle: -1 });
+    k++;
+  }
+}
+
+// ---------- stairs (exit) & arrival stairs ----------
+const TRAP_CYCLE = { idle: 2.2, warn: 0.6, active: 0.5 };
+function placeStairs(types) {
+  G.stairs = [];
+  const ex = G.exitRoom, tw = 3, th = 3;
+  if (G.circle) {
+    const c = G.circle, y = c.y - c.R + 34;
+    const xs = types.length === 1 ? [c.x] : [c.x - 58, c.x + 58];
+    types.forEach((type, i) => G.stairs.push({ type, x: xs[i] - 30, y, w: 60, h: 60, locked: true }));
+    return;
+  }
+  const ctx = ex.tx + Math.floor(ex.tw / 2);
+  // two staircases leave a 2-tile passage between them (no 1-tile pockets)
+  const xs = types.length === 1 ? [ctx - 1] : [ctx - 4, ctx + 1];
+  types.forEach((type, i) => {
+    const s = { type, ...tileRect(xs[i], ex.ty, tw, th), locked: true };
+    fillSolid(s.tx, s.ty, tw, th);
+    G.stairs.push(s);
+  });
+}
+function unlockStairs() {
+  for (const s of G.stairs) {
+    s.locked = false;
+    if (!G.circle) carve(s.tx, s.ty, s.tw, s.th);
+  }
+  G.gridVer++; G.fields.clear();
+}
+function placeArrival(rm) {
+  if (G.circle) { const c = G.circle; G.arrival = { x: c.x - 30, y: c.y + c.R - 70, w: 60, h: 40 }; G.spawn = { x: c.x, y: c.y + c.R - 40 }; return; }
+  const tx = rm.tx + Math.floor(rm.tw / 2) - 1, ty = rm.ty + rm.th - 2;
+  G.arrival = tileRect(tx, ty, 3, 2);
+  G.spawn = { x: G.arrival.x + G.arrival.w / 2, y: G.arrival.y + G.arrival.h - 10 };
+}
+function stairAt(x, y) {
+  for (const s of G.stairs || []) if (x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h + 10) return s;
+  return null;
 }
 
 function nextDoorTypes(nextFloor) {

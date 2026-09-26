@@ -84,7 +84,7 @@ async function touchEnd(cdp) { await cdp.send('Input.dispatchTouchEvent', { type
     await page.waitForTimeout(500);
     await page.tap('#up-cards .card');
     await page.waitForTimeout(300);
-    ok(name + ': upgrade applied + doors', await page.evaluate(() => OMF.G.run.order.length >= 1 && OMF.G.doors.length >= 1 && OMF.G.state === 'play'));
+    ok(name + ': upgrade applied + doors', await page.evaluate(() => OMF.G.run.order.length >= 1 && OMF.G.stairs.length >= 1 && OMF.G.stairs.every((s) => !s.locked) && OMF.G.state === 'play'));
     await page.waitForTimeout(700);
     await page.screenshot({ path: `${SHOTS}/${name}-doors.png` });
     // bosses

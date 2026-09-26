@@ -1,7 +1,7 @@
 'use strict';
 // Boot, main loop (fixed 60 Hz simulation + variable render), app lifecycle, PWA registration.
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const STEP = 1 / 60;
 
 const Loop = { last: 0, acc: 0, frameAvg: 1 / 60, slowFor: 0, hudT: 0, raf: 0 };
@@ -25,6 +25,7 @@ function startGame(resume) {
 
 function pauseGame() {
   if (G.state !== 'play') return;
+  saveSnapshot(); // app may be killed while in the background: keep the exact spot
   G.state = 'paused';
   Input.reset();
   Sound.music(false);
@@ -77,7 +78,7 @@ function frame(now) {
     if (Loop.slowFor > 2.5 && Q.level > 0) { applyQuality(Q.level - 1); Render.resize(); Loop.slowFor = 0; }
   }
 
-  const simulating = G.state === 'play' || G.state === 'dying';
+  const simulating = G.state === 'play' || G.state === 'dying' || G.state === 'climb';
   if (simulating) {
     Loop.acc += dt;
     let steps = 0;
@@ -87,7 +88,7 @@ function frame(now) {
       let sdt = STEP;
       if (G.slowT > 0) { G.slowT -= STEP; sdt *= G.slowScale; }
       step(sdt);
-      if (G.state !== 'play' && G.state !== 'dying') break;
+      if (G.state !== 'play' && G.state !== 'dying' && G.state !== 'climb') break;
     }
     if (steps >= 5) Loop.acc = 0;
   } else {
@@ -107,7 +108,7 @@ function frame(now) {
   updateFeel(dt);
   Render.updateCamera(dt);
 
-  if (G.run && (G.state === 'play' || G.state === 'reward' || G.state === 'trans' || G.state === 'dying')) {
+  if (G.run && (G.state === 'play' || G.state === 'reward' || G.state === 'trans' || G.state === 'dying' || G.state === 'climb')) {
     Loop.hudT -= dt;
     if (G.hudDirty || Loop.hudT <= 0) { UI.updateHud(); G.hudDirty = false; Loop.hudT = 0.05; }
   }
