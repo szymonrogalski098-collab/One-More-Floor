@@ -19,8 +19,6 @@ const COL = {
   mirror: '#5cf2c4',
 };
 
-const WALL = 12;
-
 // ---------- Enemies ----------
 // cost = spawn budget units, w = base spawn weight
 const ENEMY = {

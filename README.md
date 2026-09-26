@@ -8,6 +8,9 @@
 - **Shoot:** automatic, at the nearest visible enemy.
 - **DASH:** the corner button, a tap with a second finger, or Space/Shift. You are invulnerable while dashing. Dashing through an attack counts as a **perfect dodge** (slow motion, synergy with Adrenaline).
 - **Loop:** fight, reward (pick 1 of 3 upgrades), choose a door (Combat / Elite / Rest), next floor. **A boss every 5 floors.**
+- **Floors:** combat and elite floors are small dungeons: a safe start room, fight rooms joined by corridors and an exit room with the doors. Entering a fight room locks its exits (red energy bars) until every wave is cleared; dormant enemies wait in some corridors. A green chevron next to you points to the next room. The camera follows you when the floor is bigger than the screen, and arrows on the screen edge show enemies out of view.
+- **Bosses** fight in one big circular hall.
+- **Ending a run early:** using *End run* on floors 1–3 earns no shards. From floor 4 on you keep what you collected.
 - When you die you earn **shards**, which you spend in the **Workshop** on permanent upgrades and unlocks.
 
 ### Builds
@@ -140,6 +143,7 @@ npm run audit:ui        # 5 device profiles: touch, dash, pause, rewards, doors,
 npm run test:slam       # Warden slam must be escapable on foot, target must not move
 npm run test:blades     # Blade Halo speed upgrades
 npm run test:upgrades   # all upgrade lines + Workshop upgrades (availability and effects)
+npm run test:dungeon    # floor generation, room locking, abandon rule, boss hall
 npm run perf            # frame cost with 4x CPU throttling
 ```
 

@@ -65,7 +65,7 @@ async function touchEnd(cdp) { await cdp.send('Input.dispatchTouchEvent', { type
     await touchEnd(cdp);
     ok(name + ': second-finger tap dashes', c2);
     // arena inside viewport & below HUD
-    const lay = await page.evaluate(() => { const R = OMF.Render; const hud = document.querySelector('.hud-top').getBoundingClientRect(); return { top: R.offY, left: R.offX, bottom: R.offY + OMF.G.H * R.scale, right: R.offX + OMF.G.W * R.scale, hudBottom: hud.bottom, W: OMF.G.W, H: OMF.G.H, vw: innerWidth, vh: innerHeight }; });
+    const lay = await page.evaluate(() => { const R = OMF.Render; const hud = document.querySelector('.hud-top').getBoundingClientRect(); return { top: R.offY, left: R.offX, bottom: R.offY + R.VH * R.scale, right: R.offX + R.VW * R.scale, hudBottom: hud.bottom, VW: R.VW, VH: R.VH, vw: innerWidth, vh: innerHeight }; });
     ok(name + ': arena fits viewport', lay.left >= 0 && lay.right <= lay.vw + 0.5 && lay.bottom <= lay.vh + 0.5, JSON.stringify(lay));
     ok(name + ': arena below HUD bar', lay.top >= lay.hudBottom - 2);
     // pause
@@ -77,7 +77,7 @@ async function touchEnd(cdp) { await cdp.send('Input.dispatchTouchEvent', { type
     await page.waitForTimeout(100);
     ok(name + ': resume', await page.evaluate(() => OMF.G.state === 'play'));
     // force clear -> reward cards
-    await page.evaluate(() => { const G = OMF.G; G.room.waveIdx = G.room.waves.length; G.room.queue.length = 0; G.markers.length = 0; for (const e of G.enemies) OMF.killEnemy(e); });
+    await page.evaluate(() => OMF.clearFloor());
     await page.waitForTimeout(2200);
     ok(name + ': reward screen shows', await page.evaluate(() => OMF.G.state === 'reward' && document.querySelectorAll('#up-cards .card').length === 3));
     await page.screenshot({ path: `${SHOTS}/${name}-reward.png` });
@@ -181,7 +181,7 @@ async function touchEnd(cdp) { await cdp.send('Input.dispatchTouchEvent', { type
     ok('loads offline after cache', offlineOk);
     await page.tap('#s-menu [data-action=play]');
     await page.waitForTimeout(1200);
-    ok('playable offline', await page.evaluate(() => G.state === 'play' && G.enemies.length + G.markers.length > 0));
+    ok('playable offline', await page.evaluate(() => G.state === 'play' && G.rooms.length > 0 && !!G.grid));
     await page.screenshot({ path: `${SHOTS}/offline-play.png` });
     // also a deep URL with query offline
     await page.goto(URL + 'index.html?utm=x').catch(() => {});

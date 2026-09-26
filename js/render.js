@@ -12,8 +12,9 @@ const ZONES = [
 function zoneFor(floor) { return ZONES[Math.floor((floor - 1) / 5) % ZONES.length]; }
 
 const Render = {
-  cv: null, ctx: null, sw: 0, sh: 0, scale: 1, offX: 0, offY: 0,
-  floorCv: null, glow: new Map(), vignette: null, dmgVignette: null,
+  cv: null, ctx: null, sw: 0, sh: 0, scale: 1, offX: 0, offY: 0, VW: 360, VH: 600,
+  cam: { x: 180, y: 300 },
+  floorCv: null, floorK: 1, glow: new Map(), vignette: null, dmgVignette: null,
 
   init(cv) {
     this.cv = cv;
@@ -33,20 +34,45 @@ const Render = {
     if (G.run) this.buildFloor();
   },
 
+  // The "view box" is a VW x VH window of the world, scaled to fit the screen under the HUD.
   layout() {
     const landscape = this.sw > this.sh * 1.15;
+    const { VW, VH } = viewDims();
+    this.VW = VW; this.VH = VH;
     const safeTop = UI.safeTop();
     const botRes = landscape ? 22 : 10;
     const availW = this.sw - 8;
     let topRes = (landscape ? 52 : 62) + safeTop;
     // portrait: leave room for the upgrade-chip row if it costs little arena size
-    if (!landscape && (this.sh - 90 - safeTop - botRes) / G.H >= (availW / G.W) * 0.95) topRes = 90 + safeTop;
+    if (!landscape && (this.sh - 90 - safeTop - botRes) / VH >= (availW / VW) * 0.95) topRes = 90 + safeTop;
+    this.topRes = topRes;
     const availH = this.sh - topRes - botRes;
-    this.scale = Math.max(0.3, Math.min(availW / G.W, availH / G.H));
-    this.offX = (this.sw - G.W * this.scale) / 2;
-    this.offY = topRes + Math.max(0, (availH - G.H * this.scale) * 0.35);
+    this.scale = Math.max(0.3, Math.min(availW / VW, availH / VH));
+    this.offX = (this.sw - VW * this.scale) / 2;
+    this.offY = topRes + Math.max(0, (availH - VH * this.scale) * 0.35);
     const ups = document.getElementById('hud-ups');
     if (ups) ups.classList.toggle('overlap', !landscape && this.offY < 88 + safeTop);
+  },
+
+  // ---------- camera ----------
+  camTarget() {
+    const p = G.player, R = G.room;
+    let tx = p ? p.x : G.W / 2, ty = p ? p.y : G.H / 2;
+    if (R && R.active && R.active.w <= this.VW && R.active.h <= this.VH) { tx = R.active.x + R.active.w / 2; ty = R.active.y + R.active.h / 2; }
+    else if (G.boss && !G.boss.dead) { tx += (G.boss.x - tx) * 0.3; ty += (G.boss.y - ty) * 0.3; }
+    const cx = G.W <= this.VW ? G.W / 2 : clamp(tx, this.VW / 2, G.W - this.VW / 2);
+    const cy = G.H <= this.VH ? G.H / 2 : clamp(ty, this.VH / 2, G.H - this.VH / 2);
+    return { x: cx, y: cy };
+  },
+  snapCamera() { const t = this.camTarget(); this.cam.x = t.x; this.cam.y = t.y; },
+  updateCamera(dt) {
+    if (!G.run || !G.player) return;
+    const t = this.camTarget(), k = 1 - Math.exp(-dt * 6);
+    this.cam.x += (t.x - this.cam.x) * k; this.cam.y += (t.y - this.cam.y) * k;
+  },
+  toScreen(x, y) {
+    const s = this.scale;
+    return { x: this.offX + this.VW * s / 2 + (x - this.cam.x) * s, y: this.offY + this.VH * s / 2 + (y - this.cam.y) * s };
   },
 
   makeVignette(color) {
@@ -77,58 +103,78 @@ const Render = {
     return c;
   },
 
+  // Pre-render the static floor of the whole world once per floor (resolution capped for big maps).
   buildFloor() {
     this.layout();
     const z = zoneFor(G.run ? G.run.floor : 1);
     this.zone = z;
-    const d = Q.dpr, s = this.scale;
+    const k = Math.min(this.scale * Q.dpr, Math.sqrt(7e6 / (G.W * G.H)));
+    this.floorK = k;
     const c = this.floorCv;
-    c.width = Math.max(1, Math.round(G.W * s * d));
-    c.height = Math.max(1, Math.round(G.H * s * d));
+    c.width = Math.max(1, Math.round(G.W * k));
+    c.height = Math.max(1, Math.round(G.H * k));
     const g = c.getContext('2d');
-    g.setTransform(s * d, 0, 0, s * d, 0, 0);
-    g.fillStyle = z.a; g.fillRect(0, 0, G.W, G.H);
-    const T = 30;
-    for (let y = 0; y < G.H; y += T) for (let x = 0; x < G.W; x += T) {
-      if (((x / T + y / T) & 1) === 0) { g.fillStyle = z.b; g.fillRect(x, y, T, T); }
-      if (Math.random() < 0.08) { g.fillStyle = 'rgba(255,255,255,0.025)'; g.fillRect(x + 3, y + 3, T - 6, T - 6); }
+    g.setTransform(k, 0, 0, k, 0, 0);
+    g.fillStyle = '#07060f'; g.fillRect(0, 0, G.W, G.H);
+    const grid = G.grid, cols = grid.cols, rows = grid.rows;
+    const open = (tx, ty) => !solidTile(tx, ty);
+    if (G.circle) {
+      const cc = G.circle;
+      g.save(); g.beginPath(); g.arc(cc.x, cc.y, cc.R, 0, TAU); g.clip();
+      g.fillStyle = z.a; g.fillRect(0, 0, G.W, G.H);
+      for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) if (((tx + ty) & 1) === 0) { g.fillStyle = z.b; g.fillRect(tx * T, ty * T, T, T); }
+      g.restore();
+    } else {
+      for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) {
+        if (open(tx, ty)) {
+          g.fillStyle = ((tx + ty) & 1) ? z.a : z.b; g.fillRect(tx * T, ty * T, T, T);
+          if (Math.random() < 0.06) { g.fillStyle = 'rgba(255,255,255,0.03)'; g.fillRect(tx * T + 3, ty * T + 3, T - 6, T - 6); }
+        } else if (open(tx - 1, ty) || open(tx + 1, ty) || open(tx, ty - 1) || open(tx, ty + 1) || open(tx - 1, ty - 1) || open(tx + 1, ty + 1) || open(tx - 1, ty + 1) || open(tx + 1, ty - 1)) {
+          g.fillStyle = '#0d0b1f'; g.fillRect(tx * T, ty * T, T, T);
+        }
+      }
     }
-    g.strokeStyle = 'rgba(160,140,255,0.05)'; g.lineWidth = 1;
-    g.beginPath();
-    for (let x = 0; x <= G.W; x += T) { g.moveTo(x, 0); g.lineTo(x, G.H); }
-    for (let y = 0; y <= G.H; y += T) { g.moveTo(0, y); g.lineTo(G.W, y); }
-    g.stroke();
-    // cracks
+    // cracks on open floor
     g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1.2;
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < Math.min(40, (G.W * G.H) / 30000); i++) {
       let x = rand(20, G.W - 20), y = rand(20, G.H - 20);
+      if (solidAt(x, y)) continue;
       g.beginPath(); g.moveTo(x, y);
-      for (let k = 0; k < 4; k++) { x += rand(-14, 14); y += rand(-14, 14); g.lineTo(x, y); }
+      for (let n = 0; n < 4; n++) { x += rand(-12, 12); y += rand(-12, 12); g.lineTo(x, y); }
       g.stroke();
     }
-    // walls
-    g.fillStyle = '#0a0916';
-    g.fillRect(0, 0, G.W, WALL); g.fillRect(0, G.H - WALL, G.W, WALL);
-    g.fillRect(0, 0, WALL, G.H); g.fillRect(G.W - WALL, 0, WALL, G.H);
-    g.strokeStyle = z.edge; g.globalAlpha = 0.7; g.lineWidth = 2;
-    g.strokeRect(WALL, WALL, G.W - WALL * 2, G.H - WALL * 2);
-    g.globalAlpha = 0.18; g.lineWidth = 6;
-    g.strokeRect(WALL + 3, WALL + 3, G.W - WALL * 2 - 6, G.H - WALL * 2 - 6);
-    g.globalAlpha = 1;
-    // pillars
+    // pillars (drawn before edges so the neon outline sits on top)
     for (const p of G.pillars) {
       g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(p.x + 3, p.y + 5, p.w, p.h);
       g.fillStyle = '#1f1b40'; g.fillRect(p.x, p.y, p.w, p.h);
       g.fillStyle = '#2c2758'; g.fillRect(p.x, p.y, p.w, Math.min(6, p.h / 3));
-      g.strokeStyle = z.edge; g.globalAlpha = 0.55; g.lineWidth = 1.5;
-      g.strokeRect(p.x + 0.75, p.y + 0.75, p.w - 1.5, p.h - 1.5);
-      g.globalAlpha = 1;
     }
+    // neon wall edges
+    g.strokeStyle = z.edge;
+    if (G.circle) {
+      const cc = G.circle;
+      g.globalAlpha = 0.75; g.lineWidth = 3; g.beginPath(); g.arc(cc.x, cc.y, cc.R, 0, TAU); g.stroke();
+      g.globalAlpha = 0.18; g.lineWidth = 10; g.beginPath(); g.arc(cc.x, cc.y, cc.R - 6, 0, TAU); g.stroke();
+    } else {
+      g.lineWidth = 2; g.globalAlpha = 0.7;
+      g.beginPath();
+      for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) {
+        if (!open(tx, ty)) continue;
+        const x = tx * T, y = ty * T;
+        if (!open(tx - 1, ty)) { g.moveTo(x, y); g.lineTo(x, y + T); }
+        if (!open(tx + 1, ty)) { g.moveTo(x + T, y); g.lineTo(x + T, y + T); }
+        if (!open(tx, ty - 1)) { g.moveTo(x, y); g.lineTo(x + T, y); }
+        if (!open(tx, ty + 1)) { g.moveTo(x, y + T); g.lineTo(x + T, y + T); }
+      }
+      g.stroke();
+    }
+    g.globalAlpha = 1;
   },
 
   worldTransform(shx, shy) {
     const d = Q.dpr, s = this.scale;
-    this.ctx.setTransform(s * d, 0, 0, s * d, (this.offX + shx) * d, (this.offY + shy) * d);
+    const ox = this.offX + this.VW * s / 2 - this.cam.x * s, oy = this.offY + this.VH * s / 2 - this.cam.y * s;
+    this.ctx.setTransform(s * d, 0, 0, s * d, (ox + shx) * d, (oy + shy) * d);
   },
 
   draw() {
@@ -145,6 +191,7 @@ const Render = {
     this.worldTransform(shx, shy);
     ctx.drawImage(this.floorCv, 0, 0, G.W, G.H);
 
+    this.drawGates(ctx);
     this.drawDoors(ctx);
     this.drawShrine(ctx);
     this.drawMarkers(ctx);
@@ -152,6 +199,7 @@ const Render = {
     this.drawPickups(ctx);
     this.drawEnemies(ctx);
     this.drawPlayer(ctx);
+    this.drawGuide(ctx);
     this.drawPlayerBullets(ctx);
     this.drawEnemyBullets(ctx);
     this.drawBeams(ctx);
@@ -162,6 +210,7 @@ const Render = {
     ctx.setTransform(d, 0, 0, d, 0, 0);
     ctx.globalAlpha = 1;
     ctx.drawImage(this.vignette, 0, 0, this.sw, this.sh);
+    this.drawOffscreen(ctx);
     const p = G.player;
     let dmgA = G.flash * 0.7;
     if (p && p.alive && p.hp === 1) dmgA = Math.max(dmgA, 0.18 + Math.sin(G.time * 6) * 0.1);
@@ -169,6 +218,60 @@ const Render = {
     this.drawJoystick(ctx);
     if (G.tutorial) this.drawTutorial(ctx);
     if (G.fade > 0) { ctx.globalAlpha = G.fade; ctx.fillStyle = '#07060f'; ctx.fillRect(0, 0, this.sw, this.sh); ctx.globalAlpha = 1; }
+  },
+
+  // Locked room exits: pulsing energy bars across the corridor mouth.
+  drawGates(ctx) {
+    if (!G.rooms) return;
+    const cols = G.grid.cols, a = 0.55 + Math.sin(G.time * 8) * 0.2;
+    for (const rm of G.rooms) for (const gt of rm.gates) {
+      if (!gt.locked) continue;
+      ctx.globalAlpha = 0.25; ctx.fillStyle = '#ff4f6b';
+      for (const i of gt.tiles) ctx.fillRect((i % cols) * T, ((i / cols) | 0) * T, T, T);
+      ctx.globalAlpha = a; ctx.strokeStyle = '#ff4f6b'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (const i of gt.tiles) {
+        const x = (i % cols) * T, y = ((i / cols) | 0) * T;
+        if (gt.horiz) { ctx.moveTo(x + T / 2, y); ctx.lineTo(x + T / 2, y + T); }
+        else { ctx.moveTo(x, y + T / 2); ctx.lineTo(x + T, y + T / 2); }
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  // Chevron next to the player pointing along the path to the next room / doors.
+  drawGuide(ctx) {
+    const p = G.player;
+    if (!p || !p.alive || G.state !== 'play') return;
+    const tg = guideTarget();
+    if (!tg) return;
+    const w = routeTo(p.x, p.y, p.r, tg.x, tg.y) || tg;
+    const a = Math.atan2(w.y - p.y, w.x - p.x);
+    const r = 30 + Math.sin(G.time * 6) * 3, x = p.x + Math.cos(a) * r, y = p.y + Math.sin(a) * r;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = '#8dff6a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-5, -7); ctx.lineTo(3, 0); ctx.lineTo(-5, 7); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+  },
+
+  // Edge markers for awake enemies outside the visible area.
+  drawOffscreen(ctx) {
+    if (G.state !== 'play' && G.state !== 'reward') return;
+    const m = 14, top = this.topRes + 6;
+    for (const e of G.enemies) {
+      if (e.dead || e.sleep) continue;
+      const s = this.toScreen(e.x, e.y);
+      if (s.x > 0 && s.x < this.sw && s.y > top && s.y < this.sh) continue;
+      const cx = this.sw / 2, cy = (top + this.sh) / 2, a = Math.atan2(s.y - cy, s.x - cx);
+      const x = clamp(s.x, m, this.sw - m), y = clamp(s.y, top + m, this.sh - m);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      ctx.globalAlpha = 0.85; ctx.fillStyle = e.type === 'boss' ? '#ff4f6b' : e.elite ? COL.gold : e.color;
+      const k = e.type === 'boss' ? 1.6 : 1;
+      ctx.beginPath(); ctx.moveTo(7 * k, 0); ctx.lineTo(-5 * k, -6 * k); ctx.lineTo(-5 * k, 6 * k); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
   },
 
   drawMenuBg() {
@@ -621,6 +724,8 @@ const Render = {
 
   drawBeams(ctx) {
     if (!G.beams.length) return;
+    ctx.save();
+    if (G.circle) { ctx.beginPath(); ctx.arc(G.circle.x, G.circle.y, G.circle.R, 0, TAU); ctx.clip(); }
     ctx.lineCap = 'round';
     for (const bm of G.beams) {
       const firing = bm.t > bm.warn && bm.fire > 0;
@@ -655,6 +760,7 @@ const Render = {
       }
     }
     ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+    ctx.restore();
   },
 
   drawParticles(ctx) {
@@ -732,7 +838,7 @@ const Render = {
     ctx.globalAlpha = a;
     ctx.font = '700 14px system-ui, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const y = this.offY + G.H * this.scale * 0.72;
+    const y = this.offY + this.VH * this.scale * 0.72;
     const w = Math.min(this.sw - 24, ctx.measureText(msg).width + 28);
     ctx.fillStyle = 'rgba(10,9,26,0.85)';
     ctx.fillRect(this.sw / 2 - w / 2, y - 18, w, 36);

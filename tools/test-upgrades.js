@@ -36,8 +36,8 @@ const { chromium, devices } = require('playwright');
 
     // --- effects
     fresh({ u_nova: 1 }); OMF.addUpgrade('nova', true); OMF.addUpgrade('novashard', true); OMF.addUpgrade('capacitor', true);
-    G.room.phase = 'intro'; G.pb.length = 0; OMF.Input.dashQueued = true;
-    for (let i = 0; i < 12; i++) OMF.step(1 / 60);
+    G.pb.length = 0; G.player.x = G.spawn.x; G.player.y = G.spawn.y; G.player.dashDx = 1; G.player.dashDy = 0;
+    endDash(); // ring fires at the end of a dash
     // nova stacks: epic 1 + capacitor grant 1 = 2 -> 16 bullets, +2 shards
     check('nova ring bullet count', G.pb.length === 18, G.pb.length);
     check('nova damage bonus', Math.abs(G.pb[0].dmg - G.stats.dmg * 0.7 * 1.15) < 1e-6, G.pb[0].dmg);

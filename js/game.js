@@ -51,18 +51,18 @@ function enterFloor(n, type) {
   const run = G.run;
   run.floor = n;
   if (n % 5 === 0) type = 'boss';
-  const dims = arenaDims();
-  G.W = dims.W; G.H = dims.H;
   G.scale = floorScale(n);
   resetArrays();
-  G.pillars = generatePillars(type);
-  const p = G.player, sp = spawnPoint();
-  p.x = sp.x; p.y = sp.y; p.vx = 0; p.vy = -60; p.face = -Math.PI / 2; p.trail.length = 0;
+  buildFloorGeometry(type);
+  const p = G.player;
+  p.x = G.spawn.x; p.y = G.spawn.y; p.vx = 0; p.vy = -60; p.face = -Math.PI / 2; p.trail.length = 0;
   p.iframes = 0.8; p.dashT = 0; p.dashIfr = 0; p.fireT = 0.3;
-  G.room = { type, phase: 'intro', t: 0, waves: [], waveIdx: 0, waveT: 0, queue: [], queueT: 0, rewardShown: false };
-  if (type === 'combat' || type === 'elite') planWaves(n, type);
-  if (type === 'rest') G.shrine = { x: G.W / 2, y: G.H * 0.45, used: false, t: 0 };
+  G.room = { type, phase: 'intro', t: 0, active: null, waveT: 0, queue: [], queueT: 0, rewardShown: false,
+    waveThresh: Math.max(2, Math.floor(G.scale.maxAlive / 4)) };
+  if (type === 'combat' || type === 'elite') planFloor(n, type);
+  if (type === 'rest') { const ex = G.exitRoom; G.shrine = { x: ex.x + ex.w / 2, y: ex.y + ex.h * 0.42, used: false, t: 0 }; }
   Render.buildFloor();
+  Render.snapCamera();
   UI.bossBar(null);
   const R = ROOM[type];
   if (type !== 'boss') showBanner('FLOOR ' + n, R.name + (type === 'elite' ? ' — ' + R.sub.toLowerCase() : ''), type);
@@ -71,6 +71,26 @@ function enterFloor(n, type) {
   G.hudDirty = true;
   saveSnapshot(n, type);
   if (!Save.data.settings.tutorialDone && n === 1) G.tutorial = 0.01; else G.tutorial = 0;
+}
+
+function buildFloorGeometry(type) {
+  if (type === 'boss') { buildBossHall(); return; }
+  if (type === 'rest') { buildSingleRoom(); return; }
+  for (let i = 0; i < 30; i++) {
+    buildDungeon(G.run.floor, type);
+    if (dungeonConnected()) return;
+  }
+  const rm = buildSingleRoom(); // fallback: one big arena
+  rm.state = 'idle';
+}
+
+function dungeonConnected() {
+  const ex = G.exitRoom;
+  const f = distField(Math.floor((ex.x + ex.w / 2) / T), Math.floor((ex.y + ex.h / 2) / T));
+  const reach = (x, y) => f[Math.floor(y / T) * G.grid.cols + Math.floor(x / T)] >= 0;
+  if (!reach(G.spawn.x, G.spawn.y)) return false;
+  for (const rm of G.rooms) if (!reach(rm.x + rm.w / 2, rm.y + rm.h / 2)) return false;
+  return true;
 }
 
 function saveSnapshot(floor, type) {
@@ -90,10 +110,7 @@ function expandOrder() {
   return out;
 }
 
-function planWaves(n, type) {
-  const sc = G.scale;
-  let budget = sc.budget * (type === 'elite' ? 0.7 : 1);
-  const pool = Object.keys(ENEMY).filter((k) => ENEMY[k].minFloor <= n && ENEMY[k].w > 0);
+function rollEnemies(budget, pool, n) {
   const weight = (k) => (k === 'grunt' ? Math.max(1, ENEMY[k].w - n * 0.1) : ENEMY[k].w);
   const list = [];
   let guard = 0;
@@ -102,32 +119,89 @@ function planWaves(n, type) {
     list.push(k);
     budget -= ENEMY[k].cost;
   }
-  shuffle(list);
-  const nWaves = n < 3 ? 2 : 3;
+  return shuffle(list);
+}
+
+function splitWaves(list, nWaves) {
+  const weights = nWaves === 1 ? [1] : nWaves === 2 ? [0.42, 0.58] : [0.28, 0.34, 0.38];
   const waves = [];
-  // first wave slightly smaller, later waves bigger
-  const weights = nWaves === 2 ? [0.42, 0.58] : [0.28, 0.34, 0.38];
   let idx = 0;
   for (let w = 0; w < nWaves; w++) {
     const cnt = w === nWaves - 1 ? list.length - idx : Math.max(1, Math.round(list.length * weights[w]));
     waves.push(list.slice(idx, idx + cnt).map((t) => ({ t, elite: false })));
     idx += cnt;
   }
-  if (type === 'elite') {
-    const elitePool = pool.filter((k) => k !== 'bomber');
-    const ne = n < 9 ? 1 : 2;
-    for (let k = 0; k < ne; k++) waves[Math.min(waves.length - 1, 1 + k)].push({ t: pick(elitePool), elite: true });
+  return waves.filter((w) => w.length);
+}
+
+// Distribute the floor's enemy budget: dormant enemies in corridors, waves in every fight room.
+function planFloor(n, type) {
+  const sc = G.scale;
+  const pool = Object.keys(ENEMY).filter((k) => ENEMY[k].minFloor <= n && ENEMY[k].w > 0);
+  const rooms = G.rooms.filter((r) => r.state === 'idle');
+  let budget = sc.budget * (1 + 0.15 * (rooms.length - 1)) * (type === 'elite' ? 0.75 : 1);
+
+  const hallPool = pool.filter((k) => k !== 'sentinel' && k !== 'bomber');
+  for (const h of G.halls) {
+    const len = h.horiz ? h.tw : h.th;
+    if (n < 2 || len < 6 || Math.random() < 0.3) continue;
+    const cnt = len >= 9 ? randInt(1, 3) : randInt(1, 2);
+    for (let k = 0; k < cnt; k++) {
+      const t = pick(hallPool), f = (k + 1) / (cnt + 1);
+      const x = h.horiz ? h.x + T * 1.5 + (h.w - T * 3) * f : h.x + h.w / 2;
+      const y = h.horiz ? h.y + h.h / 2 : h.y + T * 1.5 + (h.h - T * 3) * f;
+      const e = spawnEnemy(t, x, y, false, G.enemies);
+      e.sleep = true; e.roomId = -1;
+      budget -= ENEMY[t].cost;
+    }
   }
-  G.room.waves = waves;
-  G.room.waveThresh = Math.max(2, Math.floor(sc.maxAlive / 4));
+
+  const shares = rooms.map((r) => (r.kind === 'exit' ? 1.3 : 1));
+  const total = shares.reduce((a, b) => a + b, 0);
+  rooms.forEach((rm, i) => {
+    const b = Math.max(2, (budget * shares[i]) / total);
+    const list = rollEnemies(b, pool, n);
+    const nW = rooms.length === 1 ? (n < 3 ? 2 : 3) : rm.kind === 'exit' && n >= 3 ? 3 : 2;
+    rm.waves = splitWaves(list, Math.min(nW, list.length));
+    rm.waveIdx = 0;
+    if (type === 'elite' && rm.kind === 'exit') {
+      const elitePool = pool.filter((k) => k !== 'bomber');
+      const ne = n < 9 ? 1 : 2;
+      for (let k = 0; k < ne; k++) rm.waves[Math.min(rm.waves.length - 1, 1 + k)].push({ t: pick(elitePool), elite: true });
+    }
+  });
+}
+
+function activateRoom(rm) {
+  const R = G.room;
+  rm.state = 'active';
+  R.active = rm;
+  R.waveT = 0;
+  if (rm.gates.length) { setGates(rm, true); sfx('charge'); addShake(0.12); }
+  startNextWave();
+}
+
+function clearRoomSection(rm) {
+  const R = G.room;
+  rm.state = 'clear';
+  R.active = null;
+  if (rm.gates.length) setGates(rm, false);
+  for (const k of G.pickups) k.magnet = true;
+  const more = G.rooms.some((r) => r.state === 'idle');
+  if (more) {
+    sfx('clear');
+    slowmo(0.3, 0.4);
+    floatText(G.player.x, G.player.y - 22, 'ROOM CLEAR', '#8dff6a', 13, 1.1);
+  }
 }
 
 function startNextWave() {
-  const R = G.room;
-  const w = R.waves[R.waveIdx++];
+  const R = G.room, rm = R.active;
   R.waveT = 0;
+  if (!rm) return;
+  const w = rm.waves[rm.waveIdx++];
   if (!w) return;
-  for (const s of w) R.queue.push(s);
+  for (const s of w) R.queue.push({ t: s.t, elite: s.elite, room: rm });
   sfx('spawn');
 }
 
@@ -135,6 +209,12 @@ function aliveCount() {
   let n = 0;
   for (const e of G.enemies) if (!e.dead) n++;
   return n + G.markers.length;
+}
+function aliveIn(rm) {
+  let n = 0;
+  for (const e of G.enemies) if (!e.dead && e.roomId === rm.id) n++;
+  for (const m of G.markers) if (m.roomId === rm.id) n++;
+  return n;
 }
 
 function updateRoom(dt) {
@@ -144,22 +224,33 @@ function updateRoom(dt) {
     if (R.t > 0.75) {
       if (R.type === 'boss') { R.phase = 'fight'; spawnBoss(G.run.floor); }
       else if (R.type === 'rest') R.phase = 'rest';
-      else { R.phase = 'fight'; startNextWave(); }
+      else R.phase = 'fight';
     }
     return;
   }
   if (R.phase === 'fight') {
-    R.waveT += dt;
-    // drip-feed queued spawns under the alive cap
     R.queueT -= dt;
     if (R.queue.length && R.queueT <= 0 && aliveCount() < G.scale.maxAlive) {
       const s = R.queue.shift();
-      addMarker(s.t, s.elite);
+      addMarker(s.t, s.elite, s.room);
       R.queueT = 0.12;
     }
-    const alive = aliveCount() + R.queue.length;
-    if (R.waveIdx < R.waves.length && (alive <= R.waveThresh || R.waveT > 11)) startNextWave();
-    if (R.waveIdx >= R.waves.length && alive === 0 && !G.boss) roomCleared();
+    if (R.type === 'boss') {
+      if (!G.boss && aliveCount() === 0 && !R.queue.length) roomCleared();
+      return;
+    }
+    const p = G.player;
+    if (!R.active) {
+      const rm = roomAt(p.x, p.y, 14);
+      if (rm && rm.state === 'idle') activateRoom(rm);
+    } else {
+      const rm = R.active;
+      R.waveT += dt;
+      const alive = aliveIn(rm) + R.queue.length;
+      if (rm.waveIdx < rm.waves.length && (alive <= R.waveThresh || R.waveT > 11)) startNextWave();
+      if (rm.waveIdx >= rm.waves.length && alive === 0) clearRoomSection(rm);
+    }
+    if (!R.active && !R.queue.length && G.rooms.every((r) => r.state !== 'idle' && r.state !== 'active') && aliveCount() === 0) roomCleared();
     return;
   }
   if (R.phase === 'clear') {
@@ -186,6 +277,19 @@ function updateRoom(dt) {
       }
     }
   }
+}
+
+// Where the guide arrow should point (next room, a straggler, or the doors).
+function guideTarget() {
+  const R = G.room;
+  if (!R) return null;
+  if (R.phase === 'doors' && G.doors.length) { const d = G.doors[0]; return { x: d.x + d.w / 2, y: d.y + d.h + 20 }; }
+  if (R.phase !== 'fight' || R.active || R.type === 'boss') return null;
+  const next = G.rooms.find((r) => r.state === 'idle');
+  if (next) return { x: next.x + next.w / 2, y: next.y + next.h / 2 };
+  let best = null, bd = Infinity;
+  for (const e of G.enemies) { if (e.dead) continue; const d = dist2(e.x, e.y, G.player.x, G.player.y); if (d < bd) { bd = d; best = e; } }
+  return best && bd > 200 * 200 ? { x: best.x, y: best.y } : null;
 }
 
 function roomCleared() {
@@ -302,7 +406,9 @@ function finalizeRun(abandon) {
   const run = G.run, S = Save.data;
   const salv = 1 + 0.15 * (S.meta.salvage | 0);
   const floorBonus = run.floor * 2;
-  const earned = Math.round((run.shards + floorBonus) * salv);
+  // quitting a run on floors 1-3 pays nothing (prevents farming quick restarts)
+  const noPay = !!abandon && run.floor <= 3;
+  const earned = noPay ? 0 : Math.round((run.shards + floorBonus) * salv);
   const prevBest = S.best.floor;
   const record = run.floor > prevBest;
   S.shards += earned;
@@ -319,7 +425,7 @@ function finalizeRun(abandon) {
   S.snapshot = null;
   Save.save();
   return { floor: run.floor, kills: run.kills, time: run.time, dmg: run.dmg, bosses: run.bosses, dodges: run.dodges,
-    earned, floorBonus, record, prevBest, abandon: !!abandon, order: run.order.slice(), upgrades: Object.assign({}, run.upgrades) };
+    earned, floorBonus, record, prevBest, abandon: !!abandon, noPay, order: run.order.slice(), upgrades: Object.assign({}, run.upgrades) };
 }
 
 function topBuild() {
@@ -362,4 +468,14 @@ function step(dt) {
     }
   }
   updateFx(dt);
+}
+
+// Debug/test helper: finish every room of the current floor at once.
+function debugClearFloor() {
+  const R = G.room;
+  R.queue.length = 0; G.markers.length = 0;
+  for (const e of G.enemies) if (!e.dead) killEnemy(e);
+  for (const rm of G.rooms) { if (rm.gates.length) setGates(rm, false); rm.state = 'clear'; rm.waveIdx = (rm.waves || []).length; }
+  R.active = null;
+  if (R.phase === 'intro') R.phase = 'fight';
 }

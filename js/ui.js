@@ -222,6 +222,7 @@ const UI = {
   // ---------- Pause ----------
   showPause() {
     const run = G.run;
+    $('p-nopay').classList.toggle('hidden', run.floor > 3);
     $('p-info').textContent = 'Floor ' + run.floor + ' · ' + fmtTime(run.time) + ' · ' + run.kills + ' kills';
     $('p-build').innerHTML = run.order.length ? run.order.map((id) => {
       const u = UPG[id];
@@ -266,6 +267,7 @@ const UI = {
       if (nx) next = (nx.cost - Save.data.shards) + ' more shards for “' + nx.m.name + '”';
     }
     if (!r.record && Save.data.best.floor - r.floor > 0 && Save.data.best.floor - r.floor <= 3) next = 'Only ' + (Save.data.best.floor - r.floor) + ' ' + (Save.data.best.floor - r.floor === 1 ? 'floor' : 'floors') + ' short of your record. ' + next;
+    if (r.noPay) next = 'Runs ended on floors 1–3 earn no shards. Reach floor 4 to keep your haul.';
     $('d-next').textContent = next;
     this.refreshDeathDots();
     this.show('s-dead', { lock: 700 });

@@ -10,16 +10,20 @@ window.__bot = function (G) {
   const p = G.player;
   let mx = 0, my = 0;
   if (G.room.phase === 'doors' && G.doors.length) {
-    const d = G.doors[0]; let tx = d.x + d.w / 2, ty = d.y;
+    const d = G.doors[0]; let tx = d.x + d.w / 2, ty = d.y + d.h + 20;
+    if (Math.abs(p.x - tx) < 14 && p.y < ty + 30) ty = d.y;
     const w = routeTo(p.x, p.y, p.r, tx, ty); if (w) { tx = w.x; ty = w.y; }
     mx = tx - p.x; my = ty - p.y;
   } else if (G.room.phase === 'rest' && G.shrine && !G.shrine.used) {
     mx = G.shrine.x - p.x; my = G.shrine.y - p.y;
   } else {
-    mx = (G.W / 2 - p.x) * 0.004; my = (G.H * 0.6 - p.y) * 0.004;
-    for (const e of G.enemies) { const dx = p.x - e.x, dy = p.y - e.y, d2 = dx*dx + dy*dy + 1; if (d2 < 150*150) { mx += dx / d2 * 60; my += dy / d2 * 60; } }
+    const home = G.room.active ? { x: G.room.active.x + G.room.active.w / 2, y: G.room.active.y + G.room.active.h * 0.6 } : G.circle ? { x: G.circle.x, y: G.circle.y + 40 } : { x: p.x, y: p.y };
+    mx = (home.x - p.x) * 0.004; my = (home.y - p.y) * 0.004;
+    const gt = OMF.guideTarget();
+    if (gt && !G.room.active) { const w = routeTo(p.x, p.y, p.r, gt.x, gt.y) || gt; const l = Math.hypot(w.x - p.x, w.y - p.y) || 1; mx += (w.x - p.x) / l; my += (w.y - p.y) / l; }
+    for (const e of G.enemies) { if (e.sleep) continue; const dx = p.x - e.x, dy = p.y - e.y, d2 = dx*dx + dy*dy + 1; if (d2 < 150*150) { mx += dx / d2 * 60; my += dy / d2 * 60; } }
     let near = null, nd = 1e9;
-    for (const e of G.enemies) { const d = (e.x-p.x)**2 + (e.y-p.y)**2; if (d < nd) { nd = d; near = e; } }
+    for (const e of G.enemies) { if (e.dead || e.sleep) continue; const d = (e.x-p.x)**2 + (e.y-p.y)**2; if (d < nd) { nd = d; near = e; } }
     if (near && (nd > 190*190 || !hasLOS(p.x, p.y, near.x, near.y))) { const w = routeTo(p.x, p.y, p.r, near.x, near.y) || near; const l = Math.hypot(w.x - p.x, w.y - p.y) || 1; mx += (w.x - p.x) / l * 0.8; my += (w.y - p.y) / l * 0.8; }
     let danger = false;
     for (const b of G.eb) { const dx = p.x - b.x, dy = p.y - b.y, d2 = dx*dx + dy*dy + 1; if (d2 < 70*70) { mx += dx / d2 * 40; my += dy / d2 * 40; } if (d2 < 22*22) danger = true; }

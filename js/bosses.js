@@ -12,12 +12,12 @@ function spawnBoss(floor) {
   const def = BOSSES[kind];
   const hp = def.hp * G.scale.hp * (floor === 5 ? 0.75 : 0.88) * (1 + cyc * 0.2);
   const b = {
-    id: G.nextId++, type: 'boss', kind, name: def.name + (cyc > 0 ? ' ' + roman(cyc + 1) : ''),
-    x: G.W / 2, y: -30, r: def.r, hp, maxHp: hp, color: def.color, hard: cyc > 0, phase2: false,
+    id: G.nextId++, t: 0, type: 'boss', kind, name: def.name + (cyc > 0 ? ' ' + roman(cyc + 1) : ''),
+    x: arenaCenter().x, y: arenaCenter().y - (G.circle ? G.circle.R : G.H / 2) + def.r + 4, r: def.r, hp, maxHp: hp, color: def.color, hard: cyc > 0, phase2: false,
     enter: 1.6, pat: null, pt: 0, cool: 1.2, sub: '', st: 0, step: 0, last: '', spinA: 0, spinDir: 1,
     alpha: 1, air: false, untarget: true, invuln: true, charge: 0,
     vx: 0, vy: 0, kx: 0, ky: 0, flash: 0, slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, burnAcc: 0, orbitCd: 0,
-    tx: G.W / 2, ty: G.H * 0.3, dead: false, spawnIn: 0, eyeA: Math.PI / 2, atk: 1.5, oa: 0, fakes: [],
+    tx: arenaCenter().x, ty: arenaCenter().y, dead: false, spawnIn: 0, eyeA: Math.PI / 2, atk: 1.5, oa: 0, fakes: [],
   };
   G.enemies.push(b);
   G.boss = b;
@@ -32,7 +32,8 @@ function spawnBoss(floor) {
 function updateBoss(b, dt, sm) {
   if (b.enter > 0) {
     b.enter -= dt;
-    b.y = lerp(b.y, G.H * 0.28, 1 - Math.exp(-dt * 3));
+    const c = arenaCenter();
+    b.y = lerp(b.y, c.y - (G.circle ? G.circle.R * 0.45 : G.H * 0.22), 1 - Math.exp(-dt * 3));
     b.vx = b.vy = 0;
     if (b.enter <= 0) { b.invuln = false; b.untarget = false; }
     return;
@@ -62,10 +63,12 @@ function endPattern(b, cool) {
 function pickDrift(b) {
   const p = G.player;
   for (let i = 0; i < 10; i++) {
-    const x = rand(WALL + b.r + 20, G.W - WALL - b.r - 20), y = rand(WALL + b.r + 20, G.H * 0.55);
+    const c = arenaCenter(), R = (G.circle ? G.circle.R : Math.min(G.W, G.H) / 2) * 0.65;
+    const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * R;
+    const x = c.x + Math.cos(a) * d, y = c.y + Math.sin(a) * d * 0.8 - R * 0.2;
     if (dist2(x, y, p.x, p.y) > 140 * 140) { b.tx = x; b.ty = y; return; }
   }
-  b.tx = G.W / 2; b.ty = G.H * 0.3;
+  b.tx = arenaCenter().x; b.ty = arenaCenter().y;
 }
 function bossDrift(b, dt, speed) {
   if (dist2(b.x, b.y, b.tx, b.ty) < 12 * 12) pickDrift(b);
@@ -104,8 +107,8 @@ const BOSS_AI = {
         // target is locked at take-off: the red circle never moves, so walking out of it
         // during the flight always works (dash is a bonus, not a requirement)
         b.sx = b.x; b.sy = b.y;
-        b.tx = clamp(p.x, WALL + b.r, G.W - WALL - b.r);
-        b.ty = clamp(p.y, WALL + b.r, G.H - WALL - b.r);
+        const tg = clampInArena(p.x, p.y, b.r);
+        b.tx = tg.x; b.ty = tg.y;
         sfx('jump');
         burst(b.x, b.y, b.color, 8, 100, 0.3, 3);
       }
@@ -163,8 +166,9 @@ const BOSS_AI = {
     if (b.pat === 'sweep') {
       if (b.sub === '') b.sub = 'move';
       if (b.sub === 'move') {
-        steer(b, G.W / 2, G.H * 0.45, 150, dt, 5);
-        if (dist2(b.x, b.y, G.W / 2, G.H * 0.45) < 10 * 10 || b.pt > 1.6) {
+        const c = arenaCenter();
+        steer(b, c.x, c.y, 150, dt, 5);
+        if (dist2(b.x, b.y, c.x, c.y) < 10 * 10 || b.pt > 1.6) {
           b.sub = 'beams'; b.st = 0;
           const n = hard ? 3 : 2, dir = chance(0.5) ? 1 : -1;
           const a0 = angToPlayer(b) + Math.PI / n + rand(-0.3, 0.3);
@@ -238,7 +242,7 @@ const BOSS_AI = {
         brake(b, dt, 10);
         b.alpha = Math.max(0, 1 - b.st / 0.3);
         if (b.st >= 0.35) {
-          const n = hard ? 4 : 3, cx = G.W / 2, cy = G.H * 0.42, R = Math.min(G.W, G.H) * 0.3;
+          const n = hard ? 4 : 3, cx = arenaCenter().x, cy = arenaCenter().y, R = mirrorOrbitR();
           const off = Math.random() * TAU, real = randInt(0, n - 1);
           b.fakes = [];
           for (let k = 0; k < n; k++) {
@@ -273,15 +277,14 @@ const BOSS_AI = {
           // pick an edge start far from the player
           let sx = 0, sy = 0;
           for (let i = 0; i < 12; i++) {
-            const side = randInt(0, 3), m = b.r + WALL + 6;
-            sx = side === 0 ? m : side === 1 ? G.W - m : rand(m, G.W - m);
-            sy = side === 2 ? m : side === 3 ? G.H - m : rand(m, G.H - m);
+            const e = rayToEdge(arenaCenter().x, arenaCenter().y, Math.cos(i * 2.4 + b.t), Math.sin(i * 2.4 + b.t), b.r + 6);
+            sx = e.x; sy = e.y;
             if (dist2(sx, sy, p.x, p.y) > 170 * 170) break;
           }
           b.x = sx; b.y = sy;
           const a = Math.atan2(p.y - sy, p.x - sx);
           b.dx = Math.cos(a); b.dy = Math.sin(a);
-          const end = rayToWall(sx, sy, b.dx, b.dy, b.r);
+          const end = rayToEdge(sx, sy, b.dx, b.dy, b.r);
           b.ex = end.x; b.ey = end.y;
           b.sub = 'warn'; b.st = 0; b.alpha = 1; b.untarget = false;
           G.beams.push({ rot: false, ax: sx, ay: sy, bx: end.x, by: end.y, w: b.r * 1.6, warn: hard ? 0.5 : 0.62, fire: 0, t: 0, color: COL.mirror, dashLine: true });
@@ -347,7 +350,7 @@ const BOSS_AI = {
 
 // Shared AI for the Mirror boss and its copies while split: orbit the centre, fire aimed shots.
 function mirrorCopyAI(e, dt, sm) {
-  const cx = G.W / 2, cy = G.H * 0.42, R = Math.min(G.W, G.H) * 0.3;
+  const cx = arenaCenter().x, cy = arenaCenter().y, R = mirrorOrbitR();
   e.oa += dt * 0.45;
   steer(e, cx + Math.cos(e.oa) * R, cy + Math.sin(e.oa) * R, 90 * sm, dt, 4);
   e.atk -= dt;
@@ -357,6 +360,8 @@ function mirrorCopyAI(e, dt, sm) {
     sfx('eshoot');
   }
 }
+
+function mirrorOrbitR() { return G.circle ? G.circle.R * 0.5 : Math.min(G.W, G.H) * 0.3; }
 
 function onFakeDeath(f) {
   const boss = G.boss;
@@ -373,16 +378,17 @@ function makeGridBeams(n) {
   for (let i = 0; i < n; i++) {
     const horiz = chance(0.5);
     const key = horiz ? 'h' : 'v';
-    const max = horiz ? G.H : G.W;
+    const c = arenaCenter(), R = G.circle ? G.circle.R : Math.min(G.W, G.H) / 2;
+    const lo = (horiz ? c.y : c.x) - R + 30, hi = (horiz ? c.y : c.x) + R - 30;
     let pos = 0;
     for (let tries = 0; tries < 12; tries++) {
-      pos = rand(WALL + 24, max - WALL - 24);
+      pos = rand(lo, hi);
       if (used[key].every((u) => Math.abs(u - pos) > 70)) break;
     }
     used[key].push(pos);
     const bm = horiz
-      ? { ax: 0, ay: pos, bx: G.W, by: pos }
-      : { ax: pos, ay: 0, bx: pos, by: G.H };
+      ? { ax: c.x - R, ay: pos, bx: c.x + R, by: pos }
+      : { ax: pos, ay: c.y - R, bx: pos, by: c.y + R };
     Object.assign(bm, { rot: false, w: 16, warn: 0.95, fire: 0.3, t: 0, color: COL.loom });
     G.beams.push(bm);
   }

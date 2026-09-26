@@ -43,7 +43,7 @@ function computeStats() {
 
 // ================= Player =================
 function makePlayer() {
-  const sp = spawnPoint();
+  const sp = G.spawn || { x: G.W / 2, y: G.H - 60 };
   return {
     x: sp.x, y: sp.y, r: 8, vx: 0, vy: 0, face: -Math.PI / 2, aim: -Math.PI / 2,
     hp: 5, iframes: 0, alive: true,
@@ -171,7 +171,7 @@ function findTarget() {
     if (e.dead || e.untarget) continue;
     let d = dist2(p.x, p.y, e.x, e.y);
     if (d > bd) continue;
-    if (G.pillars.length && !hasLOS(p.x, p.y, e.x, e.y)) d *= 2.6;
+    if (!hasLOS(p.x, p.y, e.x, e.y)) { if (G.rooms.length > 1) continue; d *= 2.6; }
     if (d < bd) { bd = d; best = e; }
   }
   return best;
@@ -189,7 +189,8 @@ function playerFire() {
   const gap = n > 1 ? Math.min(0.14, 0.75 / n) : 0;
   for (let i = 0; i < n; i++) {
     const ang = a + (i - (n - 1) / 2) * gap;
-    spawnPB(p.x + Math.cos(a) * 9, p.y + Math.sin(a) * 9, ang, per, Math.random() < s.crit);
+    // spawn at the centre: an enemy hugging the player is still hit (segment test below)
+    spawnPB(p.x, p.y, ang, per, Math.random() < s.crit);
   }
   if (s.back > 0) {
     const angs = s.back >= 2 ? [0.75, -0.75, 0.5, -0.5] : [0.75, -0.75];
@@ -240,27 +241,23 @@ function updatePlayerBullets(dt) {
     b.px = b.x; b.py = b.y;
     b.x += b.vx * dt; b.y += b.vy * dt;
 
-    // walls
+    // walls, pillars, locked gates (grid) or the boss hall's circular wall
     let gone = false;
-    if (b.x < WALL || b.x > G.W - WALL) {
-      if (b.bounce > 0) { b.bounce--; b.vx = -b.vx; b.x = clamp(b.x, WALL, G.W - WALL); b.hits.length = 0; }
-      else gone = true;
-    }
-    if (!gone && (b.y < WALL || b.y > G.H - WALL)) {
-      if (b.bounce > 0) { b.bounce--; b.vy = -b.vy; b.y = clamp(b.y, WALL, G.H - WALL); b.hits.length = 0; }
-      else gone = true;
-    }
-    if (!gone) {
-      for (const pl of G.pillars) {
-        if (!pointInRect(b.x, b.y, pl, 0)) continue;
-        if (b.bounce > 0) {
-          b.bounce--; b.hits.length = 0;
-          const wasOutX = b.px <= pl.x || b.px >= pl.x + pl.w;
-          if (wasOutX) b.vx = -b.vx; else b.vy = -b.vy;
-          b.x = b.px; b.y = b.py;
-        } else gone = true;
-        break;
-      }
+    if (solidAt(b.x, b.y)) {
+      if (b.bounce > 0) {
+        b.bounce--; b.hits.length = 0;
+        if (G.circle) {
+          const c = G.circle, nx0 = b.x - c.x, ny0 = b.y - c.y, nl = Math.hypot(nx0, ny0) || 1, nx = nx0 / nl, ny = ny0 / nl;
+          const dot = b.vx * nx + b.vy * ny;
+          b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny;
+        } else {
+          const sx = solidAt(b.x, b.py), sy = solidAt(b.px, b.y);
+          if (sx) b.vx = -b.vx;
+          if (sy) b.vy = -b.vy;
+          if (!sx && !sy) { b.vx = -b.vx; b.vy = -b.vy; }
+        }
+        b.x = b.px; b.y = b.py;
+      } else gone = true;
     }
     if (gone) { sparks(b.x, b.y, Math.atan2(-b.vy, -b.vx), 1.4, b.crit ? COL.pCrit : COL.pBullet, 2, 90, 0.15); killPB(i); continue; }
 
@@ -282,7 +279,7 @@ function updatePlayerBullets(dt) {
     for (const e of G.enemies) {
       if (e.dead || e.untarget) continue;
       const rr = e.r + b.r;
-      if (dist2(b.x, b.y, e.x, e.y) > rr * rr) continue;
+      if (segPointDist2(e.x, e.y, b.px, b.py, b.x, b.y) > rr * rr) continue; // swept: no tunnelling
       if (b.hits.length && b.hits.indexOf(e.id) !== -1) continue;
       bulletHit(e, b);
       if (b.pierce > 0) { b.pierce--; b.hits.push(e.id); }
@@ -392,10 +389,7 @@ function updateEnemyBullets(dt) {
       if (sp > 0) { b.vx *= ns / sp; b.vy *= ns / sp; }
     }
     b.x += b.vx * dt; b.y += b.vy * dt;
-    if (b.x < WALL - 4 || b.x > G.W - WALL + 4 || b.y < WALL - 4 || b.y > G.H - WALL + 4) { killEB(i); continue; }
-    let hitPillar = false;
-    for (const pl of G.pillars) if (pointInRect(b.x, b.y, pl, 0)) { hitPillar = true; break; }
-    if (hitPillar) { sparks(b.x, b.y, Math.atan2(-b.vy, -b.vx), 1.2, b.color, 2, 60); killEB(i); continue; }
+    if (solidAt(b.x, b.y)) { sparks(b.x, b.y, Math.atan2(-b.vy, -b.vx), 1.2, b.color, 2, 60); killEB(i); continue; }
     if (p.alive) {
       const rr = b.r + PLAYER_HITBOX;
       if (dist2(b.x, b.y, p.x, p.y) < rr * rr) {
@@ -424,16 +418,16 @@ function spawnEnemy(type, x, y, elite, into) {
     t: rand(0, 1), state: 'move', st: 0, atk: rand(0.9, 2.2), charge: 0,
     flash: 0, slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, burnAcc: 0, orbitCd: 0,
     dead: false, untarget: false, strafe: chance(0.5) ? 1 : -1, wob: rand(0, TAU),
-    ax: 0, ay: 0, spawnIn: 0.25,
+    ax: 0, ay: 0, spawnIn: 0.25, roomId: -1, home: null, sleep: false,
   };
   e.maxHp = e.hp;
   (into || G.newEnemies).push(e);
   return e;
 }
 
-function addMarker(type, elite) {
-  const spot = freeSpot(150, ENEMY[type].r * (elite ? 1.3 : 1));
-  G.markers.push({ type, elite, x: spot.x, y: spot.y, t: 0, dur: 0.8 });
+function addMarker(type, elite, room) {
+  const spot = freeSpot(room ? 110 : 150, ENEMY[type].r * (elite ? 1.3 : 1), room);
+  G.markers.push({ type, elite, x: spot.x, y: spot.y, t: 0, dur: 0.8, roomId: room ? room.id : -1, home: room || null });
 }
 
 function updateMarkers(dt) {
@@ -441,7 +435,8 @@ function updateMarkers(dt) {
     const m = G.markers[i];
     m.t += dt;
     if (m.t >= m.dur) {
-      spawnEnemy(m.type, m.x, m.y, m.elite);
+      const e = spawnEnemy(m.type, m.x, m.y, m.elite);
+      e.roomId = m.roomId; e.home = m.home;
       burst(m.x, m.y, ENEMY[m.type].color, 8, 80, 0.35, 2.5);
       G.markers.splice(i, 1);
     }
@@ -454,31 +449,12 @@ function steer(e, tx, ty, speed, dt, accel = 7) {
   e.vx += ((dx / l) * speed - e.vx) * k;
   e.vy += ((dy / l) * speed - e.vy) * k;
 }
-// Cheap waypoint pathing: direct line when visible, otherwise the best corner of a blocking pillar.
-function routeTo(x, y, r, tx, ty) {
-  if (!G.pillars.length || hasLOS(x, y, tx, ty)) return null;
-  let best = null, bd = Infinity;
-  const m = r + 6;
-  for (const pl of G.pillars) {
-    if (!segHitsRect(x, y, tx, ty, pl)) continue;
-    const cs = [[pl.x - m, pl.y - m], [pl.x + pl.w + m, pl.y - m], [pl.x - m, pl.y + pl.h + m], [pl.x + pl.w + m, pl.y + pl.h + m]];
-    for (const c of cs) {
-      if (c[0] < WALL + r || c[0] > G.W - WALL - r || c[1] < WALL + r || c[1] > G.H - WALL - r) continue;
-      if (dist2(x, y, c[0], c[1]) < 12 * 12) continue; // already here: pick the next corner
-      const cost = Math.sqrt(dist2(x, y, c[0], c[1])) + Math.sqrt(dist2(c[0], c[1], tx, ty))
-        + (hasLOS(x, y, c[0], c[1]) ? 0 : 400) + (hasLOS(c[0], c[1], tx, ty) ? 0 : 120);
-      if (cost < bd) { bd = cost; best = c; }
-    }
-  }
-  return best ? { x: best[0], y: best[1] } : null;
-}
-
 // Where an enemy should walk to reach the player (refreshed 4x/s).
 function chaseTarget(e, dt) {
   const p = G.player;
   e.pathT = (e.pathT || 0) - dt;
   if (e.pathT <= 0 || (!e.wpOk && dist2(e.x, e.y, e.wpx, e.wpy) < 12 * 12)) {
-    e.pathT = 0.25;
+    e.pathT = 0.2;
     const w = routeTo(e.x, e.y, e.r, p.x, p.y);
     e.wpOk = !w;
     if (w) { e.wpx = w.x; e.wpy = w.y; }
@@ -494,7 +470,7 @@ const AI = {
     e.wob += dt * 5;
     const tg = chaseTarget(e, dt);
     const dx = tg.x - e.x, dy = tg.y - e.y, l = Math.hypot(dx, dy) || 1;
-    const w = Math.sin(e.wob) * 0.45;
+    const w = e.wpOk === false ? 0 : Math.sin(e.wob) * 0.45;
     const tx = e.x + (dx / l) * 50 - (dy / l) * 50 * w, ty = e.y + (dy / l) * 50 + (dx / l) * 50 * w;
     steer(e, tx, ty, e.speed * sm * (e.elite ? 1.15 : 1), dt, 6);
   },
@@ -571,7 +547,8 @@ const AI = {
   sentinel(e, dt, sm) {
     const p = G.player;
     e.wob += dt;
-    const tx = G.W / 2 + Math.cos(e.wob * 0.4 + e.id) * G.W * 0.3, ty = G.H * 0.45 + Math.sin(e.wob * 0.3 + e.id) * G.H * 0.25;
+    const hm = e.home || (G.circle ? { x: G.circle.x - G.circle.R * 0.7, y: G.circle.y - G.circle.R * 0.7, w: G.circle.R * 1.4, h: G.circle.R * 1.4 } : { x: 0, y: 0, w: G.W, h: G.H });
+    const tx = hm.x + hm.w / 2 + Math.cos(e.wob * 0.4 + e.id) * hm.w * 0.3, ty = hm.y + hm.h / 2 + Math.sin(e.wob * 0.3 + e.id) * hm.h * 0.3;
     steer(e, tx, ty, e.speed * sm, dt, 1.5);
     e.atk -= dt * G.scale.fire;
     if (e.atk <= 0.7 && e.charge === 0) e.charge = 0.001;
@@ -607,6 +584,12 @@ function updateEnemies(dt) {
       }
       if (e.burnT <= 0) e.burnDps = 0;
       if (e.dead) continue;
+    }
+    if (e.sleep) {
+      if (e.hp < e.maxHp || (dist2(e.x, e.y, p.x, p.y) < 210 * 210 && hasLOS(e.x, e.y, p.x, p.y))) {
+        e.sleep = false;
+        floatText(e.x, e.y - e.r - 6, '!', '#ffffff', 14, 0.6);
+      } else { e.vx = e.vy = 0; continue; }
     }
     e.wallHit = false;
     if (e.type === 'boss') updateBoss(e, dt, sm);
@@ -685,7 +668,7 @@ function killEnemy(e, silent) {
     for (let k = 0; k < n; k++) {
       const a = (k * TAU) / n + Math.random();
       const m = spawnEnemy('mini', e.x + Math.cos(a) * 8, e.y + Math.sin(a) * 8, false);
-      m.kx = Math.cos(a) * 160; m.ky = Math.sin(a) * 160; m.spawnIn = 0.35;
+      m.kx = Math.cos(a) * 160; m.ky = Math.sin(a) * 160; m.spawnIn = 0.35; m.roomId = e.roomId; m.home = e.home;
     }
   }
   if (e.type === 'bomber' && !e.noDrop) G.explosions.push({ x: e.x, y: e.y, r: 48, dmg: 20 * G.scale.hp, fx: true, small: true });
