@@ -165,10 +165,15 @@ const UI = {
     if (st.type === 'combat') sub = 'Fight rooms and corridors. Reward: 1 upgrade.';
     else if (st.type === 'elite') sub = 'Elite enemies guard the last room. Reward: a rare or better upgrade and extra shards.';
     else if (st.type === 'rest') sub = 'No enemies. Heal or train for a random upgrade.';
-    else { const b = BOSSES[BOSS_ORDER[(Math.floor(next / 5) - 1) % BOSS_ORDER.length]]; title = 'BOSS · ' + b.name; sub = 'A boss waits upstairs. Reward: boss upgrade and healing.'; }
+    else {
+      const b = BOSSES[bossKindFor(next)];
+      title = 'BOSS · ' + b.name;
+      sub = b.side ? 'An elevator ride in side view: left/right and dash only. It cannot be hurt, and dashing will not dodge its attacks. Survive to win.'
+        : 'A boss waits upstairs. Reward: boss upgrade and healing.';
+    }
     el.querySelector('.si-title').textContent = title;
     el.querySelector('.si-sub').textContent = sub;
-    el.querySelector('.si-hint').textContent = st.locked ? 'Locked — clear the floor first' : 'Walk up the stairs to climb';
+    el.querySelector('.si-hint').textContent = st.locked ? 'Locked — clear the floor first' : st.side ? 'Walk through the door to leave' : 'Walk up the stairs to climb';
     el.style.setProperty('--sc', st.locked ? '#9c96c9' : R.color);
     el.classList.remove('hidden');
     const lay = G.previews && G.previews[G.stairs.indexOf(st)];

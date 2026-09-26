@@ -116,6 +116,7 @@ const Render = {
     const g = c.getContext('2d');
     g.setTransform(k, 0, 0, k, 0, 0);
     g.fillStyle = '#07060f'; g.fillRect(0, 0, G.W, G.H);
+    if (G.side) { this.buildSideBg(g, z); return; }
     const grid = G.grid, cols = grid.cols, rows = grid.rows;
     const open = (tx, ty) => !solidTile(tx, ty);
     if (G.circle) {
@@ -197,15 +198,24 @@ const Render = {
     this.worldTransform(shx, shy);
     ctx.drawImage(this.floorCv, 0, 0, G.W, G.H);
 
+    if (G.side) {
+      this.drawSide(ctx);
+      this.drawPlayer(ctx);
+      this.drawSideFront(ctx);
+      this.drawParticles(ctx);
+      this.drawTexts(ctx);
+    } else {
     this.drawGates(ctx);
     this.drawTraps(ctx);
     this.drawStairs(ctx);
     this.drawShrine(ctx);
     this.drawMarkers(ctx);
     this.drawTelegraphs(ctx);
+    this.drawHazards(ctx);
     this.drawShells(ctx);
     this.drawPickups(ctx);
     this.drawEnemies(ctx);
+    this.drawPlanets(ctx);
     this.drawPlayer(ctx);
     this.drawGuide(ctx);
     this.drawPlayerBullets(ctx);
@@ -213,6 +223,7 @@ const Render = {
     this.drawBeams(ctx);
     this.drawParticles(ctx);
     this.drawTexts(ctx);
+    }
 
     // screen space
     ctx.setTransform(d, 0, 0, d, 0, 0);
@@ -346,11 +357,12 @@ const Render = {
     g.fillStyle = '#07060f'; g.fillRect(0, 0, cw, ch);
     const z = zoneFor(lay.floor), col = ROOM[type].color;
     const icon = (x, y, tp, c, sz) => { g.save(); g.translate(x, y); g.scale(sz, sz); this.drawRoomIcon(g, tp, 0, 0, c); g.restore(); };
+    if (lay.side) { this.drawSidePreview(g, cw, ch, lay, z); return; }
     if (lay.circle) {
       const R = Math.min(cw, ch) * 0.42, cx = cw / 2, cy = ch / 2 + 6;
       g.fillStyle = z.b; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
       g.strokeStyle = z.edge; g.lineWidth = 2; g.stroke();
-      const b = BOSSES[BOSS_ORDER[(Math.floor(lay.floor / 5) - 1) % BOSS_ORDER.length]];
+      const b = BOSSES[bossKindFor(lay.floor)];
       g.fillStyle = b.color; g.beginPath(); g.arc(cx, cy - R * 0.3, 9, 0, TAU); g.fill();
       icon(cx, cy - R * 0.3 - 18, 'boss', '#ff4f6b', 0.9);
       g.fillStyle = '#4df3ff'; g.beginPath(); g.arc(cx, cy + R - 10, 4, 0, TAU); g.fill();
@@ -389,6 +401,193 @@ const Render = {
     if (type === 'rest' && lay.rooms[0]) { const [x, y, w, h] = tr(lay.rooms[0]); icon(x + w / 2, y + h / 2, 'rest', '#8dff6a', 0.8); }
     for (const st of lay.stairs) { const [x, y, w, h] = tr(st); g.fillStyle = ROOM[st.type].color; g.globalAlpha = 0.85; g.fillRect(x, y, w, h); g.globalAlpha = 1; }
     if (lay.arrival) { const [x, y, w, h] = tr(lay.arrival); g.fillStyle = '#4df3ff'; g.fillRect(x, y, w, h); g.beginPath(); g.arc(x + w / 2, y - 3, 3, 0, TAU); g.fill(); }
+  },
+
+  // ---------- Forgemaster lava pools & shockwaves ----------
+  drawHazards(ctx) {
+    const t = G.time;
+    for (const pl of G.pools) {
+      const k = Math.min(1, pl.t / 0.35), fade = Math.min(1, (pl.life - pl.t) / 0.6);
+      ctx.globalAlpha = (pl.t < 0.35 ? 0.35 : 0.75) * fade; ctx.fillStyle = '#ff5a1f';
+      ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.r * (0.6 + 0.4 * k), 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.8 * fade; ctx.fillStyle = '#ffcf6b';
+      for (let i = 0; i < 3; i++) { const a = t * 1.3 + i * 2.1 + pl.x; ctx.beginPath(); ctx.arc(pl.x + Math.cos(a) * pl.r * 0.45, pl.y + Math.sin(a) * pl.r * 0.45, 2.5 + Math.sin(t * 5 + i) * 1.2, 0, TAU); ctx.fill(); }
+      ctx.globalAlpha = 0.9 * fade; ctx.strokeStyle = '#ffb13d'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.r, 0, TAU); ctx.stroke();
+    }
+    for (const w of G.waves) {
+      ctx.globalAlpha = 0.85; ctx.strokeStyle = w.color; ctx.lineWidth = w.w;
+      ctx.beginPath(); ctx.arc(w.x, w.y, w.r, w.gapA + w.gapW / 2, w.gapA - w.gapW / 2 + TAU); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#fff0d8'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(w.x, w.y, w.r, w.gapA + w.gapW / 2, w.gapA - w.gapW / 2 + TAU); ctx.stroke();
+      // the gap edges glow green so the way out is easy to read
+      ctx.strokeStyle = '#8dff6a'; ctx.lineWidth = 3;
+      for (const s of [-1, 1]) { const a = w.gapA + (s * w.gapW) / 2; ctx.beginPath(); ctx.moveTo(w.x + Math.cos(a) * (w.r - 10), w.y + Math.sin(a) * (w.r - 10)); ctx.lineTo(w.x + Math.cos(a) * (w.r + 10), w.y + Math.sin(a) * (w.r + 10)); ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  // ---------- Orrery planets (drawn in world space) ----------
+  drawPlanets(ctx) {
+    const b = G.boss;
+    if (!b || b.dead || !b.planets || b.enter > 0) return;
+    ctx.globalAlpha = 0.18; ctx.strokeStyle = COL.orrery; ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.orbR, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    for (const pl of b.planets) {
+      if (pl.mode === 'aim') {
+        ctx.globalAlpha = 0.3 + 0.5 * (pl.t / 0.55); ctx.strokeStyle = '#ff4f6b'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(pl.x, pl.y); ctx.lineTo(pl.tx, pl.ty); ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      this.drawGlow(ctx, pl.x, pl.y, pl.r * 2.6, COL.orrery, 0.6);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1; ctx.fillStyle = '#cfe2ff';
+      ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.r, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#4b6fb3'; ctx.beginPath(); ctx.arc(pl.x - pl.r * 0.3, pl.y + pl.r * 0.2, pl.r * 0.35, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(pl.x, pl.y, pl.r * 1.6, pl.r * 0.45, -0.4, 0, TAU); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  // ---------- THE COUNTERWEIGHT: side-view elevator ----------
+  buildSideBg(g, z) {
+    const S = G.side;
+    g.fillStyle = '#05040c'; g.fillRect(0, 0, G.W, G.H);
+    // shaft walls behind the cabin
+    g.fillStyle = '#0c0a1c'; g.fillRect(S.L - 26, 0, S.R - S.L + 52, G.H);
+    // cabin back wall with panels
+    g.fillStyle = z.a; g.fillRect(S.L, S.ceilY, S.R - S.L, S.floorY - S.ceilY);
+    g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 1;
+    for (let x = S.L + 26; x < S.R; x += 52) { g.beginPath(); g.moveTo(x, S.ceilY + 8); g.lineTo(x, S.floorY - 8); g.stroke(); }
+    g.fillStyle = z.b; g.fillRect(S.L, S.floorY - 60, S.R - S.L, 4);
+    // floor slab with hazard stripes
+    g.fillStyle = '#1a1730'; g.fillRect(S.L - 14, S.floorY, S.R - S.L + 28, 18);
+    g.fillStyle = '#ffd44d';
+    for (let x = S.L - 14; x < S.R + 14; x += 16) { g.beginPath(); g.moveTo(x, S.floorY + 18); g.lineTo(x + 8, S.floorY + 18); g.lineTo(x + 16, S.floorY + 10); g.lineTo(x + 8, S.floorY + 10); g.closePath(); g.globalAlpha = 0.35; g.fill(); }
+    g.globalAlpha = 1;
+    // side walls and the broken ceiling grate
+    g.fillStyle = '#16132b'; g.fillRect(S.L - 14, S.ceilY - 8, 14, S.floorY - S.ceilY + 8); g.fillRect(S.R, S.ceilY - 8, 14, S.floorY - S.ceilY + 8);
+    g.strokeStyle = z.edge; g.globalAlpha = 0.8; g.lineWidth = 2;
+    g.strokeRect(S.L, S.ceilY, S.R - S.L, S.floorY - S.ceilY);
+    g.globalAlpha = 0.5; g.lineWidth = 3;
+    for (let x = S.L; x <= S.R; x += 20) { if (((x - S.L) / 20) % 3 === 1) continue; g.beginPath(); g.moveTo(x, S.ceilY - 8); g.lineTo(x + 10, S.ceilY); g.stroke(); }
+    g.globalAlpha = 1;
+  },
+
+  drawSide(ctx) {
+    const S = G.side, t = G.time, R = G.room;
+    // shaft beams rushing down past the cabin (we are going up)
+    ctx.strokeStyle = 'rgba(108,92,255,0.35)'; ctx.lineWidth = 3;
+    const gap = 90, off = S.scroll % gap;
+    ctx.beginPath();
+    for (let y = -gap + off; y < G.H + gap; y += gap) {
+      ctx.moveTo(S.L - 26, y); ctx.lineTo(S.L - 14, y + 6);
+      ctx.moveTo(S.R + 14, y + 6); ctx.lineTo(S.R + 26, y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    for (let y = -gap + ((S.scroll * 1.7) % gap); y < G.H; y += gap) { ctx.fillRect(4, y, S.L - 34, 2); ctx.fillRect(S.R + 30, y + 40, G.W - S.R - 34, 2); }
+    // cables and the counterweight above the cabin
+    const bx = S.bx, by = S.by, bw = 64, bh = 44;
+    ctx.strokeStyle = '#6a6590'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(bx - 14, 0); ctx.lineTo(bx - 14, by - bh / 2); ctx.moveTo(bx + 14, 0); ctx.lineTo(bx + 14, by - bh / 2); ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter'; this.drawGlow(ctx, bx, by, 70, COL.counter, R.phase === 'fight' ? 0.55 : 0.25); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.fillStyle = '#2b2440'; ctx.fillRect(bx - bw / 2, by - bh / 2, bw, bh);
+    ctx.fillStyle = COL.counter; ctx.fillRect(bx - bw / 2, by - bh / 2, bw, 6); ctx.fillRect(bx - bw / 2, by + bh / 2 - 6, bw, 6);
+    ctx.strokeStyle = '#ffb3d1'; ctx.lineWidth = 2; ctx.strokeRect(bx - bw / 2, by - bh / 2, bw, bh);
+    const p = G.player, ea = Math.atan2(p.y - by, p.x - bx), rage = S.slam && S.slam.state === 'warn';
+    ctx.fillStyle = '#12091a'; ctx.beginPath(); ctx.arc(bx, by, 11, 0, TAU); ctx.fill();
+    ctx.fillStyle = rage ? '#ffffff' : '#ff4f6b'; ctx.beginPath(); ctx.arc(bx + Math.cos(ea) * 4, by + Math.sin(ea) * 4, 5 + (rage ? Math.sin(t * 30) * 1.5 : 0), 0, TAU); ctx.fill();
+    // floor indicator: progress of the ride
+    if (R.phase === 'fight' || R.phase === 'intro') {
+      const k = R.phase === 'fight' ? Math.min(1, S.t / S.dur) : 0;
+      const w = S.R - S.L - 40, x = S.L + 20, y = S.ceilY + 12;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x, y, w, 5);
+      ctx.fillStyle = '#8dff6a'; ctx.fillRect(x, y, w * k, 5);
+      ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillStyle = 'rgba(234,252,255,0.75)'; ctx.fillText('FLOOR ' + G.run.floor + ' ▲ ' + Math.ceil(Math.max(0, S.dur - S.t)) + 's', S.L + (S.R - S.L) / 2, y + 8);
+    }
+    // curtain gap: the only safe spot is marked on the floor
+    if (S.gapWarn) {
+      const gw = S.gapWarn;
+      ctx.globalAlpha = 0.35 + Math.sin(t * 14) * 0.15; ctx.fillStyle = '#8dff6a';
+      ctx.fillRect(gw.x - gw.w / 2 + 6, S.ceilY, gw.w - 12, S.floorY - S.ceilY);
+      ctx.globalAlpha = 1; ctx.fillRect(gw.x - gw.w / 2 + 6, S.floorY - 3, gw.w - 12, 3);
+    }
+    // drop warnings: marker at the ceiling and a landing line on the floor
+    for (const d of S.drops) {
+      if (d.t >= d.warn) continue;
+      const k = d.t / d.warn;
+      ctx.globalAlpha = 0.15 + 0.25 * k; ctx.strokeStyle = '#ff4f6b'; ctx.lineWidth = 1; ctx.setLineDash([3, 5]);
+      ctx.beginPath(); ctx.moveTo(d.x, S.ceilY + 6); ctx.lineTo(d.x, S.floorY); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha = 0.6 + 0.4 * k; ctx.fillStyle = '#ff4f6b';
+      ctx.beginPath(); ctx.moveTo(d.x - 6, S.ceilY + 2); ctx.lineTo(d.x + 6, S.ceilY + 2); ctx.lineTo(d.x, S.ceilY + 11); ctx.closePath(); ctx.fill();
+      ctx.fillRect(d.x - d.r, S.floorY - 2, d.r * 2 * k, 2);
+    }
+    ctx.globalAlpha = 1;
+    // exit doors in the side walls
+    for (const st of G.stairs) {
+      const col = st.locked ? '#5a5680' : ROOM[st.type].color, x = st.dir < 0 ? S.L - 14 : S.R;
+      if (!st.locked) { ctx.globalCompositeOperation = 'lighter'; this.drawGlow(ctx, x + 7, st.y + st.h / 2, 40, col, 0.5 + Math.sin(t * 4) * 0.2); ctx.globalCompositeOperation = 'source-over'; }
+      ctx.globalAlpha = 1; ctx.fillStyle = st.locked ? '#1f1b33' : '#07060f'; ctx.fillRect(x, st.y, 14, st.h);
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.strokeRect(x + 1, st.y + 1, 12, st.h - 2);
+      ctx.globalAlpha = st.locked ? 0.4 : 1;
+      this.drawRoomIcon(ctx, st.type, st.dir < 0 ? S.L + 16 : S.R - 16, st.y - 12, st.locked ? '#9c96c9' : col);
+      if (!st.locked) {
+        ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        const k = (t * 1.5) % 1, cx = (st.dir < 0 ? S.L + 22 : S.R - 22) + st.dir * k * 10, cy = st.y + st.h / 2;
+        ctx.globalAlpha = 1 - k;
+        ctx.beginPath(); ctx.moveTo(cx - st.dir * 4, cy - 6); ctx.lineTo(cx + st.dir * 3, cy); ctx.lineTo(cx - st.dir * 4, cy + 6); ctx.stroke();
+        ctx.lineCap = 'butt';
+      }
+      ctx.globalAlpha = 1;
+    }
+  },
+
+  // in front of the player: falling balls and the crushing plates
+  drawSideFront(ctx) {
+    const S = G.side, t = G.time;
+    if (S.slam) {
+      const sl = S.slam, k = slamDepth(sl);
+      for (const z of sl.zones) {
+        const w = z.x1 - z.x0, h = (S.floorY - S.ceilY) * k;
+        if (sl.state === 'warn') {
+          ctx.globalAlpha = 0.18 + 0.2 * (sl.t / sl.warn) + Math.sin(t * 18) * 0.06; ctx.fillStyle = '#ff4f6b';
+          ctx.fillRect(z.x0, S.ceilY, w, S.floorY - S.ceilY);
+          ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ff4f6b'; ctx.lineWidth = 2; ctx.strokeRect(z.x0 + 1, S.ceilY + 1, w - 2, S.floorY - S.ceilY - 2);
+        }
+        ctx.globalAlpha = 1;
+        const y = S.ceilY - 8, hh = Math.max(10, h + 8);
+        ctx.fillStyle = '#2b2440'; ctx.fillRect(z.x0, y, w, hh);
+        ctx.fillStyle = COL.counter; ctx.fillRect(z.x0, y + hh - 8, w, 8);
+        ctx.fillStyle = '#ffd44d'; ctx.globalAlpha = 0.5;
+        for (let x = z.x0; x < z.x1 - 8; x += 16) ctx.fillRect(x + 4, y + hh - 16, 8, 6);
+        ctx.globalAlpha = 1; ctx.strokeStyle = '#ffb3d1'; ctx.lineWidth = 2; ctx.strokeRect(z.x0 + 1, y, w - 2, hh);
+      }
+    }
+    for (const d of S.drops) {
+      if (d.t < d.warn) continue;
+      ctx.globalCompositeOperation = 'lighter'; this.drawGlow(ctx, d.x, d.y, d.r * 2.6, COL.counter, 0.6); ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1; ctx.fillStyle = d.split ? '#ffe0ef' : COL.counter;
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#2b0a1a'; ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.45, 0, TAU); ctx.fill();
+      if (d.split) { ctx.strokeStyle = '#ff4f6b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(d.x - d.r * 0.7, d.y); ctx.lineTo(d.x + d.r * 0.7, d.y); ctx.moveTo(d.x, d.y - d.r * 0.7); ctx.lineTo(d.x, d.y + d.r * 0.7); ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  drawSidePreview(g, cw, ch, lay, z) {
+    const w = Math.min(cw * 0.5, 150), h = ch - 30, x = (cw - w) / 2, y = 16;
+    g.fillStyle = '#0c0a1c'; g.fillRect(x - 14, 0, w + 28, ch);
+    g.fillStyle = z.b; g.fillRect(x, y, w, h);
+    g.strokeStyle = z.edge; g.lineWidth = 2; g.strokeRect(x, y, w, h);
+    g.strokeStyle = '#6a6590'; g.beginPath(); g.moveTo(cw / 2 - 6, 0); g.lineTo(cw / 2 - 6, y); g.moveTo(cw / 2 + 6, 0); g.lineTo(cw / 2 + 6, y); g.stroke();
+    g.fillStyle = COL.counter; g.fillRect(cw / 2 - 16, 2, 32, 12);
+    g.fillStyle = COL.counter; g.globalAlpha = 0.8;
+    for (let i = 0; i < 5; i++) { g.beginPath(); g.arc(x + 15 + ((i * 37) % (w - 30)), y + 14 + i * 13, 4, 0, TAU); g.fill(); }
+    g.globalAlpha = 1; g.fillStyle = '#4df3ff'; g.beginPath(); g.arc(cw / 2, y + h - 7, 5, 0, TAU); g.fill();
+    for (const st of lay.stairs) { g.fillStyle = ROOM[st.type].color; g.fillRect(st.dir < 0 ? x - 6 : x + w, y + h - 26, 6, 26); }
+    g.fillStyle = '#ffffff'; g.font = '700 10px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('SIDE VIEW · ←  →  + DASH', cw / 2, y + h / 2);
   },
 
   drawStairShape(ctx, r, col, alpha, up) {
@@ -768,6 +967,28 @@ const Render = {
       ctx.beginPath(); ctx.arc(Math.cos(b.eyeA) * r * 0.25, Math.sin(b.eyeA) * r * 0.25, r * 0.3, 0, TAU); ctx.fill();
     } else if (b.kind === 'mirror') {
       this.mirrorShape(ctx, b, fill, true);
+    } else if (b.kind === 'orrery') {
+      // a brass sun with rotating rings
+      ctx.fillStyle = fill;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#dbe9ff'; ctx.lineWidth = 2;
+      ctx.save(); ctx.rotate(b.t * 0.8); ctx.scale(1, 0.35); ctx.beginPath(); ctx.arc(0, 0, r + 9, 0, TAU); ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.rotate(-b.t * 0.6 + 1); ctx.scale(1, 0.35); ctx.beginPath(); ctx.arc(0, 0, r + 14, 0, TAU); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = '#fff6d8'; ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, TAU); ctx.fill();
+      ctx.fillStyle = b.phase2 ? '#ff4f6b' : '#1b2c55';
+      const a = Math.atan2(G.player.y - b.y, G.player.x - b.x);
+      ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.2, Math.sin(a) * r * 0.2, r * 0.24, 0, TAU); ctx.fill();
+    } else if (b.kind === 'forge') {
+      // anvil body with a glowing furnace mouth
+      ctx.fillStyle = fill;
+      ctx.beginPath(); ctx.moveTo(-r * 1.1, -r * 0.55); ctx.lineTo(r * 1.1, -r * 0.55); ctx.lineTo(r * 0.7, r * 0.1); ctx.lineTo(r * 0.45, r * 0.9);
+      ctx.lineTo(-r * 0.45, r * 0.9); ctx.lineTo(-r * 0.7, r * 0.1); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2a1206'; ctx.fillRect(-r * 0.55, -r * 0.3, r * 1.1, r * 0.75);
+      const heat = 0.6 + Math.sin(b.t * 7) * 0.2 + (b.charge || 0) * 0.4;
+      ctx.fillStyle = b.phase2 ? '#ff3d2d' : '#ffcf6b'; ctx.globalAlpha *= Math.min(1, heat);
+      ctx.fillRect(-r * 0.4, -r * 0.15, r * 0.8, r * 0.45);
+      ctx.globalAlpha = b.alpha == null ? 1 : Math.max(0.05, b.alpha);
+      ctx.strokeStyle = '#ffd9b0'; ctx.lineWidth = 2; ctx.strokeRect(-r * 0.55, -r * 0.3, r * 1.1, r * 0.75);
     }
     ctx.globalAlpha = 1;
   },

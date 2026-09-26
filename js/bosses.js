@@ -7,8 +7,8 @@
 const SLAM_R = 56; // Warden slam radius (also drawn by the renderer)
 
 function spawnBoss(floor) {
-  const kind = BOSS_ORDER[(Math.floor(floor / 5) - 1) % BOSS_ORDER.length];
-  const cyc = Math.floor((floor - 5) / 15);
+  const kind = bossKindFor(floor);
+  const cyc = bossCycle(floor);
   const def = BOSSES[kind];
   const hp = def.hp * G.scale.hp * (floor === 5 ? 0.75 : 0.88) * (1 + cyc * 0.2) * (ascMod(5) ? 1.25 : 1);
   const b = {
@@ -19,6 +19,11 @@ function spawnBoss(floor) {
     vx: 0, vy: 0, kx: 0, ky: 0, flash: 0, slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, burnAcc: 0, orbitCd: 0,
     tx: arenaCenter().x, ty: arenaCenter().y, dead: false, spawnIn: 0, eyeA: Math.PI / 2, atk: 1.5, oa: 0, fakes: [],
   };
+  if (kind === 'orrery') {
+    const n = b.hard ? 4 : 3;
+    b.orbR = 58; b.planets = [];
+    for (let i = 0; i < n; i++) b.planets.push({ i, n, mode: 'orbit', x: b.x, y: b.y, vx: 0, vy: 0, r: 11, t: 0, slot: 0 });
+  }
   G.enemies.push(b);
   G.boss = b;
   G.run.hurtAtBoss = G.run.hurt;
@@ -349,6 +354,183 @@ const BOSS_AI = {
   },
 };
 
+// ---------------- ORRERY ----------------
+// Planets orbit the boss and hurt on contact. They cannot be shot.
+function orreryPlanets(b, dt, hard) {
+  const p = G.player;
+  b.spinA += dt * (hard ? 1.5 : 1.15) * b.spinDir;
+  for (const pl of b.planets) {
+    const a = b.spinA + (pl.i * TAU) / pl.n + (pl.slot || 0);
+    const ox = b.x + Math.cos(a) * b.orbR, oy = b.y + Math.sin(a) * b.orbR;
+    pl.t += dt;
+    if (pl.mode === 'orbit') { pl.x = ox; pl.y = oy; }
+    else if (pl.mode === 'aim') { pl.x = ox; pl.y = oy; if (pl.t >= 0.55) { pl.mode = 'out'; pl.t = 0; const d = Math.hypot(pl.tx - pl.x, pl.ty - pl.y) || 1; pl.vx = ((pl.tx - pl.x) / d) * 340; pl.vy = ((pl.ty - pl.y) / d) * 340; sfx('dash'); } }
+    else if (pl.mode === 'out') {
+      pl.x += pl.vx * dt; pl.y += pl.vy * dt;
+      if (pl.t > 0.8 || solidAt(pl.x, pl.y)) { pl.mode = 'back'; pl.t = 0; addShake(0.08); if (hard) for (let k = 0; k < 6; k++) fireEB(pl.x, pl.y, (k * TAU) / 6, 90, { color: COL.orrery }); }
+    } else if (pl.mode === 'back') {
+      const d = Math.hypot(ox - pl.x, oy - pl.y);
+      if (d < 12) pl.mode = 'orbit';
+      else { const sp = Math.min(d / dt, 260 + pl.t * 200); pl.x += ((ox - pl.x) / d) * sp * dt; pl.y += ((oy - pl.y) / d) * sp * dt; }
+    }
+    const rr = pl.r + PLAYER_HITBOX;
+    if (p.alive && dist2(pl.x, pl.y, p.x, p.y) < rr * rr) hurtPlayer(pl.x, pl.y);
+  }
+}
+
+BOSS_AI.orrery = function (b, dt, hard, sm) {
+  const p = G.player, R = G.circle ? G.circle.R : 200;
+  orreryPlanets(b, dt, hard);
+  if (!b.pat) {
+    bossDrift(b, dt, 45 * sm);
+    b.orbR += (58 - b.orbR) * Math.min(1, dt * 3);
+    for (const pl of b.planets) pl.slot = (pl.slot || 0) * Math.exp(-dt * 3);
+    b.atk -= dt;
+    if (b.atk <= 0) { b.atk = hard ? 1.0 : 1.4; for (let k = -1; k <= 1; k++) fireEB(b.x, b.y, angToPlayer(b) + k * 0.2, 150, { color: COL.orrery }); sfx('eshoot'); }
+    b.cool -= dt;
+    if (b.cool <= 0) startPattern(b, ['expand', 'fling', 'eclipse', 'nova']);
+    return;
+  }
+  b.pt += dt;
+  if (b.pat === 'expand') {
+    brake(b, dt, 6);
+    const dur = hard ? 5.2 : 4.6, k = Math.min(1, b.pt / dur);
+    if (b.step === 0) { b.step = 1; b.spinDir = chance(0.5) ? 1 : -1; sfx('charge'); }
+    b.orbR = 58 + (R * 0.82 - 58) * Math.sin(k * Math.PI);
+    if (hard) { b.st -= dt; if (b.st <= 0 && k > 0.15 && k < 0.85) { b.st = 0.7; for (const pl of b.planets) fireEB(pl.x, pl.y, Math.atan2(p.y - pl.y, p.x - pl.x), 120, { color: COL.orrery }); sfx('eshoot'); } }
+    if (k >= 1) endPattern(b, 0.9);
+  } else if (b.pat === 'fling') {
+    brake(b, dt, 6);
+    b.st -= dt;
+    const n = b.planets.length;
+    if (b.st <= 0 && b.step < n) {
+      const pl = b.planets[b.step++];
+      pl.mode = 'aim'; pl.t = 0; pl.tx = p.x; pl.ty = p.y;
+      b.st = hard ? 0.45 : 0.6;
+    }
+    if (b.step >= n && b.planets.every((pl) => pl.mode === 'orbit')) endPattern(b, 1.0);
+    if (b.pt > 8) { for (const pl of b.planets) pl.mode = 'orbit'; endPattern(b, 1.0); }
+  } else if (b.pat === 'eclipse') {
+    // the planets line up through the boss; a beam then fires along that line (both ways)
+    const c = arenaCenter();
+    if (b.sub === '') { b.sub = 'move'; }
+    if (b.sub === 'move') {
+      steer(b, c.x, c.y, 160, dt, 5);
+      if (dist2(b.x, b.y, c.x, c.y) < 12 * 12 || b.pt > 1.4) { b.sub = 'align'; b.st = 0; b.ang = angToPlayer(b); }
+    } else if (b.sub === 'align') {
+      brake(b, dt, 10);
+      b.st += dt;
+      for (const pl of b.planets) { const want = pl.i % 2 ? b.ang + Math.PI : b.ang; const cur = b.spinA + (pl.i * TAU) / pl.n; pl.slot = (pl.slot || 0) + angleDiff(cur + (pl.slot || 0), want) * Math.min(1, dt * 8); }
+      if (b.step === 0 && b.st > 0.25) {
+        b.step = 1;
+        for (const a of [b.ang, b.ang + Math.PI]) {
+          const e = rayToEdge(b.x, b.y, Math.cos(a), Math.sin(a), 0);
+          G.beams.push({ rot: false, ax: b.x, ay: b.y, bx: e.x, by: e.y, w: 20, warn: hard ? 0.85 : 1.0, fire: 0.55, t: 0, color: COL.orrery });
+        }
+        sfx('charge');
+      }
+      if (b.st > (hard ? 1.7 : 1.9)) {
+        b.eclipses = (b.eclipses || 0) + 1;
+        if (hard && b.eclipses < 2) { b.sub = 'align'; b.st = 0; b.step = 0; b.ang = angToPlayer(b) + (chance(0.5) ? 0.9 : -0.9); }
+        else { b.eclipses = 0; for (const pl of b.planets) pl.slot = 0; endPattern(b, 1.0); }
+      }
+    }
+  } else if (b.pat === 'nova') {
+    brake(b, dt, 6);
+    const waves = hard ? 3 : 2;
+    if (b.pt < 0.5) { b.charge = b.pt / 0.5; return; }
+    b.charge = 0;
+    b.st -= dt;
+    if (b.st <= 0 && b.step < waves) {
+      b.st = 0.7; b.step++;
+      for (const pl of b.planets) for (let k = 0; k < 8; k++) fireEB(pl.x, pl.y, (k * TAU) / 8 + b.step * 0.4, 95, { color: COL.orrery });
+      sfx('eshoot');
+    }
+    if (b.step >= waves && b.st <= 0) endPattern(b, 1.0);
+  }
+};
+
+// ---------------- FORGEMASTER ----------------
+// Magma lobs leave lava pools, hammer shockwaves (ring with a gap), bellows that pull you in.
+BOSS_AI.forge = function (b, dt, hard, sm) {
+  const p = G.player;
+  if (!b.pat) {
+    bossDrift(b, dt, 50 * sm);
+    b.atk -= dt;
+    if (b.atk <= 0) { b.atk = hard ? 1.1 : 1.5; fireEB(b.x, b.y, angToPlayer(b), 165, { color: COL.forge, r: 6 }); sfx('eshoot'); }
+    b.cool -= dt;
+    if (b.cool <= 0) startPattern(b, ['magma', 'quake', 'bellows']);
+    return;
+  }
+  b.pt += dt;
+  if (b.pat === 'magma') {
+    brake(b, dt, 6);
+    const n = hard ? 5 : 3;
+    b.st -= dt;
+    if (b.st <= 0 && b.step < n) {
+      b.st = 0.35; b.step++;
+      const t = clampInArena(p.x + p.vx * 0.5 + rand(-30, 30), p.y + p.vy * 0.5 + rand(-30, 30), 20);
+      G.shells.push({ x0: b.x, y0: b.y, tx: t.x, ty: t.y, t: 0, dur: 1.0, r: 30, pool: true });
+      sfx('jump');
+    }
+    if (b.step >= n && b.pt > n * 0.35 + 1.2) endPattern(b, 1.0);
+  } else if (b.pat === 'quake') {
+    brake(b, dt, 8);
+    const waves = hard ? 3 : 2;
+    if (b.pt < 0.6) { b.charge = b.pt / 0.6; return; }
+    b.charge = 0;
+    b.st -= dt;
+    if (b.st <= 0 && b.step < waves) {
+      b.st = 0.85; b.step++;
+      // the gap is never exactly where you stand: you have to move to it
+      const gap = angToPlayer(b) + (chance(0.5) ? 1 : -1) * rand(0.9, 2.2);
+      G.waves.push({ x: b.x, y: b.y, r: b.r, spd: hard ? 150 : 135, w: 14, gapA: gap, gapW: hard ? 0.8 : 0.95, color: COL.forge });
+      addShake(0.35); sfx('slam');
+      burst(b.x, b.y, COL.forge, 14, 200, 0.4, 3);
+    }
+    if (b.step >= waves && b.st <= 0) endPattern(b, 1.1);
+  } else if (b.pat === 'bellows') {
+    brake(b, dt, 8);
+    const dur = hard ? 3.0 : 2.5;
+    if (b.pt < 0.5) { b.charge = b.pt / 0.5; return; }
+    b.charge = 0;
+    // pull toward the boss (weaker than your own speed) while embers spray outwards
+    if (p.alive && p.dashT <= 0) {
+      const d = Math.hypot(b.x - p.x, b.y - p.y) || 1;
+      if (d > b.r + 30) { p.x += ((b.x - p.x) / d) * 62 * dt; p.y += ((b.y - p.y) / d) * 62 * dt; }
+    }
+    if (Math.random() < 0.5) { const a = Math.random() * TAU, rr = rand(60, 160); part(b.x + Math.cos(a) * rr, b.y + Math.sin(a) * rr, -Math.cos(a) * 160, -Math.sin(a) * 160, 0.5, 2, '#ffcf9a', 0, 1); }
+    b.st -= dt;
+    if (b.st <= 0) {
+      b.st = hard ? 0.1 : 0.13;
+      b.spinA += 0.37;
+      for (let k = 0; k < 3; k++) fireEB(b.x, b.y, b.spinA + (k * TAU) / 3, 120, { color: '#ffb070', r: 4 });
+      sfx('burn');
+    }
+    if (b.pt > 0.5 + dur) endPattern(b, 1.0);
+  }
+};
+
+// Lava pools and shockwave rings (Forgemaster).
+function updateBossHazards(dt) {
+  const p = G.player;
+  for (let i = G.pools.length - 1; i >= 0; i--) {
+    const pl = G.pools[i];
+    pl.t += dt;
+    if (pl.t > pl.life) { G.pools.splice(i, 1); continue; }
+    const rr = pl.r - 4 + PLAYER_HITBOX;
+    if (pl.t > 0.35 && p.alive && dist2(pl.x, pl.y, p.x, p.y) < rr * rr) hurtPlayer(pl.x, pl.y);
+  }
+  for (let i = G.waves.length - 1; i >= 0; i--) {
+    const w = G.waves[i];
+    w.r += w.spd * dt;
+    if (w.r > 900) { G.waves.splice(i, 1); continue; }
+    if (!p.alive) continue;
+    const d = Math.hypot(p.x - w.x, p.y - w.y);
+    if (Math.abs(d - w.r) < w.w / 2 + PLAYER_HITBOX && Math.abs(angleDiff(w.gapA, Math.atan2(p.y - w.y, p.x - w.x))) > w.gapW / 2) hurtPlayer(w.x, w.y);
+  }
+}
+
 // Shared AI for the Mirror boss and its copies while split: orbit the centre, fire aimed shots.
 function mirrorCopyAI(e, dt, sm) {
   const cx = arenaCenter().x, cy = arenaCenter().y, R = mirrorOrbitR();
@@ -440,8 +622,9 @@ function onBossDeath(b) {
   G.markers.length = 0;
   G.room.queue.length = 0;
   for (const e of G.enemies) if (!e.dead && e !== b) killEnemy(e, true);
-  const cyc = Math.floor((run.floor - 5) / 15);
-  const total = 25 + cyc * 10;
+  G.pools.length = 0; G.waves.length = 0; G.shells.length = 0;
+  const cyc = bossCycle(run.floor);
+  const total = 25 + cyc * 10 + (['elevator', 'orrery', 'forge'].includes(b.kind) ? 10 : 0);
   for (let k = 0; k < 10; k++) dropPickup(b.x, b.y, 'shard', Math.ceil(total / 10));
   dropPickup(b.x, b.y, 'heart', 1);
   dropPickup(b.x, b.y, 'heart', 1);

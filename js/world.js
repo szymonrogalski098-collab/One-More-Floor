@@ -19,7 +19,7 @@ function rc(x, y, w, h) { return { x: Math.round(x), y: Math.round(y), w: Math.r
 function makeGrid(cols, rows) {
   G.grid = { cols, rows, solid: new Uint8Array(cols * rows).fill(1), gate: new Uint8Array(cols * rows) };
   G.W = cols * T; G.H = rows * T;
-  G.circle = null;
+  G.circle = null; G.side = null;
   G.fields = new Map();
 }
 function solidTile(tx, ty) {
@@ -442,7 +442,7 @@ function placeStairs(types) {
 function unlockStairs() {
   for (const s of G.stairs) {
     s.locked = false;
-    if (!G.circle) carve(s.tx, s.ty, s.tw, s.th);
+    if (!G.circle && !s.side) carve(s.tx, s.ty, s.tw, s.th);
   }
   G.gridVer++; G.fields.clear();
 }

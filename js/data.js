@@ -17,6 +17,9 @@ const COL = {
   warden: '#ffb13d',
   loom: '#c77dff',
   mirror: '#5cf2c4',
+  counter: '#ff6fa8',
+  orrery: '#7fb8ff',
+  forge: '#ff7a3d',
 };
 
 // ---------- Enemies ----------
@@ -177,8 +180,14 @@ const BOSSES = {
   warden: { name: 'TOWER WARDEN', sub: 'Watch the red circle. Get out before it lands.', hp: 1100, r: 26, color: COL.warden },
   loom:   { name: 'THE LOOM',     sub: 'The beams rotate. Run with them.', hp: 1250, r: 24, color: COL.loom },
   mirror: { name: 'THE MIRROR',   sub: 'Only the real one has a solid core.', hp: 1150, r: 24, color: COL.mirror },
+  elevator: { name: 'THE COUNTERWEIGHT', sub: 'It cannot be hurt. Survive the ride — dashing will not save you.', hp: 1, r: 30, color: COL.counter, side: true },
+  orrery: { name: 'THE ORRERY',   sub: 'Watch the orbits. When the planets align, get off the line.', hp: 1300, r: 24, color: COL.orrery },
+  forge:  { name: 'THE FORGEMASTER', sub: 'Mind the lava. Every shockwave has a gap.', hp: 1400, r: 27, color: COL.forge },
 };
-const BOSS_ORDER = ['warden', 'loom', 'mirror'];
+// boss floors 5..30, then the cycle repeats as II, III … variants
+const BOSS_ORDER = ['warden', 'loom', 'mirror', 'elevator', 'orrery', 'forge'];
+function bossKindFor(floor) { return BOSS_ORDER[(Math.floor(floor / 5) - 1) % BOSS_ORDER.length]; }
+function bossCycle(floor) { return Math.floor((Math.floor(floor / 5) - 1) / BOSS_ORDER.length); }
 
 // ---------- Ships (playable craft) ----------
 // mod(s): applied before run upgrades. Unlocked by a challenge or bought with shards.
@@ -218,6 +227,9 @@ const CHALLENGES = [
   { id: 'warden',  name: 'Warden Down',     desc: 'Defeat the Tower Warden.',               reward: { shards: 60 } },
   { id: 'loom',    name: 'Loom Breaker',    desc: 'Defeat The Loom.',                       reward: { ship: 'lancer' } },
   { id: 'mirror',  name: 'Shattered',       desc: 'Defeat The Mirror (unlocks Ascension).', reward: { shards: 150 } },
+  { id: 'counter', name: 'Going Up',        desc: 'Survive The Counterweight.',             reward: { shards: 150 } },
+  { id: 'orrery',  name: 'Stargazer',       desc: 'Defeat The Orrery.',                     reward: { shards: 180 } },
+  { id: 'forge',   name: 'Quenched',        desc: 'Defeat The Forgemaster.',                reward: { shards: 220 } },
   { id: 'f20',     name: 'Deep Climber',    desc: 'Reach floor 20.',                        reward: { ship: 'scatter' } },
   { id: 'f30',     name: 'Summit Seeker',   desc: 'Reach floor 30.',                        reward: { shards: 400 } },
   { id: 'nohit',   name: 'Untouchable',     desc: 'Defeat a boss without taking damage.',   reward: { ship: 'phantom' } },

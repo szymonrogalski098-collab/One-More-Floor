@@ -728,6 +728,7 @@ function updateShells(dt) {
     addShake(0.12); sfx('explode');
     const R = sh.r + PLAYER_HITBOX;
     if (p.alive && dist2(sh.tx, sh.ty, p.x, p.y) < R * R) hurtPlayer(sh.tx, sh.ty);
+    if (sh.pool && G.pools.length < 10) G.pools.push({ x: sh.tx, y: sh.ty, r: sh.r, t: 0, life: G.boss && (G.boss.hard || G.boss.phase2) ? 6 : 5 });
   }
 }
 
@@ -884,10 +885,11 @@ function processExplosions() {
 }
 
 // ================= Player damage =================
-function hurtPlayer(sx, sy) {
+// noDodge: attacks that dashing cannot pass through (The Counterweight)
+function hurtPlayer(sx, sy, noDodge) {
   const p = G.player;
   if (!p.alive || G.state !== 'play') return false;
-  if (p.dashIfr > 0) {
+  if (p.dashIfr > 0 && !noDodge) {
     if (!p.dodged) { p.dodged = true; perfectDodge(); }
     return false;
   }

@@ -10,7 +10,7 @@
 - **Loop:** fight, reward (pick 1 of 3 upgrades), choose a door (Combat / Elite / Rest), next floor. **A boss every 5 floors.**
 - **Floors:** combat and elite floors are small dungeons: a safe start room, fight rooms joined by corridors and an exit room with staircases. Rooms vary in shape (cut corners, L-shapes) and cover (pillars, crates, low walls, columns, rings), and some have spike traps that fire only while the room is being fought. Entering a fight room locks its exits (red energy bars) until every wave is cleared; dormant enemies wait in some corridors. A green chevron next to you points to the next room. The camera follows you when the floor is bigger than the screen, and arrows on the screen edge show enemies out of view.
 - **Stairs:** staircases are cut into the top wall of the exit room (bottom step on the wall line), one per route (Combat / Elite / Rest / Boss). They are always visible but locked until the whole floor is cleared. Stand on a staircase to see the full map of the floor it leads to (it is generated in advance, so what you see is what you get), then walk up it to climb. You arrive by stepping out of a stair nook in the bottom wall.
-- **Save & quit / closing the app** keeps the exact floor: layout, cleared rooms, surviving enemies and your position. A fight that was interrupted restarts with you just outside the room. Boss fights restart from the hall entrance.
+- **Save & quit / closing the app** keeps the exact floor: layout, cleared rooms, surviving enemies and your position. A fight that was interrupted restarts with you just outside the room. Boss fights restart from the hall entrance; a boss you already beat stays beaten.
 - **Bosses** fight in one big circular hall.
 - **Ending a run early:** using *End run* on floors 1–3 earns no shards. From floor 4 on you keep what you collected.
 - When you die you earn **shards**, which you spend in the **Workshop** on permanent upgrades and unlocks.
@@ -44,8 +44,11 @@ Rare effects get a common booster too: Conductor (Arc Coil +10% damage), Kindlin
 1. **Tower Warden** (floor 5): spiral bullet streams, jump slams (the red circle is locked at take-off, so walk out of it) and aimed fans.
 2. **The Loom** (floor 10): rotating lasers (chevrons on the warning line show the rotation direction), laser grids and homing orbs you can shoot down.
 3. **The Mirror** (floor 15): splits into copies. **Only the real one has a solid white core**, and a shattered copy fires a ring of bullets. It also dashes from wall to wall leaving bullet trails and summons enemies.
+4. **The Counterweight** (floor 20): a different kind of fight. You ride an elevator in **side view** and can only move left/right and dash. The boss hangs in the shaft above you. It **cannot be hurt**, and **dashing does not dodge its attacks** (the dash only moves you faster). Balls fall from above with a red marker at the ceiling: aimed volleys, a curtain with one green gap, a sweep and splitters that burst into three. Its special attack is **CRUSH**: the counterweight drops into the cabin over your half (later over both sides, leaving the middle), and the red zone shows where. Survive until the elevator arrives (the bar shows the ride left), then leave through a side door.
+5. **The Orrery** (floor 25): planets orbit the boss and hurt on contact. The orbit expands and contracts, planets are flung at you and come back, and in the eclipse the planets line up and a beam fires along that line.
+6. **The Forgemaster** (floor 30): magma lobs leave lava pools, hammer shockwaves spread as rings with one gap (marked green), and the bellows pull you in while embers spiral out.
 
-From floor 20 the bosses return as **II** variants (more HP, rage phase from the start). Below 50% HP every boss enters a **rage phase**.
+From floor 35 the bosses return as **II** variants (more HP, rage phase from the start). Below 50% HP every boss except The Counterweight enters a **rage phase**.
 
 ### Enemies
 
@@ -54,7 +57,7 @@ Skitter (chaser), Spitter (ranged), Ram (telegraphed charge), Blob (splits), Fus
 ### Long-term goals
 
 - **Ships:** Striker, Lancer, Scatter, Phantom, Bulwark — each changes how a run plays. Unlock them through challenges or buy them in the Workshop hangar.
-- **Challenges:** 16 goals (bosses, depth, no-hit boss, speed, builds, ascension) that pay shards or unlock ships.
+- **Challenges:** 19 goals (bosses, depth, no-hit boss, speed, builds, ascension) that pay shards or unlock ships.
 - **Ascension:** beating The Mirror unlocks Ascension 1; each level adds a modifier (tougher, faster enemies, elites on every floor, fewer hearts, enraged bosses …) and +15% shards. Best floor is tracked per level.
 
 ### Permanent progression (Workshop)
@@ -128,7 +131,8 @@ js/input.js             touch joystick, dash, keyboard
 js/fx.js                game state, particles, shake, hitstop, slow-mo, quality
 js/world.js             arena, pillars, doors, line of sight
 js/entities.js          player, bullets, enemies, damage, pickups
-js/bosses.js            3 bosses with attack patterns
+js/bosses.js            top-down bosses with attack patterns
+js/elevator.js          The Counterweight: side-view elevator boss
 js/game.js              run & floor flow, rewards, death, records
 js/render.js            Canvas 2D renderer
 js/ui.js                DOM screens
@@ -159,6 +163,7 @@ npm run test:dungeon    # floor generation, room locking, abandon rule, boss hal
 npm run test:resume     # Save & Quit restores the same floor, rooms and position
 npm run test:softlock   # stragglers elsewhere never stall a room
 npm run test:content    # new enemies, ascension, challenges, ships
+npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Orrery, Forgemaster
 npm run perf            # frame cost with 4x CPU throttling
 ```
 

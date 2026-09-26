@@ -9,6 +9,23 @@ const BOT = `
 window.__bot = function (G) {
   const p = G.player;
   let mx = 0, my = 0;
+  if (G.side) { // elevator boss: pick the safest x on the floor
+    const S = G.side;
+    if (G.room.phase === 'doors' && G.stairs.length) mx = G.stairs[0].dir;
+    else {
+      let best = p.x, bc = 1e9;
+      for (let x = S.L + 10; x <= S.R - 10; x += 6) {
+        let c = Math.abs(x - p.x) * 0.02;
+        for (const d of S.drops) { const dx = Math.abs(d.x + d.vx * 0.3 - x); if (dx < d.r + 14) c += 10; }
+        if (S.slam) for (const z of S.slam.zones) if (x > z.x0 - 12 && x < z.x1 + 12) c += 50;
+        if (S.gapWarn) c += Math.abs(x - S.gapWarn.x) * 0.1;
+        if (c < bc) { bc = c; best = x; }
+      }
+      mx = Math.abs(best - p.x) < 3 ? 0 : Math.sign(best - p.x);
+    }
+    const st = OMF.Input.stick; st.x = mx; st.y = 0; st.mag = Math.abs(mx);
+    return;
+  }
   if (G.room.phase === 'doors' && G.stairs.length) {
     const d = G.stairs[0]; let tx = d.x + d.w / 2, ty = d.y + d.h + 16;
     if (Math.abs(p.x - tx) < 12 && p.y < ty + 30) ty = d.y;
@@ -55,6 +72,7 @@ async function simulate(page, opts) {
         if (G.state !== 'play' && G.state !== 'dying') break;
         if (o.god && G.player.hp < 3) G.player.hp = 3;
         if (G.boss && res.bossesSeen.indexOf(G.boss.kind + '@' + G.run.floor) === -1) res.bossesSeen.push(G.boss.kind + '@' + G.run.floor);
+        if (o.fastBoss && G.side && G.boss) G.side.t += 1 / 60;
         if (o.fastBoss && G.boss && G.boss.enter <= 0 && G.boss.pt > 3) G.boss.hp -= G.boss.maxHp * 0.004;
         window.__bot(G);
         OMF.step(1 / 60);

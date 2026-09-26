@@ -46,7 +46,7 @@ function resetArrays() {
   while (G.eb.length) ebPool.push(G.eb.pop());
   G.enemies.length = 0; G.newEnemies.length = 0; G.markers.length = 0; G.pickups.length = 0;
   G.rings.length = 0; G.texts.length = 0; G.bolts.length = 0; G.beams.length = 0; G.explosions.length = 0;
-  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null;
+  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null;
 }
 
 function enterFloor(n, type, restore, layout) {
@@ -67,6 +67,7 @@ function enterFloor(n, type, restore, layout) {
   Render.buildFloor();
   Render.snapCamera();
   UI.bossBar(null);
+  UI.stairInfo(null);
   const R = ROOM[type];
   if (type !== 'boss') showBanner('FLOOR ' + n, R.name + (type === 'elite' ? ' — ' + R.sub.toLowerCase() : ''), type);
   else showBanner('FLOOR ' + n, 'Something is coming…', 'boss');
@@ -80,6 +81,7 @@ function enterFloor(n, type, restore, layout) {
 
 function buildFloorGeometry(type, floor) {
   const next = nextDoorTypes(floor + 1);
+  if (type === 'boss' && BOSSES[bossKindFor(floor)].side) { buildSideElevator(); placeSideDoors(next); return; }
   if (type === 'boss') { buildBossHall(); placeStairs(next); return; }
   if (type === 'rest') { buildSingleRoom(); placeStairs(next); return; }
   for (let i = 0; i < 30; i++) {
@@ -117,7 +119,7 @@ function saveSnapshot() {
     v: 2, floor: run.floor, type: G.room.type, hp: G.player.hp, order: expandOrder(),
     run: { kills: run.kills, shards: run.shards + pendingShards(), dmg: run.dmg, time: run.time, bosses: run.bosses, elites: run.elites,
       hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed, ship: run.ship, asc: run.asc },
-    floorState: G.room.type === 'boss' ? null : serializeFloor(),
+    floorState: G.room.type === 'boss' && G.room.phase !== 'doors' ? null : serializeFloor(), // a boss fight restarts; a beaten boss stays beaten
   };
   Save.save();
 }
@@ -125,6 +127,7 @@ function pendingShards() { let n = 0; for (const k of G.pickups) if (k.type === 
 
 // Floor geometry as plain data (used by saves and by the stair previews of the next floor).
 function serializeLayout() {
+  if (G.side) return { side: true, stairs: G.stairs.map((st) => ({ ...st })), spawn: G.spawn };
   if (G.circle) return { circle: true, R: G.circle.R, stairs: G.stairs.map((st) => ({ ...st })), spawn: G.spawn };
   const g = G.grid, solid = g.solid.slice();
   for (const rm of G.rooms) for (const gt of rm.gates) for (const i of gt.tiles) solid[i] = 0; // gates saved open
@@ -152,6 +155,7 @@ function serializeFloor() {
 }
 
 function restoreFloor(fs) {
+  if (fs.side) { buildSideElevator(); G.stairs = fs.stairs.map((st) => ({ ...st })); if (fs.safe) G.spawn.x = fs.safe.x; return; }
   if (fs.circle) { buildBossHall(); G.stairs = fs.stairs.map((st) => ({ ...st })); if (fs.safe) G.spawn = { x: fs.safe.x, y: fs.safe.y }; return; }
   makeGrid(fs.cols, fs.rows);
   for (let i = 0; i < fs.solid.length; i++) G.grid.solid[i] = fs.solid.charCodeAt(i) === 49 ? 1 : 0;
@@ -166,7 +170,7 @@ function restoreFloor(fs) {
 
 // Pre-build the floor behind every staircase so standing on it can show its full map,
 // and climbing it leads to exactly that floor.
-const WORLD_KEYS = ['grid', 'W', 'H', 'circle', 'fields', 'gridVer', 'rooms', 'halls', 'pillars', 'traps', 'stairs', 'exitRoom', 'spawn', 'arrival'];
+const WORLD_KEYS = ['grid', 'W', 'H', 'circle', 'side', 'fields', 'gridVer', 'rooms', 'halls', 'pillars', 'traps', 'stairs', 'exitRoom', 'spawn', 'arrival'];
 function makePreviews() {
   const saved = {};
   for (const k of WORLD_KEYS) saved[k] = G[k];
@@ -317,8 +321,8 @@ function updateRoom(dt) {
   R.t += dt;
   if (R.phase === 'intro') {
     if (R.t > 0.75) {
-      if (R.type === 'boss') { R.phase = 'fight'; spawnBoss(G.run.floor); }
-      else if (R.restorePhase === 'doors') { R.phase = 'doors'; unlockStairs(); }
+      if (R.restorePhase === 'doors') { R.phase = 'doors'; unlockStairs(); }
+      else if (R.type === 'boss') { R.phase = 'fight'; spawnBoss(G.run.floor); }
       else if (R.type === 'rest') R.phase = G.shrine && G.shrine.used ? 'doors' : 'rest';
       else R.phase = 'fight';
       if (R.type === 'rest' && R.phase === 'doors') unlockStairs();
@@ -390,6 +394,7 @@ function guideTarget() {
   const R = G.room;
   if (!R) return null;
   if (R.phase === 'doors' && G.stairOn && !G.stairOn.locked) return null; // already on the stairs
+  if (R.phase === 'doors' && G.side && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.dir < 0 ? G.side.L + 4 : G.side.R - 4, y: G.player.y }; }
   if (R.phase === 'doors' && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.x + d.w / 2, y: d.y + d.h + 16 }; }
   if (R.phase !== 'fight' || R.active || R.type === 'boss') return null;
   const next = G.rooms.find((r) => r.state === 'idle');
@@ -500,9 +505,12 @@ function startClimb(st) {
 function updateClimb(dt) {
   const c = G.climb, p = G.player;
   c.t += dt;
-  p.x += (c.st.x + c.st.w / 2 - p.x) * Math.min(1, dt * 8);
-  p.y -= 70 * dt;
-  p.face = -Math.PI / 2; p.vx = 0; p.vy = -70;
+  if (c.st.side) { p.x += c.st.dir * 80 * dt; p.vx = c.st.dir * 80; p.vy = 0; } // out through the side door
+  else {
+    p.x += (c.st.x + c.st.w / 2 - p.x) * Math.min(1, dt * 8);
+    p.y -= 70 * dt;
+    p.face = -Math.PI / 2; p.vx = 0; p.vy = -70;
+  }
   G.fade = clamp((c.t - 0.2) / 0.45, 0, 1);
   if (c.t > 0.7) {
     const idx = G.stairs.indexOf(c.st), lay = G.previews && G.previews[idx];
@@ -572,6 +580,7 @@ function abandonRun() {
 function step(dt) {
   G.time += dt;
   if (G.state === 'climb') { updateClimb(dt); updatePickups(dt); updateFx(dt); return; }
+  if (G.side) { stepSide(dt); updateFx(dt); return; } // elevator boss: side view
   if (G.state === 'play' || G.state === 'dying') {
     G.run.time += G.state === 'play' ? dt : 0;
     if (G.arriveT > 0) { // stepping off the arrival stairs
@@ -591,6 +600,7 @@ function step(dt) {
     if (G.newEnemies.length) { for (const e of G.newEnemies) G.enemies.push(e); G.newEnemies.length = 0; }
     updateBeams(dt);
     updateShells(dt);
+    updateBossHazards(dt);
     updatePlayerBullets(dt);
     updateEnemyBullets(dt);
     processExplosions();
@@ -663,6 +673,9 @@ function checkChallenges(evt, info) {
     hit('warden', info.kind === 'warden');
     hit('loom', info.kind === 'loom');
     hit('mirror', info.kind === 'mirror');
+    hit('counter', info.kind === 'elevator');
+    hit('orrery', info.kind === 'orrery');
+    hit('forge', info.kind === 'forge');
     hit('nohit', info.noHit);
     hit('asc3', info.kind === 'mirror' && (run.asc | 0) >= 3);
     hit('asc10', info.kind === 'mirror' && (run.asc | 0) >= 10);
