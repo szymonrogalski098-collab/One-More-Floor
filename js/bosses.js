@@ -1,7 +1,7 @@
 'use strict';
 // Bosses: each has a learnable pattern set and a phase-2 escalation below 50% HP.
 //  - Warden: spiral streams, telegraphed jump-slams (watch the shadow), aimed fans.
-//  - Loom (Krosno): rotating laser sweeps (chevrons show direction), laser grids, homing orbs you can shoot down.
+//  - Loom: rotating laser sweeps (chevrons show direction), laser grids, homing orbs you can shoot down.
 //  - Mirror (Lustro): splits into copies (only the real one has a solid core), wall-to-wall dashes leaving bullet trails, summons.
 
 const SLAM_R = 56; // Warden slam radius (also drawn by the renderer)

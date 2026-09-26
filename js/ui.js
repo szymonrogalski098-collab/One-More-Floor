@@ -205,7 +205,7 @@ const UI = {
 
   showRest() {
     const p = G.player, s = G.stats;
-    const heal = Math.max(2, Math.ceil(s.maxHp * 0.5));
+    const heal = restHealAmount();
     $('up-title').textContent = 'REST';
     $('up-sub').textContent = 'HP: ' + p.hp + '/' + s.maxHp;
     const card = (id, icon, tag, rar, name, desc) => `<button class="card r${rar}" data-id="${id}" style="--tc:${TAGS[tag].color}">

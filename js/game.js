@@ -201,7 +201,7 @@ function roomCleared() {
 
 function giveReward() {
   const type = G.room.type;
-  if (type === 'boss') healPlayer(Math.ceil(G.stats.maxHp / 2));
+  if (type === 'boss') healPlayer(Math.ceil(G.stats.maxHp / 2) + (Save.metaLvl('medic') | 0));
   openUpgradeChoice(type === 'boss' ? 'boss' : type === 'elite' ? 'elite' : 'normal');
 }
 
@@ -209,11 +209,14 @@ function giveReward() {
 function rollChoices(kind) {
   const run = G.run;
   const odds = kind === 'boss' ? [0, 50, 50] : kind === 'elite' ? [20, 55, 25] : [64 - Math.min(14, run.floor), 29 + Math.min(10, run.floor * 0.7), 7 + Math.min(6, run.floor * 0.3)];
+  const luck = Save.metaLvl('luck') | 0; // Workshop "Lucky Draw": shifts weight from common to rare/epic
+  if (luck) { const shift = Math.min(odds[0], 6 * luck); odds[0] -= shift; odds[1] += shift / 2; odds[2] += shift / 2; }
   const ownedTags = {};
   for (const id in run.upgrades) ownedTags[UPG[id].tag] = (ownedTags[UPG[id].tag] || 0) + run.upgrades[id];
   const avail = UPGRADES.filter((u) => (run.upgrades[u.id] || 0) < u.max && Save.isUnlocked(u.id) && (!u.req || G.stats[u.req] > 0));
   const out = [];
-  for (let i = 0; i < 3; i++) {
+  const count = 3 + (Save.metaLvl('choice') | 0);
+  for (let i = 0; i < count; i++) {
     let r = weightedPick([0, 1, 2], (x) => odds[x]);
     let cands = [];
     for (let tries = 0; tries < 3 && !cands.length; tries++) {
@@ -237,7 +240,7 @@ function openUpgradeChoice(kind) {
 }
 
 function chooseUpgrade(id) {
-  if (id === '__heal') healPlayer(Math.max(2, Math.ceil(G.stats.maxHp * 0.5)));
+  if (id === '__heal') healPlayer(restHealAmount());
   else if (id === '__train') { const c = rollChoices('normal'); if (c.length) { addUpgrade(c[0].id); floatText(G.player.x, G.player.y - 20, c[0].name, '#ffffff', 12, 1.4); } }
   else if (id === '__skip') { G.run.shards += 8; }
   else addUpgrade(id);
@@ -254,6 +257,8 @@ function rerollChoices() {
   sfx('select');
   UI.showUpgrade(rollChoices(G.rewardKind), G.rewardKind);
 }
+
+function restHealAmount() { return Math.max(2, Math.ceil(G.stats.maxHp * 0.5)) + (Save.metaLvl('medic') | 0); }
 
 function openRestChoice() {
   G.state = 'reward';

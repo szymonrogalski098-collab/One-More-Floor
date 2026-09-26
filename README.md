@@ -16,13 +16,23 @@ Every upgrade has a tag. Card rolls slightly favour tags you already collect, so
 
 | Tag | Style | Examples |
 |---|---|---|
-| SPRAY | more bullets | Splitter, Ricochet, Rear Guard, Seeker Chip |
+| SPRAY | more bullets | Splitter, Ricochet, Rear Guard, Seeker Chip, Tracking Servo, Lock-On Array |
 | PRECISION | crits / sniper | Focus Lens, Executioner, Heavy Slugs, Glass Cannon |
-| ELEMENT | status effects | Arc Coil, Ember, Cryo Rounds, Volatile |
-| DASH | mobility | Thruster, Twin Thrusters, Dash Nova, Adrenaline |
-| ARMOR | survival | Aegis, Blade Halo, Spin Coil, Overdrive Motor, Mender, Leech |
+| ELEMENT | status effects | Arc Coil, Ember, Cryo Rounds, Volatile, Conductor, Kindling, Deep Freeze, Blast Radius, Fuse Primer |
+| DASH | mobility | Thruster, Twin Thrusters, Dash Nova, Adrenaline, Nova Shards, Nova Capacitor, Rush, Reflex Amp |
+| ARMOR | survival | Aegis, Blade Halo, Spin Coil, Overdrive Motor, Mender, Leech, Quick Recharge |
 
-**Blade Halo line:** Blade Halo (epic, +1 orbiting blade), Overdrive Motor (rare, +10% blade spin, the first pick also adds a blade) and Spin Coil (common, +5% blade spin, offered once you own a blade). Faster blades also hit each enemy more often. The Blade Halo blueprint in the Workshop unlocks both Blade Halo and Overdrive Motor.
+**Upgrade lines.** Every epic effect has a common booster (offered only once you have the effect) and a rare that strengthens it and, on the first pick, also grants the effect itself. The rare is unlocked by the same Workshop blueprint as the epic.
+
+| Effect (epic) | Common booster | Rare (also grants the effect) |
+|---|---|---|
+| Blade Halo | Spin Coil: +5% blade spin | Overdrive Motor: +10% blade spin, +1 blade |
+| Volatile | Blast Radius: +12% explosion size | Fuse Primer: +15% explosion damage |
+| Dash Nova | Nova Shards: +2 bullets | Nova Capacitor: +15% nova damage |
+| Seeker Chip | Tracking Servo: +15% homing turn | Lock-On Array: +20% homing reach |
+| Adrenaline | Rush: +0.5 s frenzy | Reflex Amp: +25% perfect-dodge window |
+
+Rare effects get a common booster too: Conductor (Arc Coil +10% damage), Kindling (Ember +10% damage, +0.5 s), Deep Freeze (Cryo +0.4 s), Quick Recharge (Aegis −1.5 s).
 
 ### Bosses (each one has a mechanic to learn)
 
@@ -34,7 +44,7 @@ From floor 20 the bosses return as **II** variants (more HP, rage phase from the
 
 ### Permanent progression (Workshop)
 
-Deliberately modest: +3 HP, +25% damage, rerolls and one extra life. On top of that, 5 blueprints unlock epic upgrades, which means new builds rather than raw power. Skill still decides.
+Deliberately modest: +3 HP, +25% damage, −18% dash cooldown, rerolls, one extra life, **Wide Selection** (4 upgrade cards instead of 3), **Lucky Draw** (more rare/epic cards), Magnet Coil (pickup radius) and Field Medic (+1 heal from Rest rooms and bosses). On top of that, 5 blueprints unlock epic upgrades and their rare support cards, which means new builds rather than raw power. Skill still decides.
 
 ### Built for short sessions
 
@@ -129,6 +139,7 @@ npm run audit:ui        # 5 device profiles: touch, dash, pause, rewards, doors,
                         # death, restart, Workshop, settings, continue, manifest, SW, offline
 npm run test:slam       # Warden slam must be escapable on foot, target must not move
 npm run test:blades     # Blade Halo speed upgrades
+npm run test:upgrades   # all upgrade lines + Workshop upgrades (availability and effects)
 npm run perf            # frame cost with 4x CPU throttling
 ```
 

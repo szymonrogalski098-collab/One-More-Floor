@@ -16,6 +16,10 @@ function computeStats() {
     move: 150, dashCd: 1.5, dashCharges: 1,
     maxHp: 5 + (meta.hull | 0),
     chain: 0, frost: 0, burn: 0, orbit: 0, orbitSpd: 1, volatile: 0, nova: 0, adren: 0, homing: 0,
+    // support-upgrade multipliers
+    chainD: 1, burnD: 1, burnDur: 0, frostDur: 0, aegisCdr: 0, volR: 1, volD: 1, novaExtra: 0, novaD: 1,
+    homTurn: 1, homRange: 1, adrenDur: 0, dodgeWin: 0,
+    dashCdMeta: 1 - 0.06 * (meta.reflexes | 0), magnet: 1 + 0.4 * (meta.magnet | 0),
     vamp: 0, aegis: 0, regen: 0, back: 0, knock: 1,
   };
   const run = G.run;
@@ -24,7 +28,8 @@ function computeStats() {
   s.rof = s.baseRof * Math.max(0.4, s.rofMul);
   s.maxHp = Math.max(1, s.maxHp);
   s.crit = Math.min(0.85, s.crit);
-  s.aegisCd = Math.max(4, 16 - 4 * s.aegis);
+  s.aegisCd = Math.max(4, 16 - 4 * s.aegis - s.aegisCdr);
+  s.dashCd *= s.dashCdMeta;
   G.stats = s;
   const p = G.player;
   if (p) {
@@ -72,7 +77,7 @@ function tryDash() {
   if (v.mag > 0.15) { dx = v.x / v.mag; dy = v.y / v.mag; }
   else { dx = Math.cos(p.face); dy = Math.sin(p.face); }
   p.dashDx = dx; p.dashDy = dy;
-  p.dashT = DASH_TIME; p.dashIfr = DASH_TIME + DASH_IFR_TAIL; p.dodged = false;
+  p.dashT = DASH_TIME; p.dashIfr = DASH_TIME + DASH_IFR_TAIL + G.stats.dodgeWin; p.dodged = false;
   p.face = Math.atan2(dy, dx);
   sfx('dash');
   addShake(0.08);
@@ -84,8 +89,8 @@ function endDash() {
   const p = G.player, s = G.stats;
   p.vx = p.dashDx * s.move; p.vy = p.dashDy * s.move;
   if (s.nova > 0) {
-    const n = 10 + 6 * (s.nova - 1), off = Math.random() * TAU;
-    for (let i = 0; i < n; i++) spawnPB(p.x, p.y, off + (i * TAU) / n, s.dmg * 0.7, false, s.bSpeed * 0.8, 0.45);
+    const n = 10 + 6 * (s.nova - 1) + s.novaExtra, off = Math.random() * TAU;
+    for (let i = 0; i < n; i++) spawnPB(p.x, p.y, off + (i * TAU) / n, s.dmg * 0.7 * s.novaD, false, s.bSpeed * 0.8, 0.45);
     ring(p.x, p.y, 6, 46, 0.25, COL.player, 3);
   }
 }
@@ -101,7 +106,7 @@ function perfectDodge() {
   G.run.dodges++;
   if (s.adren > 0) {
     p.dashCharges = s.dashCharges;
-    p.frenzy = 3;
+    p.frenzy = 3 + s.adrenDur;
   }
 }
 
@@ -221,13 +226,14 @@ function updatePlayerBullets(dt) {
       b.homeT -= dt;
       if (b.homeT <= 0) {
         b.homeT = 0.08;
-        let best = null, bd = 150 * 150;
+        const hr = 150 * s.homRange;
+        let best = null, bd = hr * hr;
         for (const e of G.enemies) { if (e.dead || e.untarget) continue; const d = dist2(b.x, b.y, e.x, e.y); if (d < bd) { bd = d; best = e; } }
         b.tgt = best;
       }
       if (b.tgt && !b.tgt.dead) {
         const cur = Math.atan2(b.vy, b.vx), want = Math.atan2(b.tgt.y - b.y, b.tgt.x - b.x);
-        const na = cur + clamp(angleDiff(cur, want), -5 * dt, 5 * dt), sp = Math.hypot(b.vx, b.vy);
+        const na = cur + clamp(angleDiff(cur, want), -5 * s.homTurn * dt, 5 * s.homTurn * dt), sp = Math.hypot(b.vx, b.vy);
         b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
       }
     }
@@ -293,9 +299,9 @@ function bulletHit(e, b) {
   const sp = Math.hypot(b.vx, b.vy) || 1;
   damageEnemy(e, dmg, b.crit, b.vx / sp, b.vy / sp);
   if (e.dead) return;
-  if (s.frost) { e.slowT = 1.3; e.slowAmt = 0.3 + 0.15 * (s.frost - 1); }
-  if (s.burn) { e.burnT = 2.5; e.burnDps = Math.max(e.burnDps, s.dmg * 0.3 * s.burn); }
-  if (s.chain) chainFrom(e, dmg * 0.4, s.chain);
+  if (s.frost) { e.slowT = 1.3 + s.frostDur; e.slowAmt = 0.3 + 0.15 * (s.frost - 1); }
+  if (s.burn) { e.burnT = 2.5 + s.burnDur; e.burnDps = Math.max(e.burnDps, s.dmg * 0.3 * s.burn * s.burnD); }
+  if (s.chain) chainFrom(e, dmg * 0.4 * s.chainD, s.chain);
 }
 
 function chainFrom(e, dmg, n) {
@@ -683,7 +689,7 @@ function killEnemy(e, silent) {
     }
   }
   if (e.type === 'bomber' && !e.noDrop) G.explosions.push({ x: e.x, y: e.y, r: 48, dmg: 20 * G.scale.hp, fx: true, small: true });
-  if (s.volatile > 0) G.explosions.push({ x: e.x, y: e.y, r: 40 + 14 * s.volatile, dmg: s.dmg * (0.6 + 0.3 * s.volatile), fx: true, small: true, vol: true });
+  if (s.volatile > 0) G.explosions.push({ x: e.x, y: e.y, r: (40 + 14 * s.volatile) * s.volR, dmg: s.dmg * (0.6 + 0.3 * s.volatile) * s.volD, fx: true, small: true, vol: true });
 }
 
 function processExplosions() {
@@ -771,7 +777,7 @@ function updatePickups(dt) {
     const k = G.pickups[i];
     k.t += dt;
     const d2 = dist2(k.x, k.y, p.x, p.y);
-    if (p.alive && (roomDone || d2 < 60 * 60 || k.magnet) && k.t > 0.35) k.magnet = true;
+    if (p.alive && (roomDone || d2 < 3600 * G.stats.magnet * G.stats.magnet || k.magnet) && k.t > 0.35) k.magnet = true;
     if (k.magnet && p.alive) {
       const d = Math.sqrt(d2) || 1, sp = 260 + k.t * 120;
       k.vx = ((p.x - k.x) / d) * sp; k.vy = ((p.y - k.y) / d) * sp;
