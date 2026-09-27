@@ -360,7 +360,7 @@ const UI = {
         <div class="card-body">
           <div class="card-top"><span class="rar">${RARITY[u.rarity].name}</span><span class="tg">${TAGS[u.tag].name}</span></div>
           <div class="card-name">${u.name}${u.max > 1 ? `<span class="lvl">lvl ${lvl}/${u.max}</span>` : ''}</div>
-          <div class="card-desc">${u.desc}</div>
+          <div class="card-desc">${u.desc}</div>${u.evo ? `<div class="evo-line">${UPG[u.evo[0]].name} MAX + ${UPG[u.evo[1]].name}</div>` : ''}
         </div></button>`;
     }).join('');
     const rr = $('btn-reroll');

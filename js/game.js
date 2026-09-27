@@ -496,10 +496,11 @@ function rollChoices(kind) {
   if (luck) { const shift = Math.min(odds[0], 6 * luck); odds[0] -= shift; odds[1] += shift / 2; odds[2] += shift / 2; }
   const ownedTags = {};
   for (const id in run.upgrades) ownedTags[UPG[id].tag] = (ownedTags[UPG[id].tag] || 0) + run.upgrades[id];
-  const avail = UPGRADES.filter((u) => (run.upgrades[u.id] || 0) < u.max && Save.isUnlocked(u.id) && (!u.req || G.stats[u.req] > 0));
-  const out = [];
+  const avail = UPGRADES.filter((u) => u.rarity < 3 && (run.upgrades[u.id] || 0) < u.max && Save.isUnlocked(u.id) && (!u.req || G.stats[u.req] > 0));
+  // a ready evolution always takes the first card
+  const out = kind === 'kit' || kind === 'shop' ? [] : readyEvolutions().slice(0, 1);
   const count = 3 + (Save.metaLvl('choice') | 0);
-  for (let i = 0; i < count; i++) {
+  for (let i = out.length; i < count; i++) {
     let r = weightedPick([0, 1, 2], (x) => odds[x]);
     let cands = [];
     for (let tries = 0; tries < 3 && !cands.length; tries++) {
@@ -512,6 +513,12 @@ function rollChoices(kind) {
     out.push(u);
   }
   return out;
+}
+
+// Evolutions whose recipe is met: first ingredient at max level, second owned.
+function readyEvolutions() {
+  const up = G.run.upgrades;
+  return UPGRADES.filter((u) => u.evo && !up[u.id] && (up[u.evo[0]] | 0) >= UPG[u.evo[0]].max && (up[u.evo[1]] | 0) > 0);
 }
 
 function openUpgradeChoice(kind) {
@@ -562,7 +569,7 @@ function openRestChoice() {
 function openShop() {
   G.state = 'reward';
   G.rewardKind = 'shop';
-  G.shop = { items: rollChoices('normal').slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false })), healBought: false };
+  G.shop = { items: rollChoices('shop').slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false })), healBought: false };
   UI.showShop();
 }
 // the shards on the floor count too (they are magnetised to you in calm rooms anyway)
@@ -592,7 +599,7 @@ function shopHeal() {
 function shopReroll() {
   if (!shopPay(SHOP_REROLL_PRICE)) return;
   const sold = G.shop.items.filter((x) => x.sold).map((x) => x.id);
-  G.shop.items = rollChoices('normal').filter((u) => !sold.includes(u.id)).slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false }));
+  G.shop.items = rollChoices('shop').filter((u) => !sold.includes(u.id)).slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false }));
   sfx('select');
   UI.showShop();
 }

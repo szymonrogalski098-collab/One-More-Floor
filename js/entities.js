@@ -20,7 +20,7 @@ function computeStats() {
     chainD: 1, burnD: 1, burnDur: 0, frostDur: 0, aegisCdr: 0, volR: 1, volD: 1, novaExtra: 0, novaD: 1,
     homTurn: 1, homRange: 1, adrenDur: 0, dodgeWin: 0,
     dashCdMeta: 1 - 0.06 * (meta.reflexes | 0), magnet: 1 + 0.4 * (meta.magnet | 0),
-    vamp: 0, aegis: 0, regen: 0, back: 0, knock: 1,
+    vamp: 0, aegis: 0, regen: 0, back: 0, knock: 1, napalm: 0, frostDmg: 0,
   };
   const run = G.run;
   (SHIP[run.ship] || SHIP.striker).mod(s);
@@ -837,6 +837,7 @@ function updateEnemies(dt) {
 function damageEnemy(e, dmg, crit, kx, ky, quiet) {
   if (e.dead || e.untarget) return;
   if (e.invuln) { if (!quiet) sparks(e.x, e.y, 0, TAU, '#ffffff', 2, 60); return; }
+  if (G.stats && G.stats.frostDmg && e.slowT > 0) dmg *= 1 + G.stats.frostDmg; // Absolute Zero
   e.hp -= dmg;
   if (G.training && e.type === 'boss') e.hp = Math.max(e.hp, e.maxHp * 0.02); // training bosses cannot die
   e.flash = 0.08;
@@ -904,6 +905,7 @@ function processExplosions() {
       if (dist2(x.x, x.y, e.x, e.y) < rr * rr) {
         const d = Math.sqrt(dist2(x.x, x.y, e.x, e.y)) || 1;
         damageEnemy(e, x.dmg, false, (e.x - x.x) / d, (e.y - x.y) / d, true);
+        if (x.vol && G.stats.napalm && !e.dead) { const s = G.stats; e.burnT = 2.5 + s.burnDur; e.burnDps = Math.max(e.burnDps, s.dmg * 0.3 * Math.max(1, s.burn) * s.burnD); } // Napalm
       }
     }
   }

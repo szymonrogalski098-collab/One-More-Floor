@@ -55,6 +55,7 @@ const RARITY = [
   { name: 'COMMON', color: '#cfd3ff' },
   { name: 'RARE',   color: '#56b6ff' },
   { name: 'EPIC',   color: '#ffb13d' },
+  { name: 'EVOLUTION', color: '#ff8ff0' },
 ];
 
 // mod(s, n): apply n stacks to stats object. onPick(): one-shot effect when taken.
@@ -118,6 +119,28 @@ const UPGRADES = [
     mod: (s, n) => { s.dmgMul += 0.7 * n; s.maxHp -= 2 * n; } },
   { id: 'seeker',  name: 'Seeker Chip',      icon: 'HOM', rarity: 2, tag: 'spray',   max: 1, desc: 'Bullets gently home in on enemies.', lock: true,
     mod: (s, n) => { s.homing += n; } },
+  // ---- evolutions: evo = [maxed upgrade, owned upgrade]; offered as a special card once the recipe is met ----
+  { id: 'e_napalm',  name: 'Napalm',          icon: 'NPM', rarity: 3, tag: 'element', max: 1, evo: ['ember', 'volatile'],
+    desc: 'Volatile explosions set everything they hit on fire. Burns +50% hotter.', mod: (s) => { s.napalm = 1; s.burnD += 0.5; } },
+  { id: 'e_railgun', name: 'Railgun',         icon: 'RLG', rarity: 3, tag: 'crit',    max: 1, evo: ['rail', 'drill'],
+    desc: 'Bullets pierce +3 enemies, fly 50% faster and deal +30% damage.', mod: (s) => { s.pierce += 3; s.bSpeed *= 1.5; s.dmgMul += 0.3; } },
+  { id: 'e_storm',   name: 'Storm Core',      icon: 'STM', rarity: 3, tag: 'element', max: 1, evo: ['arc', 'rapid'],
+    desc: 'Lightning chains to +2 more enemies and deals +50% damage.', mod: (s) => { s.chain += 2; s.chainD += 0.5; } },
+  { id: 'e_zero',    name: 'Absolute Zero',   icon: 'ABZ', rarity: 3, tag: 'element', max: 1, evo: ['cryo', 'lens'],
+    desc: 'Slowed enemies take +40% damage. Slows last 1 s longer.', mod: (s) => { s.frostDmg = 0.4; s.frostDur += 1; } },
+  { id: 'e_storm2',  name: 'Bullet Storm',    icon: 'BST', rarity: 3, tag: 'spray',   max: 1, evo: ['split', 'rear'],
+    desc: '+2 bullets per volley, +1 rear pair and +20% fire rate.', mod: (s) => { s.proj += 2; s.back += 1; s.rofMul += 0.2; } },
+  { id: 'e_phase',   name: 'Phase Walker',    icon: 'PHW', rarity: 3, tag: 'dash',    max: 1, evo: ['twin', 'thruster'],
+    desc: '+1 dash charge, −30% dash cooldown and a longer perfect-dodge window.', mod: (s) => { s.dashCharges += 1; s.dashCd *= 0.7; s.dodgeWin += 0.05; } },
+  { id: 'e_fortress',name: 'Fortress',        icon: 'FRT', rarity: 3, tag: 'tank',    max: 1, evo: ['aegis', 'vital'],
+    desc: '+2 max HP, the shield recharges 4 s faster. Heals you fully now.', mod: (s) => { s.maxHp += 2; s.aegisCdr += 4; }, onPick: () => healPlayer(99) },
+  { id: 'e_assassin',name: 'Assassin',        icon: 'ASN', rarity: 3, tag: 'crit',    max: 1, evo: ['exec', 'lens'],
+    desc: '+15% critical chance and +150% critical damage.', mod: (s) => { s.crit += 0.15; s.critMult += 1.5; } },
+  { id: 'e_buzzsaw', name: 'Buzzsaw',         icon: 'BZS', rarity: 3, tag: 'tank',    max: 1, evo: ['halo', 'spin'],
+    desc: '+2 blades and blades spin 30% faster.', mod: (s) => { s.orbit += 2; s.orbitSpd += 0.3; } },
+  { id: 'e_super',   name: 'Supernova',       icon: 'SNV', rarity: 3, tag: 'dash',    max: 1, evo: ['nova', 'novashard'],
+    desc: 'Dash Nova fires +8 bullets that deal +50% damage.', mod: (s) => { s.novaExtra += 8; s.novaD += 0.5; } },
+
   // ---- support lines: a common and a rare booster, both offered only once you own the effect ----
   { id: 'blast',    name: 'Blast Radius',     icon: 'RAD', rarity: 0, tag: 'element', max: 4, desc: 'Volatile explosions are 12% larger.', req: 'volatile',
     mod: (s, n) => { s.volR += 0.12 * n; } },

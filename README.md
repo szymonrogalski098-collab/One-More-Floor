@@ -51,6 +51,21 @@ Every upgrade has a tag. Card rolls slightly favour tags you already collect, so
 
 Rare effects get a common booster too: Conductor (Arc Coil +10% damage), Kindling (Ember +10% damage, +0.5 s), Deep Freeze (Cryo +0.4 s), Quick Recharge (Aegis −1.5 s).
 
+**Evolutions.** Max one upgrade and own its partner, and the next reward offers a glowing **EVOLUTION** card (it takes the first slot; never sold in the shop):
+
+| Evolution | Recipe (max + owned) | Effect |
+|---|---|---|
+| Napalm | Ember + Volatile | explosions ignite, burns +50% |
+| Railgun | Rail Barrel + Drill Rounds | +3 pierce, +50% bullet speed, +30% damage |
+| Storm Core | Arc Coil + Rapid Cycle | lightning +2 chains, +50% damage |
+| Absolute Zero | Cryo Rounds + Focus Lens | slowed enemies take +40% damage, slows +1 s |
+| Bullet Storm | Splitter + Rear Guard | +2 bullets, +1 rear pair, +20% fire rate |
+| Phase Walker | Twin Thrusters + Thruster | +1 dash charge, −30% dash cooldown, longer dodge window |
+| Fortress | Aegis + Vital Plating | +2 max HP, shield −4 s, full heal |
+| Assassin | Executioner + Focus Lens | +15% crit chance, +150% crit damage |
+| Buzzsaw | Blade Halo + Spin Coil | +2 blades, +30% spin |
+| Supernova | Dash Nova + Nova Shards | +8 nova bullets, +50% nova damage |
+
 ### Bosses (each one has a mechanic to learn)
 
 1. **Tower Warden** (floor 5): spiral bullet streams, jump slams (the red circle is locked at take-off, so walk out of it) and aimed fans.
@@ -183,6 +198,7 @@ npm run test:resume     # Save & Quit restores the same floor, rooms and positio
 npm run test:softlock   # stragglers elsewhere never stall a room
 npm run test:content    # new enemies, ascension, challenges, ships
 npm run test:pc         # mouse & keyboard (click = dash, no joystick, aim modes, hover, touch switch) + guide arrow stability
+npm run test:evolutions # recipes, offer rules, effects
 npm run test:shop       # shop prices/wallet/heal/reroll, altar pacts, curse effects, saves
 npm run test:training   # barrier, counted hits, respawns, immortal bosses, save untouched
 npm run test:checkpoint # unlocks, starting kit, resume mid-kit, shard rules, old-save migration

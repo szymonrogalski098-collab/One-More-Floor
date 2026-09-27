@@ -239,6 +239,10 @@ h2 { text-align: center; font-weight: 900; letter-spacing: 0.16em; font-size: 22
 .card:active { transform: scale(0.97); }
 .card.r1 { --rc: var(--r-rare); }
 .card.r2 { --rc: var(--r-epic); }
+.card.r3 { --rc: #ff8ff0; background: linear-gradient(135deg, rgba(70, 26, 72, 0.98), rgba(24, 16, 48, 0.98)); animation: cardin 0.28s cubic-bezier(.2, 1.4, .4, 1) backwards, evoglow 1.6s ease-in-out infinite; }
+.card.r3 .rar { background: linear-gradient(90deg, #ffd44d, #ff8ff0, #4df3ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.evo-line { margin-top: 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: #ffc4f6; text-transform: uppercase; }
+@keyframes evoglow { 0%, 100% { box-shadow: 0 0 16px rgba(255, 143, 240, 0.35); } 50% { box-shadow: 0 0 34px rgba(255, 143, 240, 0.75), 0 0 60px rgba(77, 243, 255, 0.25); } }
 @keyframes cardin { from { opacity: 0; transform: translateY(18px) scale(0.96); } to { opacity: 1; transform: none; } }
 .badge {
   flex: none; width: 54px; height: 54px; border-radius: 14px;
