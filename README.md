@@ -65,6 +65,13 @@ From floor 35 the bosses return as **II** variants (more HP, rage phase from the
 
 Skitter (chaser), Spitter (ranged), Ram (telegraphed charge), Blob (splits), Fuse (suicide bomber), Sentinel (bullet rings), plus from mid floors: **Leaper** (jumps onto your spot — red circle), **Sniper** (laser sight, then a very fast shot), **Shielder** (frontal shield blocks bullets — flank it or use blades/explosions/lightning), **Brood** (hatches mites), **Mortar** (lobs shells with a landing circle). Every type has an elite variant.
 
+### Training
+
+**Training** in the menu is a practice arena with no text and no rewards: choose who and how many, then dodge.
+- **Enemies:** pick any mix of Spitters, Snipers, Sentinels and Mortars (up to 12, optionally elite). They stay behind an energy barrier across the middle of the arena and shoot through it; a killed one comes back.
+- **Bosses:** any boss you have met, in its real arena; it cannot die (optionally enraged). The Counterweight's ride never ends.
+- You cannot die: the HUD counts hits and time. *Shoot back* toggles your auto-fire. Records, checkpoints and the saved run are not touched.
+
 ### Long-term goals
 
 - **Ships:** Striker, Lancer, Scatter, Phantom, Bulwark — each changes how a run plays. Unlock them through challenges or buy them in the Workshop hangar.
@@ -175,6 +182,7 @@ npm run test:resume     # Save & Quit restores the same floor, rooms and positio
 npm run test:softlock   # stragglers elsewhere never stall a room
 npm run test:content    # new enemies, ascension, challenges, ships
 npm run test:pc         # mouse & keyboard (click = dash, no joystick, aim modes, hover, touch switch) + guide arrow stability
+npm run test:training   # barrier, counted hits, respawns, immortal bosses, save untouched
 npm run test:checkpoint # unlocks, starting kit, resume mid-kit, shard rules, old-save migration
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Orrery, Forgemaster
 npm run perf            # frame cost with 4x CPU throttling

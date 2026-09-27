@@ -147,6 +147,7 @@ function updatePlayer(dt) {
     if (v.mag > 0.1) p.face = Math.atan2(v.y, v.x);
   }
   collideWorld(p, p.r);
+  if (G.training) trainingClampPlayer(p);
 
   // trail (for render)
   p.trailT -= dt;
@@ -191,6 +192,7 @@ function enemiesAround() {
 
 function playerFire() {
   const p = G.player, s = G.stats;
+  if (G.training && !G.training.cfg.shoot) return false;
   let a;
   if (mouseAim()) {
     if (!enemiesAround()) return false;
@@ -457,7 +459,7 @@ function updateMarkers(dt) {
     m.t += dt;
     if (m.t >= m.dur) {
       const e = spawnEnemy(m.type, m.x, m.y, m.elite);
-      e.roomId = m.roomId; e.home = m.home;
+      e.roomId = m.roomId; e.home = m.home; if (m.noDrop) e.noDrop = true;
       burst(m.x, m.y, ENEMY[m.type].color, 8, 80, 0.35, 2.5);
       G.markers.splice(i, 1);
     }
@@ -796,6 +798,7 @@ function updateEnemies(dt) {
     e.x += (e.vx + e.kx) * dt; e.y += (e.vy + e.ky) * dt;
     const kd = Math.exp(-dt * 9); e.kx *= kd; e.ky *= kd;
     if (collideWorld(e, e.r)) e.wallHit = true;
+    if (G.training) trainingClampEnemy(e);
     // enemies of the room being fought can never leave it (locked gates are only one tile thick)
     const act = G.room && G.room.active;
     if (act && e.roomId === act.id) {
@@ -831,6 +834,7 @@ function damageEnemy(e, dmg, crit, kx, ky, quiet) {
   if (e.dead || e.untarget) return;
   if (e.invuln) { if (!quiet) sparks(e.x, e.y, 0, TAU, '#ffffff', 2, 60); return; }
   e.hp -= dmg;
+  if (G.training && e.type === 'boss') e.hp = Math.max(e.hp, e.maxHp * 0.02); // training bosses cannot die
   e.flash = 0.08;
   G.run.dmg += dmg;
   if (e.type !== 'boss' && (kx || ky)) {
@@ -911,6 +915,7 @@ function hurtPlayer(sx, sy, noDodge) {
     return false;
   }
   if (p.iframes > 0) return false;
+  if (G.training) return trainingHit(sx, sy);
   const run = G.run, s = G.stats;
   if (p.shield > 0) {
     p.shield = 0; p.shieldT = s.aegisCd; p.iframes = 0.7;
@@ -953,6 +958,7 @@ function clearBulletsNear(x, y, r) {
 
 // ================= Pickups =================
 function dropPickup(x, y, type, value) {
+  if (G.training) return;
   if (G.pickups.length > 120) { G.run.shards += type === 'shard' ? value : 0; return; }
   const a = Math.random() * TAU, sp = rand(40, 120);
   G.pickups.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, type, value, t: 0, magnet: false });

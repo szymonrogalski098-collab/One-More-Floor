@@ -211,6 +211,7 @@ const Render = {
     } else {
     this.drawGates(ctx);
     this.drawTraps(ctx);
+    this.drawBarrier(ctx);
     this.drawStairs(ctx);
     this.drawShrine(ctx);
     this.drawMarkers(ctx);
@@ -411,6 +412,20 @@ const Render = {
     if (type === 'rest' && lay.rooms[0]) { const [x, y, w, h] = tr(lay.rooms[0]); icon(x + w / 2, y + h / 2, 'rest', '#8dff6a', 0.8); }
     for (const st of lay.stairs) { const [x, y, w, h] = tr(st); g.fillStyle = ROOM[st.type].color; g.globalAlpha = 0.85; g.fillRect(x, y, w, h); g.globalAlpha = 1; }
     if (lay.arrival) { const [x, y, w, h] = tr(lay.arrival); g.fillStyle = '#4df3ff'; g.fillRect(x, y, w, h); g.beginPath(); g.arc(x + w / 2, y - 3, 3, 0, TAU); g.fill(); }
+  },
+
+  // Training: the energy fence enemies cannot cross (their bullets pass through)
+  drawBarrier(ctx) {
+    const tr = G.training;
+    if (!tr || tr.barrierY == null) return;
+    const y = tr.barrierY, x0 = T, x1 = G.W - T, t = G.time;
+    ctx.globalAlpha = 0.12; ctx.fillStyle = '#ff4fd8'; ctx.fillRect(x0, y - 6, x1 - x0, 12);
+    ctx.globalAlpha = 0.75 + Math.sin(t * 6) * 0.15; ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+    ctx.globalAlpha = 0.5; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let x = x0 + ((t * 40) % 24); x < x1; x += 24) { ctx.moveTo(x, y - 5); ctx.lineTo(x + 6, y + 5); }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   },
 
   // ---------- Forgemaster lava pools & shockwaves ----------

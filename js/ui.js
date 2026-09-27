@@ -90,13 +90,19 @@ const UI = {
     if (prev === 's-dead') this.refreshDeathDots();
   },
 
-  action(a) {
+  action(a, el) {
     Sound.init();
     switch (a) {
       case 'play': sfx('select'); startGame(false); break;
       case 'continue': sfx('select'); startGame(true); break;
       case 'meta': sfx('select'); this.renderMeta(); this.push('s-meta'); break;
       case 'records': sfx('select'); this.renderRecords(); this.push('s-records'); break;
+      case 'training': sfx('select'); this.renderTraining(); this.push('s-training'); break;
+      case 'train-inc': case 'train-dec': this.trainCount(el.dataset.k, a === 'train-inc' ? 1 : -1); break;
+      case 'train-boss': this.trainBoss(el.dataset.k); break;
+      case 'train-opt': { const c = Save.data.trainCfg; c[el.dataset.k] = !c[el.dataset.k]; Save.save(); sfx('select'); this.renderTraining(); break; }
+      case 'train-go': if (this.trainReady()) { sfx('select'); startTraining(JSON.parse(JSON.stringify(Save.data.trainCfg))); } break;
+      case 'train-exit': sfx('select'); exitTraining(); break;
       case 'challenges': sfx('select'); this.renderChallenges(); this.push('s-challenges'); break;
       case 'ship-prev': case 'ship-next': this.cycleShip(a === 'ship-next' ? 1 : -1); break;
       case 'asc-prev': case 'asc-next': this.cycleAsc(a === 'asc-next' ? 1 : -1); break;
@@ -133,7 +139,10 @@ const UI = {
       if (shield) html += '<i class="shield"></i>';
       $('hud-hp').innerHTML = html;
     }
-    if (h.floor !== run.floor) {
+    if (G.training) {
+      const tr = G.training, key = tr.hits + '|' + Math.floor(tr.t);
+      if (h.floor !== key) { h.floor = key; $('hud-floor').textContent = 'TRAINING'; $('hud-best').textContent = 'HITS ' + tr.hits + ' · ' + fmtTime(tr.t); $('hud-best').style.color = tr.hits ? 'var(--danger)' : 'var(--good)'; }
+    } else if (h.floor !== run.floor) {
       h.floor = run.floor;
       $('hud-floor').textContent = 'FLOOR ' + run.floor;
       const best = Save.data.best.floor;
@@ -220,6 +229,43 @@ const UI = {
     $('pk-asc-desc').textContent = sel === 0 ? 'Normal tower. Up to Ascension ' + un + ' unlocked.' : ASCENSION.slice(0, sel).slice(-2).join(' · ') + (sel > 2 ? ' · +' + (sel - 2) + ' more' : '');
     const done = CHALLENGES.filter((c) => S.challenges[c.id]).length;
     $('m-ch-count').textContent = done + '/' + CHALLENGES.length;
+  },
+
+  // ---------- Training ----------
+  trainReady() { const c = Save.data.trainCfg; return !!c.boss || TRAIN_ENEMIES.some((k) => (c.enemies[k] | 0) > 0); },
+  trainCount(k, d) {
+    const c = Save.data.trainCfg, total = TRAIN_ENEMIES.reduce((a, x) => a + (c.enemies[x] | 0), 0);
+    if (!trainingUnlocked(k) || (d > 0 && total >= TRAIN_MAX)) return;
+    c.enemies[k] = clamp((c.enemies[k] | 0) + d, 0, 8);
+    if (d > 0) c.boss = null;
+    Save.save(); sfx('select'); this.renderTraining();
+  },
+  trainBoss(k) {
+    const c = Save.data.trainCfg;
+    if (!trainingUnlocked(k)) return;
+    c.boss = c.boss === k ? null : k;
+    if (c.boss) c.enemies = {};
+    Save.save(); sfx('select'); this.renderTraining();
+  },
+  renderTraining() {
+    const c = Save.data.trainCfg;
+    c.enemies = c.enemies || {};
+    $('tr-enemies').innerHTML = TRAIN_ENEMIES.map((k) => {
+      const d = ENEMY[k], ok = trainingUnlocked(k), n = c.enemies[k] | 0;
+      return `<div class="tr-tile${n ? ' on' : ''}${ok ? '' : ' locked'}" style="--c:${d.color}">
+        <span class="tr-dot"></span><span class="tr-name">${ok ? d.name : '???'}</span>
+        <div class="tr-count"><button data-action="train-dec" data-k="${k}" aria-label="Fewer">−</button><b>${n}</b><button data-action="train-inc" data-k="${k}" aria-label="More">+</button></div></div>`;
+    }).join('');
+    $('tr-bosses').innerHTML = BOSS_ORDER.map((k) => {
+      const b = BOSSES[k], ok = trainingUnlocked(k);
+      return `<button class="tr-tile tr-boss${c.boss === k ? ' on' : ''}${ok ? '' : ' locked'}" style="--c:${b.color}" data-action="train-boss" data-k="${k}">
+        <span class="tr-dot"></span><span class="tr-name">${ok ? b.name : '???'}</span><span class="tr-floor">${trainingBossFloor(k)}</span></button>`;
+    }).join('');
+    document.querySelectorAll('#s-training [data-action="train-opt"]').forEach((t) => {
+      t.classList.toggle('on', !!c[t.dataset.k]);
+      t.classList.toggle('dim', (t.dataset.k === 'elite' && !!c.boss) || (t.dataset.k === 'hard' && !c.boss));
+    });
+    $('tr-go').disabled = !this.trainReady();
   },
 
   cycleShip(dir) {
@@ -334,8 +380,12 @@ const UI = {
   // ---------- Pause ----------
   showPause() {
     const run = G.run;
-    $('p-nopay').classList.toggle('hidden', run.floor - (run.start || 1) + 1 > 3);
-    $('p-info').textContent = 'Floor ' + run.floor + ' · ' + fmtTime(run.time) + ' · ' + run.kills + ' kills';
+    document.querySelectorAll('#s-pause .run-only').forEach((b) => b.classList.toggle('hidden', !!G.training));
+    document.querySelectorAll('#s-pause .train-only').forEach((b) => b.classList.toggle('hidden', !G.training));
+    $('p-nopay').classList.toggle('hidden', !!G.training || run.floor - (run.start || 1) + 1 > 3);
+    $('p-info').textContent = G.training ? 'Training · ' + fmtTime(G.training.t) + ' · ' + G.training.hits + ' hits'
+      : 'Floor ' + run.floor + ' · ' + fmtTime(run.time) + ' · ' + run.kills + ' kills';
+    $('p-build').classList.toggle('hidden', !!G.training);
     $('p-build').innerHTML = run.order.length ? run.order.map((id) => {
       const u = UPG[id];
       return `<div class="build-item">${upgBadge(u)}<div><div class="bi-name">${u.name} ×${run.upgrades[id]}</div><div class="bi-desc">${u.desc}</div></div></div>`;

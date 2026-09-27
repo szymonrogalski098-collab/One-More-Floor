@@ -18,6 +18,7 @@ function defaultSave() {
     asc: { unlocked: 0, selected: 0, best: {} },
     challenges: {},
     checkpoints: {}, startSel: 1, cpBuilds: {},
+    trainCfg: { enemies: { spitter: 2 }, boss: null, elite: false, hard: false, shoot: false },
     settings: {
       sound: true, music: true, sfxVol: 0.8, musVol: 0.45,
       shake: true, quality: 'auto', lefty: false, tutorialDone: false, mouseAim: false, aimV: 2,

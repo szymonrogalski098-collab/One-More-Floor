@@ -24,6 +24,7 @@ function spawnBoss(floor) {
     b.orbR = 58; b.planets = [];
     for (let i = 0; i < n; i++) b.planets.push({ i, n, mode: 'orbit', x: b.x, y: b.y, vx: 0, vy: 0, r: 11, t: 0, slot: 0 });
   }
+  if (G.training && G.training.cfg.hard) { b.hard = true; }
   G.enemies.push(b);
   G.boss = b;
   G.run.hurtAtBoss = G.run.hurt;
@@ -327,7 +328,7 @@ const BOSS_AI = {
         b.step = 1;
         const list = ['grunt', 'grunt', 'grunt', 'spitter'];
         if (hard) list.push('bomber', 'bomber');
-        for (const t of list) addMarker(t, false);
+        if (!(G.training && G.enemies.length > 8)) for (const t of list) addMarker(t, false); // training: no endless pile-up
         sfx('spawn');
       }
       b.st -= dt;

@@ -374,6 +374,24 @@ h2 { text-align: center; font-weight: 900; letter-spacing: 0.16em; font-size: 22
 html.pc .pc-only { display: flex !important; }
 html.pc .touch-only { display: none !important; }
 
+/* ---------- Training ---------- */
+.train-body { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
+.train-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tr-tile {
+  --c: #fff; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px 10px;
+  border-radius: 14px; background: var(--panel-2); border: 1.5px solid var(--line); text-align: center; color: var(--text);
+}
+.tr-tile.on { border-color: var(--c); box-shadow: 0 0 18px color-mix(in srgb, var(--c) 35%, transparent); background: color-mix(in srgb, var(--c) 12%, var(--panel-2)); }
+.tr-tile.locked { opacity: 0.35; pointer-events: none; }
+.tr-dot { width: 26px; height: 26px; border-radius: 50%; background: var(--c); box-shadow: 0 0 12px var(--c); }
+.tr-name { font-weight: 900; font-size: 13px; letter-spacing: 0.04em; }
+.tr-floor { font-size: 11px; color: var(--muted); font-weight: 800; }
+.tr-count { display: flex; align-items: center; gap: 12px; }
+.tr-count b { min-width: 16px; font-size: 18px; }
+.tr-count button { width: 40px; height: 36px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); color: var(--text); font-size: 20px; font-weight: 900; }
+.train-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.toggle.dim { opacity: 0.4; }
+
 /* ---------- PC: mouse & keyboard ---------- */
 html.pc.maim canvas#cv { cursor: none; }
 /* no joystick or touch button on PC: the dash button becomes a small cooldown gauge */
@@ -382,7 +400,7 @@ html.pc .dash.left { left: auto; right: 18px; }
 html.pc .dash-label { font-size: 11px; }
 
 /* everything clickable grows under the mouse */
-.btn, .icon-btn, .pk-arrow, .buy, .toggle, .seg-btns button, .card, .badge { transition: transform 0.14s ease-out, box-shadow 0.14s, border-color 0.14s, background 0.14s, filter 0.14s; }
+.btn, .icon-btn, .pk-arrow, .buy, .toggle, .seg-btns button, .card, .badge, .tr-tile, .tr-count button { transition: transform 0.14s ease-out, box-shadow 0.14s, border-color 0.14s, background 0.14s, filter 0.14s; }
 html.pc button { cursor: pointer; }
 html.pc button:disabled { cursor: default; }
 html.pc .btn:hover:not(:disabled) { transform: scale(1.05); filter: brightness(1.15); }
@@ -447,5 +465,11 @@ html.pc .btn:active:not(:disabled), html.pc .card:active { transform: scale(0.98
   html.pc #s-records .panel-wrap { max-width: 760px; }
   html.pc .rec-grid { grid-template-columns: repeat(3, 1fr); }
   html.pc #s-settings .panel-wrap { max-width: 620px; }
+  html.pc #s-training .panel-wrap { max-width: 900px; }
+  html.pc .train-grid { grid-template-columns: repeat(4, 1fr); }
+  html.pc #tr-bosses { grid-template-columns: repeat(6, 1fr); }
+  html.pc .train-opts { flex-direction: row; }
+  html.pc .train-opts .toggle { flex: 1; }
+  html.pc .tr-tile:hover { transform: scale(1.05); }
   html.pc .head-row h2 { font-size: 28px; }
 }

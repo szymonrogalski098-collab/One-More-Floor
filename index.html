@@ -91,7 +91,10 @@
         <button class="btn btn-ghost" data-action="meta">Workshop<span id="m-meta-dot" class="dot hidden"></span></button>
         <button class="btn btn-ghost" data-action="challenges">Challenges<span id="m-ch-count" class="count"></span></button>
       </div>
-      <button class="btn btn-ghost small" data-action="records">Records</button>
+      <div class="row">
+        <button class="btn btn-ghost small" data-action="training">Training</button>
+        <button class="btn btn-ghost small" data-action="records">Records</button>
+      </div>
       <button class="btn btn-ghost small" data-action="settings">Settings</button>
       <p id="m-controls" class="hint">Drag anywhere to move · auto-fire · DASH to dodge</p>
       <p id="install-hint" class="hint small-hint hidden"></p>
@@ -118,9 +121,10 @@
       <div id="p-build" class="build-list scroll"></div>
       <div class="row">
         <button class="btn btn-ghost" data-action="settings">Settings</button>
-        <button class="btn btn-ghost" data-action="save-quit">Save &amp; quit</button>
+        <button class="btn btn-ghost run-only" data-action="save-quit">Save &amp; quit</button>
       </div>
-      <button class="btn btn-danger small" data-action="abandon">End run</button>
+      <button class="btn btn-danger small run-only" data-action="abandon">End run</button>
+      <button class="btn btn-danger small train-only" data-action="train-exit">End training</button>
       <p id="p-nopay" class="hint small-hint hidden">Ending a run within its first 3 floors earns no shards. After that you keep what you collected.</p>
     </div>
   </section>
@@ -216,6 +220,29 @@
     </div>
   </section>
 
+  <!-- TRAINING -->
+  <section id="s-training" class="screen">
+    <div class="panel-wrap tall">
+      <div class="head-row">
+        <button class="icon-btn back" data-action="back" aria-label="Back">‹</button>
+        <h2>TRAINING</h2>
+        <div></div>
+      </div>
+      <div class="scroll train-body">
+        <div class="meta-sec">ENEMIES</div>
+        <div id="tr-enemies" class="train-grid"></div>
+        <div class="meta-sec">BOSSES</div>
+        <div id="tr-bosses" class="train-grid"></div>
+        <div class="train-opts">
+          <button class="toggle" data-action="train-opt" data-k="elite"><span>Elite enemies</span><i></i></button>
+          <button class="toggle" data-action="train-opt" data-k="hard"><span>Enraged boss</span><i></i></button>
+          <button class="toggle" data-action="train-opt" data-k="shoot"><span>Shoot back</span><i></i></button>
+        </div>
+      </div>
+      <button id="tr-go" class="btn btn-primary" data-action="train-go">START</button>
+    </div>
+  </section>
+
   <!-- CONFIRM -->
   <section id="s-confirm" class="screen overlay">
     <div class="panel-wrap">
@@ -238,6 +265,7 @@
   <script src="js/entities.js"></script>
   <script src="js/bosses.js"></script>
   <script src="js/elevator.js"></script>
+  <script src="js/training.js"></script>
   <script src="js/game.js"></script>
   <script src="js/render.js"></script>
   <script src="js/ui.js"></script>

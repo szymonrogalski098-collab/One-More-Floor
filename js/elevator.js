@@ -40,7 +40,8 @@ function startElevator(floor) {
   const S = G.side, cyc = bossCycle(floor);
   S.cyc = cyc;
   S.dur = 55 + cyc * 8;
-  S.hard = cyc > 0 || ascMod(9);
+  S.hard = cyc > 0 || ascMod(9) || !!(G.training && G.training.cfg.hard);
+  if (G.training) S.dur = 1e9; // endless ride
   const def = BOSSES.elevator;
   G.boss = { side: true, kind: 'elevator', name: def.name + (cyc > 0 ? ' ' + roman(cyc + 1) : ''), hp: 1, maxHp: 1, x: S.bx, y: S.by, r: def.r, dead: false, color: def.color };
   G.run.hurtAtBoss = G.run.hurt;
@@ -53,6 +54,7 @@ function startElevator(floor) {
 // ---------- simulation (replaces the top-down step while G.side is set) ----------
 function stepSide(dt) {
   if (G.state === 'play') G.run.time += dt;
+  if (G.training && G.state === 'play') G.training.t += dt;
   if (G.arriveT > 0) { G.arriveT -= dt; G.fade = clamp(G.arriveT * 2.2, 0, 1); Input.consumeDash(); }
   else if (G.state === 'play') updateSidePlayer(dt);
   updateBlades(dt);

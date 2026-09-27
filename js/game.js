@@ -3,6 +3,7 @@
 
 function newRun(snapshot) {
   const meta = Save.data.meta;
+  G.training = null;
   G.run = {
     floor: 0, upgrades: {}, order: [], kills: 0, shards: 0, dmg: 0, time: 0, bosses: 0, elites: 0,
     hurt: 0, dodges: 0, rerolls: meta.reroll | 0, windUsed: false,
@@ -162,6 +163,7 @@ function dungeonConnected() {
 // The snapshot holds the run and (outside boss fights) the whole floor: layout, room progress,
 // surviving enemies and a safe player position. A fight that was in progress restarts cleanly.
 function saveSnapshot() {
+  if (G.training) return; // training never touches the saved run
   const run = G.run;
   if (!run || !G.room) return;
   Save.data.snapshot = {
@@ -222,6 +224,7 @@ function restoreFloor(fs) {
 // and climbing it leads to exactly that floor.
 const WORLD_KEYS = ['grid', 'W', 'H', 'circle', 'side', 'fields', 'gridVer', 'rooms', 'halls', 'pillars', 'traps', 'stairs', 'exitRoom', 'spawn', 'arrival'];
 function makePreviews() {
+  if (G.training) { G.previews = []; return; }
   const saved = {};
   for (const k of WORLD_KEYS) saved[k] = G[k];
   const next = G.run.floor + 1;
@@ -368,6 +371,7 @@ function aliveIn(rm) {
 
 function updateRoom(dt) {
   const R = G.room;
+  if (G.training) { updateTraining(dt); if (R.type !== 'boss') return; }
   R.t += dt;
   if (R.phase === 'intro') {
     if (R.t > 0.75) {
@@ -442,7 +446,7 @@ function updateStairs() {
 // Where the guide arrow should point (next room, a straggler, or the doors).
 function guideTarget() {
   const R = G.room;
-  if (!R) return null;
+  if (!R || G.training) return null;
   if (R.phase === 'doors' && G.stairOn && !G.stairOn.locked) return null; // already on the stairs
   if (R.phase === 'doors' && G.side && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.dir < 0 ? G.side.L + 4 : G.side.R - 4, y: G.player.y }; }
   if (R.phase === 'doors' && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.x + d.w / 2, y: d.y + d.h + 16 }; }
@@ -732,7 +736,7 @@ function updateTraps() {
 function challengeDone(id) { return !!Save.data.challenges[id]; }
 function checkChallenges(evt, info) {
   const S = Save.data, run = G.run;
-  if (!run) return;
+  if (!run || G.training) return;
   const done = [];
   const hit = (id, cond) => { if (cond && !challengeDone(id)) done.push(id); };
   const climbed = run.floor > (run.start || 1) || (run.start || 1) === 1; // not just by starting at a checkpoint

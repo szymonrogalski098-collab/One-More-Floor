@@ -1,7 +1,7 @@
 'use strict';
 // Boot, main loop (fixed 60 Hz simulation + variable render), app lifecycle, PWA registration.
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 const STEP = 1 / 60;
 
 const Loop = { last: 0, acc: 0, frameAvg: 1 / 60, slowFor: 0, hudT: 0, raf: 0 };
@@ -46,7 +46,7 @@ function resumeGame() {
 function onPauseKey() {
   if (G.state === 'play') pauseGame();
   else if (G.state === 'paused' && UI.current === 's-pause') resumeGame();
-  else if (UI.stack.length && ['s-meta', 's-records', 's-settings', 's-challenges', 's-confirm'].includes(UI.current)) UI.back(); // Esc closes sub-screens
+  else if (UI.stack.length && ['s-meta', 's-records', 's-settings', 's-challenges', 's-confirm', 's-training'].includes(UI.current)) UI.back(); // Esc closes sub-screens
 }
 
 function saveAndQuit() {
@@ -57,6 +57,7 @@ function saveAndQuit() {
 function goMenu() {
   G.state = 'menu';
   G.run = null;
+  G.training = null;
   Input.reset();
   Sound.music(false);
   UI.showHud(false);
@@ -143,7 +144,7 @@ function boot() {
   Loop.raf = requestAnimationFrame(frame);
   registerSW();
   setupInstallHint();
-  if (/[?&]debug\b/.test(location.search)) window.OMF = { G, Save, step, guideTarget, guidePoint, routeTo, distField, clearFloor: debugClearFloor, newRun, enterFloor, spawnBoss, addUpgrade, computeStats, Render, UI, Input, Q, killEnemy, chooseUpgrade, goThroughDoor, startGame, hurtPlayer, rollChoices };
+  if (/[?&]debug\b/.test(location.search)) window.OMF = { G, Save, step, startTraining, exitTraining, guideTarget, guidePoint, routeTo, distField, clearFloor: debugClearFloor, newRun, enterFloor, spawnBoss, addUpgrade, computeStats, Render, UI, Input, Q, killEnemy, chooseUpgrade, goThroughDoor, startGame, hurtPlayer, rollChoices };
 }
 
 let resizeT = 0;

@@ -27,7 +27,7 @@ const { chromium, devices } = require('playwright');
   check('WASD moves', (await page.evaluate(() => OMF.G.player.x)) < x0 - 10);
   check('auto-aim is the default on PC', await page.evaluate(() => OMF.Save.data.settings.mouseAim === false));
   await page.evaluate(() => { OMF.Save.data.settings.mouseAim = true; });
-  await page.evaluate(() => { const G = OMF.G, p = G.player; G.pb.length = 0; const e = spawnEnemy('grunt', p.x - 80, p.y + 60, false, G.enemies); e.spawnIn = 0; e.speed = 0; G.room.phase = 'fight'; });
+  await page.evaluate(() => { const G = OMF.G, p = G.player; G.pb.length = 0; let ox = -80, oy = 60; for (const [a, b] of [[-80, 60], [80, 60], [0, -80], [0, 80], [-80, 0], [80, 0]]) if (spotFree(p.x + a, p.y + b, 12) && hasLOS(p.x, p.y, p.x + a, p.y + b)) { ox = a; oy = b; break; } const e = spawnEnemy('grunt', p.x + ox, p.y + oy, false, G.enemies); e.spawnIn = 0; e.speed = 0; e.hp = e.maxHp = 1e9; G.room.phase = 'fight'; });
   await page.waitForTimeout(500);
   const aim = await page.evaluate(() => { const p = OMF.G.player, m = mouseWorld(), bl = OMF.G.pb[OMF.G.pb.length - 1]; return bl ? Math.abs(angleDiff(Math.atan2(bl.vy, bl.vx), Math.atan2(m.y - p.y, m.x - p.x))) : 9; });
   check('bullets go toward the mouse, not the enemy', aim < 0.3, aim);
