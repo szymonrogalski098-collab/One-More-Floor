@@ -374,6 +374,21 @@ h2 { text-align: center; font-weight: 900; letter-spacing: 0.16em; font-size: 22
 html.pc .pc-only { display: flex !important; }
 html.pc .touch-only { display: none !important; }
 
+/* ---------- Shop & altar ---------- */
+.shop-wallet { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--shard); font-weight: 900; font-size: 16px; margin-top: -4px; }
+.shop-card { position: relative; }
+.shop-card:disabled { opacity: 0.45; filter: saturate(0.5); }
+.price { flex: none; display: flex; align-items: center; gap: 5px; font-weight: 900; font-size: 16px; color: #e0dbff;
+  padding: 6px 10px; border-radius: 10px; background: rgba(157, 140, 255, 0.16); border: 1.5px solid var(--shard); }
+.price.sold { color: var(--good); border-color: rgba(141, 255, 106, 0.4); background: rgba(141, 255, 106, 0.08); font-size: 12px; }
+.altar-h { color: #ff4f8b; text-shadow: 0 0 18px rgba(255, 79, 139, 0.5); }
+.curse-line { margin-top: 8px; font-size: 12px; color: #ffb3c9; line-height: 1.35; }
+.curse-line b { color: #ff4f8b; letter-spacing: 0.06em; margin-right: 4px; }
+.altar-card { border-color: rgba(255, 79, 139, 0.55) !important; }
+.chip.curse { --c: #ff4f8b; border-color: rgba(255, 79, 139, 0.8); }
+.build-item.curse .badge { --tc: #ff4f8b; }
+.build-item.curse .bi-name { color: #ff8fb0; }
+
 /* ---------- Training ---------- */
 .train-body { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
 .train-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -433,23 +448,23 @@ html.pc .btn:active:not(:disabled), html.pc .card:active { transform: scale(0.98
   html.pc .menu-col-b .btn-primary { min-height: 76px; font-size: 24px; }
 
   /* reward: big cards side by side */
-  html.pc #s-upgrade .panel-wrap { max-width: min(1180px, 94vw); gap: 18px; align-items: center; }
-  html.pc #s-upgrade h2 { font-size: clamp(34px, 2.4vw, 46px); letter-spacing: 0.2em; }
-  html.pc #s-upgrade .sub-h { font-size: 15px; margin-top: -10px; }
-  html.pc #s-upgrade .cards { flex-direction: row; justify-content: center; gap: 22px; width: 100%; margin-top: 6px; }
-  html.pc #s-upgrade .card {
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .panel-wrap { max-width: min(1180px, 94vw); gap: 18px; align-items: center; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) h2 { font-size: clamp(34px, 2.4vw, 46px); letter-spacing: 0.2em; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .sub-h { font-size: 15px; margin-top: -10px; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .cards { flex-direction: row; justify-content: center; gap: 22px; width: 100%; margin-top: 6px; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .card {
     flex: 0 1 clamp(240px, 17vw, 330px); min-width: 200px; min-height: clamp(300px, 46vh, 460px);
     flex-direction: column; justify-content: flex-start; text-align: center;
     gap: 16px; padding: 34px 20px 24px; border-radius: 22px; border-width: 2px;
   }
-  html.pc #s-upgrade .card:hover { transform: translateY(-12px) scale(1.07); }
-  html.pc #s-upgrade .card:active { transform: translateY(-6px) scale(1.02); }
-  html.pc #s-upgrade .badge { width: clamp(92px, 6vw, 116px); height: clamp(92px, 6vw, 116px); border-radius: 24px; font-size: clamp(24px, 1.6vw, 30px); border-width: 2px; }
-  html.pc #s-upgrade .card-top { justify-content: center; font-size: 12px; margin-bottom: 8px; }
-  html.pc #s-upgrade .card-name { font-size: clamp(22px, 1.5vw, 28px); line-height: 1.2; }
-  html.pc #s-upgrade .card-name .lvl { display: block; margin: 6px 0 0; font-size: 13px; }
-  html.pc #s-upgrade .card-desc { font-size: clamp(16px, 1.05vw, 19px); margin-top: 12px; line-height: 1.45; }
-  html.pc #s-upgrade #btn-reroll { min-width: 240px; min-height: 50px; font-size: 15px; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .card:hover { transform: translateY(-12px) scale(1.07); }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .card:active { transform: translateY(-6px) scale(1.02); }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .badge { width: clamp(92px, 6vw, 116px); height: clamp(92px, 6vw, 116px); border-radius: 24px; font-size: clamp(24px, 1.6vw, 30px); border-width: 2px; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .card-top { justify-content: center; font-size: 12px; margin-bottom: 8px; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .card-name { font-size: clamp(22px, 1.5vw, 28px); line-height: 1.2; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .card-name .lvl { display: block; margin: 6px 0 0; font-size: 13px; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) .card-desc { font-size: clamp(16px, 1.05vw, 19px); margin-top: 12px; line-height: 1.45; }
+  html.pc :is(#s-upgrade, #s-shop, #s-altar) #btn-reroll { min-width: 240px; min-height: 50px; font-size: 15px; }
 
   /* pause & death: wider panels, stats in one row */
   html.pc #s-pause .panel-wrap { max-width: 620px; }
@@ -473,3 +488,11 @@ html.pc .btn:active:not(:disabled), html.pc .card:active { transform: scale(0.98
   html.pc .tr-tile:hover { transform: scale(1.05); }
   html.pc .head-row h2 { font-size: 28px; }
 }
+@media (min-width: 860px) and (min-height: 560px) {
+  html.pc #s-shop .card { min-height: clamp(260px, 38vh, 380px); }
+  html.pc #s-shop .price { margin-top: auto; font-size: 20px; padding: 8px 16px; }
+  html.pc #s-shop .row, html.pc #s-altar .btn { width: min(520px, 90%); }
+  html.pc .shop-wallet { font-size: 20px; }
+  html.pc .curse-line { font-size: 15px; margin-top: 14px; }
+}
+html.pc .shop-card:disabled:hover { transform: none; box-shadow: none; }

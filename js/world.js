@@ -504,6 +504,8 @@ function nextDoorTypes(nextFloor) {
     { t: 'combat', w: 5 },
     { t: 'elite', w: nextFloor >= 3 ? 3 : 0 },
     { t: 'rest', w: p.hp >= s.maxHp ? 0.8 : hurt ? 4 : 2 },
+    { t: 'shop', w: nextFloor >= 4 ? 1.5 : 0 },
+    { t: 'risk', w: nextFloor >= 6 ? 1.1 : 0 },
   ];
   const a = weightedPick(pool, (o) => o.w).t;
   const b = weightedPick(pool.filter((o) => o.t !== a), (o) => o.w).t;

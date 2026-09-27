@@ -103,6 +103,12 @@ const UI = {
       case 'train-opt': { const c = Save.data.trainCfg; c[el.dataset.k] = !c[el.dataset.k]; Save.save(); sfx('select'); this.renderTraining(); break; }
       case 'train-go': if (this.trainReady()) { sfx('select'); startTraining(JSON.parse(JSON.stringify(Save.data.trainCfg))); } break;
       case 'train-exit': sfx('select'); exitTraining(); break;
+      case 'shop-buy': shopBuy(+el.dataset.i); break;
+      case 'shop-heal': shopHeal(); break;
+      case 'shop-reroll': shopReroll(); break;
+      case 'shop-leave': sfx('select'); shopLeave(); break;
+      case 'altar-pick': altarChoose(+el.dataset.i); break;
+      case 'altar-leave': sfx('select'); altarChoose(-1); break;
       case 'challenges': sfx('select'); this.renderChallenges(); this.push('s-challenges'); break;
       case 'ship-prev': case 'ship-next': this.cycleShip(a === 'ship-next' ? 1 : -1); break;
       case 'asc-prev': case 'asc-next': this.cycleAsc(a === 'asc-next' ? 1 : -1); break;
@@ -150,13 +156,13 @@ const UI = {
       $('hud-best').style.color = run.floor > best && best > 0 ? 'var(--gold)' : '';
     }
     if (h.shards !== run.shards) { h.shards = run.shards; $('hud-shards').textContent = run.shards; }
-    const upKey = run.order.map((id) => id + run.upgrades[id]).join(',');
+    const upKey = run.order.map((id) => id + run.upgrades[id]).join(',') + '|' + (run.curses || []).join(',');
     if (h.ups !== upKey) {
       h.ups = upKey;
       $('hud-ups').innerHTML = run.order.map((id) => {
         const u = UPG[id], n = run.upgrades[id];
         return `<span class="chip" style="--c:${TAGS[u.tag].color}">${u.icon}${n > 1 ? '<b>' + n + '</b>' : ''}</span>`;
-      }).join('');
+      }).join('') + (run.curses || []).map((c) => `<span class="chip curse">${CURSE[c].icon}</span>`).join('');
     }
     // dash button
     const full = p.dashCharges >= s.dashCharges;
@@ -182,6 +188,8 @@ const UI = {
     if (st.type === 'combat') sub = 'Fight rooms and corridors. Reward: 1 upgrade.';
     else if (st.type === 'elite') sub = 'Elite enemies guard the last room. Reward: a rare or better upgrade and extra shards.';
     else if (st.type === 'rest') sub = 'No enemies. Heal or train for a random upgrade.';
+    else if (st.type === 'shop') sub = 'No enemies. Buy upgrades or healing with the shards from this run (spent shards are not paid out).';
+    else if (st.type === 'risk') sub = 'No enemies. Take an epic upgrade together with a curse that lasts the whole run, or walk away.';
     else {
       const b = BOSSES[bossKindFor(next)];
       title = 'BOSS · ' + b.name;
@@ -361,6 +369,38 @@ const UI = {
     this.show('s-upgrade', { lock: 450 });
   },
 
+  // ---------- Shop ----------
+  showShop() {
+    const sh = G.shop, run = G.run, wallet = shopWallet(), p = G.player, s = G.stats;
+    $('shop-wallet').textContent = wallet;
+    const card = (attrs, badge, top, name, desc, price, sold, cls) => `<button class="card shop-card ${cls}" ${attrs}${sold || price > wallet || cls.includes('full') ? ' disabled' : ''}>${badge}
+      <div class="card-body"><div class="card-top">${top}</div><div class="card-name">${name}</div><div class="card-desc">${desc}</div></div>
+      <div class="price${sold ? ' sold' : ''}">${sold ? 'SOLD' : '<span class="shard-ico"></span>' + price}</div></button>`;
+    $('shop-cards').innerHTML = sh.items.map((it, i) => {
+      const u = UPG[it.id], lvl = (run.upgrades[u.id] || 0) + (it.sold ? 0 : 1);
+      return card(`data-action="shop-buy" data-i="${i}" style="--tc:${TAGS[u.tag].color}"`, upgBadge(u),
+        `<span class="rar">${RARITY[u.rarity].name}</span><span class="tg">${TAGS[u.tag].name}</span>`,
+        u.name + (u.max > 1 ? `<span class="lvl">lvl ${lvl}/${u.max}</span>` : ''), u.desc, it.price, it.sold, 'r' + u.rarity);
+    }).join('') + card(`data-action="shop-heal" style="--tc:${TAGS.tank.color}"`, `<div class="badge" style="--tc:${TAGS.tank.color}">+HP</div>`,
+      `<span class="tg">${TAGS.tank.name}</span>`, 'Repair Kit', 'Heal ' + SHOP_HEAL.hp + ' HP (' + p.hp + '/' + s.maxHp + ').', SHOP_HEAL.price,
+      sh.healBought, p.hp >= s.maxHp && !sh.healBought ? 'r0 full' : 'r0');
+    $('btn-shop-reroll').innerHTML = 'Reroll · <span class="shard-ico"></span>' + SHOP_REROLL_PRICE;
+    $('btn-shop-reroll').disabled = wallet < SHOP_REROLL_PRICE;
+    if (this.current !== 's-shop') this.show('s-shop', { lock: 350 });
+  },
+
+  // ---------- Altar ----------
+  showAltar(offers) {
+    $('altar-cards').innerHTML = offers.map((o, i) => {
+      const u = UPG[o.id], c = CURSE[o.curse];
+      return `<button class="card altar-card r${u.rarity}" data-action="altar-pick" data-i="${i}" style="--tc:${TAGS[u.tag].color}">${upgBadge(u)}
+        <div class="card-body"><div class="card-top"><span class="rar">${RARITY[u.rarity].name}</span><span class="tg">${TAGS[u.tag].name}</span></div>
+        <div class="card-name">${u.name}</div><div class="card-desc">${u.desc}</div>
+        <div class="curse-line"><b>CURSE · ${c.name}</b> ${c.desc}</div></div></button>`;
+    }).join('') || '<div class="hint">The altar is silent.</div>';
+    this.show('s-altar', { lock: 450 });
+  },
+
   showRest() {
     const p = G.player, s = G.stats;
     const heal = restHealAmount();
@@ -391,10 +431,11 @@ const UI = {
     if (!G.training && !challengeDone('flawless') && run.hurt === 0 && (run.start || 1) === 1 && run.floor < 25) goals.push('Flawless Ascent: no hits so far');
     if (!G.training && !challengeDone('ironwill') && run.floor < 40) goals.push('Iron Will: ' + Math.min(30, run.hurt) + '/30 HP lost');
     $('p-goals').textContent = goals.join(' · ');
-    $('p-build').innerHTML = run.order.length ? run.order.map((id) => {
+    const buildHtml = run.order.map((id) => {
       const u = UPG[id];
       return `<div class="build-item">${upgBadge(u)}<div><div class="bi-name">${u.name} ×${run.upgrades[id]}</div><div class="bi-desc">${u.desc}</div></div></div>`;
-    }).join('') : '<div class="hint">No upgrades yet — clear a floor to pick your first one.</div>';
+    }).join('') + (run.curses || []).map((c) => `<div class="build-item curse"><div class="badge">${CURSE[c].icon}</div><div><div class="bi-name">Curse: ${CURSE[c].name}</div><div class="bi-desc">${CURSE[c].desc}</div></div></div>`).join('');
+    $('p-build').innerHTML = buildHtml || '<div class="hint">No upgrades yet — clear a floor to pick your first one.</div>';
     this.stack = [];
     this.show('s-pause');
   },

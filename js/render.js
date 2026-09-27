@@ -407,9 +407,9 @@ const Render = {
     lay.rooms.forEach((rm) => {
       const [x, y, w, h] = tr(rm);
       if (rm.kind === 'exit') { g.strokeStyle = type === 'elite' ? COL.gold : '#ffffff'; g.globalAlpha = 0.7; g.lineWidth = 1.5; g.strokeRect(x + 1, y + 1, w - 2, h - 2); g.globalAlpha = 1; }
-      if (rm.kind !== 'start' && type !== 'rest') icon(x + w / 2, y + h / 2, type === 'elite' && rm.kind === 'exit' ? 'elite' : 'combat', 'rgba(255,79,107,0.8)', Math.max(0.45, Math.min(0.8, k / 10)));
+      if (rm.kind !== 'start' && !isCalm(type)) icon(x + w / 2, y + h / 2, type === 'elite' && rm.kind === 'exit' ? 'elite' : 'combat', 'rgba(255,79,107,0.8)', Math.max(0.45, Math.min(0.8, k / 10)));
     });
-    if (type === 'rest' && lay.rooms[0]) { const [x, y, w, h] = tr(lay.rooms[0]); icon(x + w / 2, y + h / 2, 'rest', '#8dff6a', 0.8); }
+    if (isCalm(type) && lay.rooms[0]) { const [x, y, w, h] = tr(lay.rooms[0]); icon(x + w / 2, y + h / 2, type, ROOM[type].color, 0.8); }
     for (const st of lay.stairs) { const [x, y, w, h] = tr(st); g.fillStyle = ROOM[st.type].color; g.globalAlpha = 0.85; g.fillRect(x, y, w, h); g.globalAlpha = 1; }
     if (lay.arrival) { const [x, y, w, h] = tr(lay.arrival); g.fillStyle = '#4df3ff'; g.fillRect(x, y, w, h); g.beginPath(); g.arc(x + w / 2, y - 3, 3, 0, TAU); g.fill(); }
   },
@@ -661,6 +661,11 @@ const Render = {
       ctx.closePath(); ctx.fill();
     } else if (type === 'rest') {
       ctx.moveTo(x, y - 8); ctx.lineTo(x, y + 8); ctx.moveTo(x - 8, y); ctx.lineTo(x + 8, y); ctx.lineWidth = 3.5; ctx.stroke();
+    } else if (type === 'shop') { // shard / coin
+      ctx.moveTo(x, y - 9); ctx.lineTo(x + 7, y); ctx.lineTo(x, y + 9); ctx.lineTo(x - 7, y); ctx.closePath(); ctx.fill();
+    } else if (type === 'risk') { // horned skull-ish: a triangle with an eye
+      ctx.moveTo(x, y + 9); ctx.lineTo(x - 9, y - 7); ctx.lineTo(x + 9, y - 7); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y - 2, 2.5, 0, TAU); ctx.fill();
     } else if (type === 'boss') {
       ctx.moveTo(x - 10, y + 6); ctx.lineTo(x - 10, y - 5); ctx.lineTo(x - 5, y); ctx.lineTo(x, y - 8); ctx.lineTo(x + 5, y); ctx.lineTo(x + 10, y - 5); ctx.lineTo(x + 10, y + 6); ctx.closePath(); ctx.fill();
     }
@@ -670,18 +675,17 @@ const Render = {
   drawShrine(ctx) {
     const s = G.shrine;
     if (!s) return;
-    const pulse = 0.5 + Math.sin(G.time * 3) * 0.2;
-    const col = s.used ? '#3c5a44' : '#8dff6a';
+    const pulse = 0.5 + Math.sin(G.time * 3) * 0.2, base = ROOM[s.kind || 'rest'].color;
+    const col = s.used ? 'rgba(160,160,190,0.35)' : base;
     ctx.globalCompositeOperation = 'lighter';
-    if (!s.used) this.drawGlow(ctx, s.x, s.y, 70, '#8dff6a', pulse);
+    if (!s.used) this.drawGlow(ctx, s.x, s.y, 70, base, pulse);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.strokeStyle = col; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(s.x, s.y, 20, 0, TAU); ctx.stroke();
-    ctx.lineWidth = 5; ctx.beginPath();
-    ctx.moveTo(s.x, s.y - 10); ctx.lineTo(s.x, s.y + 10); ctx.moveTo(s.x - 10, s.y); ctx.lineTo(s.x + 10, s.y); ctx.stroke();
+    ctx.save(); ctx.translate(s.x, s.y); ctx.scale(1.3, 1.3); this.drawRoomIcon(ctx, s.kind || 'rest', 0, 0, col); ctx.restore();
     if (!s.used) {
       ctx.font = '800 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillStyle = '#8dff6a'; ctx.fillText('STEP IN', s.x, s.y + 28);
+      ctx.fillStyle = base; ctx.fillText('STEP IN', s.x, s.y + 28);
     }
   },
 

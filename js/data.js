@@ -172,6 +172,8 @@ const ROOM = {
   combat: { name: 'COMBAT', sub: 'Defeat the enemies',              color: '#4df3ff' },
   elite:  { name: 'ELITE',  sub: 'Stronger enemies, better reward', color: '#ffd44d' },
   rest:   { name: 'REST',   sub: 'A moment to breathe',             color: '#8dff6a' },
+  shop:   { name: 'SHOP',   sub: 'Spend this run\'s shards',        color: '#9d8cff' },
+  risk:   { name: 'ALTAR',  sub: 'Power for a price',               color: '#ff4f8b' },
   boss:   { name: 'BOSS',   sub: '',                                color: '#ff4f6b' },
 };
 
@@ -218,6 +220,28 @@ const ASCENSION = [
   'Bosses start enraged',
   'Enemies have another +20% HP',
 ];
+// Floors without enemies: one room with a station in the middle (step in to use it).
+const CALM_ROOMS = ['rest', 'shop', 'risk'];
+function isCalm(type) { return CALM_ROOMS.includes(type); }
+
+// ---------- Shop (spend the shards collected in this run: whatever you spend is not paid out at the end) ----------
+function shopPrice(u, floor) { return Math.round([14, 24, 40][u.rarity] * (1 + floor * 0.02)); }
+const SHOP_HEAL = { hp: 2, price: 10 };
+const SHOP_REROLL_PRICE = 6;
+
+// ---------- Curses (the altar trades an epic/rare upgrade for one of these, for the rest of the run) ----------
+const CURSES = [
+  { id: 'frail',   name: 'Frail',       icon: 'FRL', desc: '−1 max HP.' },
+  { id: 'hunted',  name: 'Hunted',      icon: 'HNT', desc: 'Enemies move 15% faster.' },
+  { id: 'barrage', name: 'Barrage',     icon: 'BRG', desc: 'Enemy bullets fly 15% faster.' },
+  { id: 'myopia',  name: 'Short Sight', icon: 'SHT', desc: '−20% range.' },
+  { id: 'sluggish',name: 'Sluggish',    icon: 'SLG', desc: '+25% dash cooldown.' },
+  { id: 'greed',   name: 'Greed',       icon: 'GRD', desc: 'Enemies drop 40% fewer shards.' },
+];
+const CURSE = {};
+for (const c of CURSES) CURSE[c.id] = c;
+function cursed(id) { return !!(G.run && G.run.curses && G.run.curses.includes(id)); }
+
 // ---------- Checkpoints ----------
 // Beating the boss on floor 5k unlocks starting a run on floor 5k+1 (per ascension level).
 // Starting there gives a starting kit (upgrade picks with better odds) and extra rerolls;

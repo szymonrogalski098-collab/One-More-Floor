@@ -9,7 +9,7 @@ function newRun(snapshot) {
     hurt: 0, dodges: 0, rerolls: meta.reroll | 0, windUsed: false,
     ship: Save.data.ships.includes(Save.data.ship) ? Save.data.ship : 'striker',
     asc: Math.min(Save.data.asc.selected | 0, Save.data.asc.unlocked | 0), hurtAtBoss: 0,
-    start: 1, kitLeft: 0, kitTotal: 0, cpPending: {},
+    start: 1, kitLeft: 0, kitTotal: 0, cpPending: {}, curses: [],
   };
   G.player = makePlayer();
   computeStats();
@@ -17,6 +17,7 @@ function newRun(snapshot) {
   let floor = 1, type = 'combat';
   if (snapshot) {
     Object.assign(G.run, snapshot.run);
+    G.run.curses = G.run.curses || [];
     G.run.upgrades = {}; G.run.order = [];
     for (const id of snapshot.order) if (UPG[id]) addUpgrade(id, true);
     computeStats();
@@ -112,7 +113,7 @@ function enterFloor(n, type, restore, layout) {
   G.room = { type, phase: 'intro', t: 0, active: null, waveT: 0, queue: [], queueT: 0, rewardShown: false,
     waveThresh: Math.max(2, Math.floor(G.scale.maxAlive / 4)) };
   if (!restore && (type === 'combat' || type === 'elite')) planFloor(n, type);
-  if (type === 'rest') { const ex = G.exitRoom; G.shrine = { x: ex.x + ex.w / 2, y: ex.y + ex.h * 0.5, used: false, t: 0 }; }
+  if (isCalm(type)) { const ex = G.exitRoom; G.shrine = { kind: type, x: ex.x + ex.w / 2, y: ex.y + ex.h * 0.5, used: false, t: 0 }; }
   if (restore) { applyRestoreState(restore); p.vx = p.vy = 0; }
   Render.buildFloor();
   Render.snapCamera();
@@ -133,7 +134,7 @@ function buildFloorGeometry(type, floor) {
   const next = nextDoorTypes(floor + 1);
   if (type === 'boss' && BOSSES[bossKindFor(floor)].side) { buildSideElevator(); placeSideDoors(next); return; }
   if (type === 'boss') { buildBossHall(); placeStairs(next); return; }
-  if (type === 'rest') { buildSingleRoom(); placeStairs(next); return; }
+  if (isCalm(type)) { buildSingleRoom(); placeStairs(next); return; }
   for (let i = 0; i < 30; i++) {
     buildDungeon(floor, type);
     placeStairs(next);
@@ -170,7 +171,7 @@ function saveSnapshot() {
     v: 2, floor: run.floor, type: G.room.type, hp: G.player.hp, order: expandOrder(),
     run: { kills: run.kills, shards: run.shards + pendingShards(), dmg: run.dmg, time: run.time, bosses: run.bosses, elites: run.elites,
       hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed, ship: run.ship, asc: run.asc,
-      start: run.start, kitLeft: run.kitLeft, kitTotal: run.kitTotal, cpPending: run.cpPending },
+      start: run.start, kitLeft: run.kitLeft, kitTotal: run.kitTotal, cpPending: run.cpPending, curses: run.curses },
     floorState: G.room.type === 'boss' && G.room.phase !== 'doors' ? null : serializeFloor(), // a boss fight restarts; a beaten boss stays beaten
   };
   Save.save();
@@ -377,9 +378,9 @@ function updateRoom(dt) {
     if (R.t > 0.75) {
       if (R.restorePhase === 'doors') { R.phase = 'doors'; unlockStairs(); }
       else if (R.type === 'boss') { R.phase = 'fight'; spawnBoss(G.run.floor); }
-      else if (R.type === 'rest') R.phase = G.shrine && G.shrine.used ? 'doors' : 'rest';
+      else if (isCalm(R.type)) R.phase = G.shrine && G.shrine.used ? 'doors' : 'rest';
       else R.phase = 'fight';
-      if (R.type === 'rest' && R.phase === 'doors') unlockStairs();
+      if (isCalm(R.type) && R.phase === 'doors') unlockStairs();
     }
     return;
   }
@@ -425,7 +426,9 @@ function updateRoom(dt) {
     if (!s.used && dist2(s.x, s.y, p.x, p.y) < 26 * 26) {
       s.used = true;
       sfx('select');
-      openRestChoice();
+      if (s.kind === 'shop') openShop();
+      else if (s.kind === 'risk') openAltar();
+      else openRestChoice();
     }
     return;
   }
@@ -553,6 +556,75 @@ function openRestChoice() {
   G.state = 'reward';
   G.rewardKind = 'rest';
   UI.showRest();
+}
+
+// ---------- shop ----------
+function openShop() {
+  G.state = 'reward';
+  G.rewardKind = 'shop';
+  G.shop = { items: rollChoices('normal').slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false })), healBought: false };
+  UI.showShop();
+}
+// the shards on the floor count too (they are magnetised to you in calm rooms anyway)
+function shopWallet() { return G.run.shards + pendingShards(); }
+function shopPay(price) {
+  collectPendingShards();
+  if (G.run.shards < price) return false;
+  G.run.shards -= price;
+  G.hudDirty = true;
+  return true;
+}
+function collectPendingShards() { for (const k of G.pickups) if (k.type === 'shard') G.run.shards += k.value; G.pickups = G.pickups.filter((k) => k.type !== 'shard'); }
+function shopBuy(i) {
+  const it = G.shop.items[i];
+  if (!it || it.sold || !shopPay(it.price)) return;
+  it.sold = true;
+  addUpgrade(it.id);
+  sfx('buy');
+  UI.showShop();
+}
+function shopHeal() {
+  if (G.shop.healBought || G.player.hp >= G.stats.maxHp || !shopPay(SHOP_HEAL.price)) return;
+  G.shop.healBought = true;
+  healPlayer(SHOP_HEAL.hp);
+  UI.showShop();
+}
+function shopReroll() {
+  if (!shopPay(SHOP_REROLL_PRICE)) return;
+  const sold = G.shop.items.filter((x) => x.sold).map((x) => x.id);
+  G.shop.items = rollChoices('normal').filter((u) => !sold.includes(u.id)).slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false }));
+  sfx('select');
+  UI.showShop();
+}
+function shopLeave() { G.shop = null; UI.show(null); afterReward(); }
+
+// ---------- altar: an epic (or rare) upgrade for a permanent curse ----------
+function openAltar() {
+  G.state = 'reward';
+  G.rewardKind = 'altar';
+  const run = G.run;
+  const avail = UPGRADES.filter((u) => (run.upgrades[u.id] || 0) < u.max && Save.isUnlocked(u.id) && (!u.req || G.stats[u.req] > 0));
+  let pool = avail.filter((u) => u.rarity === 2);
+  if (pool.length < 2) pool = pool.concat(shuffle(avail.filter((u) => u.rarity === 1)));
+  const ups = shuffle(pool.slice()).slice(0, 2);
+  const curses = shuffle(CURSES.filter((c) => !run.curses.includes(c.id))).slice(0, ups.length);
+  G.altar = ups.map((u, i) => ({ id: u.id, curse: curses[i] && curses[i].id })).filter((o) => o.curse);
+  UI.showAltar(G.altar);
+}
+function altarChoose(i) {
+  const o = G.altar && G.altar[i];
+  if (o) {
+    G.run.curses.push(o.curse);
+    addUpgrade(o.id);
+    computeStats();
+    sfx('upgrade');
+    const p = G.player;
+    ring(p.x, p.y, 6, 70, 0.5, '#ff4f8b', 3);
+    floatText(p.x, p.y - 44, CURSE[o.curse].name.toUpperCase(), '#ff4f8b', 13, 1.6);
+  }
+  G.altar = null;
+  UI.show(null);
+  afterReward();
 }
 
 function afterReward() {

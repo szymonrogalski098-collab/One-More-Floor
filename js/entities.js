@@ -25,6 +25,9 @@ function computeStats() {
   const run = G.run;
   (SHIP[run.ship] || SHIP.striker).mod(s);
   if (ascMod(8)) s.maxHp -= 1;
+  if (cursed('frail')) s.maxHp -= 1;
+  if (cursed('myopia')) s.range *= 0.8;
+  if (cursed('sluggish')) s.dashCd *= 1.25;
   for (const id in run.upgrades) UPG[id].mod(s, run.upgrades[id]);
   s.dmg = s.baseDmg * s.dmgMul;
   s.rof = s.baseRof * Math.max(0.4, s.rofMul);
@@ -375,6 +378,7 @@ function fireEB(x, y, ang, speed, o) {
   if (G.eb.length > 260) return null;
   const b = ebPool.pop() || {};
   if (ascMod(2)) speed *= 1.12;
+  if (cursed('barrage')) speed *= 1.15;
   b.x = x; b.y = y; b.vx = Math.cos(ang) * speed; b.vy = Math.sin(ang) * speed;
   b.r = (o && o.r) || 5; b.color = (o && o.color) || COL.eBullet;
   b.life = (o && o.life) || 7; b.hp = (o && o.hp) || 0;
@@ -435,7 +439,7 @@ function spawnEnemy(type, x, y, elite, into) {
     id: G.nextId++, type, x, y,
     r: d.r * (elite ? 1.3 : 1),
     hp: d.hp * sc.hp * (elite ? 3.2 : 1),
-    speed: d.speed * sc.spd * (elite ? 1.08 : 1) * rand(0.92, 1.08),
+    speed: d.speed * sc.spd * (elite ? 1.08 : 1) * rand(0.92, 1.08) * (cursed('hunted') ? 1.15 : 1),
     color: d.color, elite: !!elite,
     vx: 0, vy: 0, kx: 0, ky: 0,
     t: rand(0, 1), state: 'move', st: 0, atk: rand(0.9, 2.2), charge: 0,
@@ -867,8 +871,9 @@ function killEnemy(e, silent) {
   if (e.elite) { hitstop(0.05); addShake(0.2); run.elites++; }
   else addShake(0.04);
   if (!e.noDrop) {
-    if (e.elite) dropPickup(e.x, e.y, 'shard', 5);
-    else if (Math.random() < 0.55) dropPickup(e.x, e.y, 'shard', 1);
+    const greed = cursed('greed') ? 0.6 : 1;
+    if (e.elite) dropPickup(e.x, e.y, 'shard', Math.round(5 * greed));
+    else if (Math.random() < 0.55 * greed) dropPickup(e.x, e.y, 'shard', 1);
     if (Math.random() < (0.025 + s.vamp + (e.elite ? 0.2 : 0)) * (ascMod(4) ? 0.5 : 1)) dropPickup(e.x, e.y, 'heart', 1);
   }
   if (e.type === 'blob') {

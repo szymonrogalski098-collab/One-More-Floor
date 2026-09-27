@@ -19,6 +19,7 @@ On a computer every screen has its own layout (two-column menu, large side-by-si
 - **DASH:** You are invulnerable while dashing. Dashing through an attack counts as a **perfect dodge** (slow motion, synergy with Adrenaline).
 - **Loop:** fight, reward (pick 1 of 3 upgrades), choose a door (Combat / Elite / Rest), next floor. **A boss every 5 floors.**
 - **Floors:** combat and elite floors are small dungeons: a safe start room, fight rooms joined by corridors and an exit room with staircases. Rooms vary in shape (cut corners, L-shapes) and cover (pillars, crates, low walls, columns, rings), and some have spike traps that fire only while the room is being fought. Entering a fight room locks its exits (red energy bars) until every wave is cleared; dormant enemies wait in some corridors. A green chevron next to you points to the next room. The camera follows you when the floor is bigger than the screen, and arrows on the screen edge show enemies out of view.
+- **Shop** (from floor 4) and **Altar** (from floor 6) floors: no enemies, step on the station in the middle. The shop sells 3 upgrades, a Repair Kit (+2 HP) and rerolls for the **shards collected in this run** — whatever you spend is not paid out at the end, so every purchase is a real trade-off. The altar offers an epic (or rare) upgrade paired with a **curse** that lasts the whole run (Frail −1 max HP, Hunted: faster enemies, Barrage: faster bullets, Short Sight −20% range, Sluggish +25% dash cooldown, Greed: fewer shard drops), or you walk away. Curses show as red chips in the HUD and in the pause screen.
 - **Stairs:** staircases are cut into the top wall of the exit room (bottom step on the wall line), one per route (Combat / Elite / Rest / Boss). They are always visible but locked until the whole floor is cleared. Stand on a staircase to see the full map of the floor it leads to (it is generated in advance, so what you see is what you get), then walk up it to climb. You arrive by stepping out of a stair nook in the bottom wall.
 - **Save & quit / closing the app** keeps the exact floor: layout, cleared rooms, surviving enemies and your position. A fight that was interrupted restarts with you just outside the room. Boss fights restart from the hall entrance; a boss you already beat stays beaten.
 - **Bosses** fight in one big circular hall.
@@ -182,6 +183,7 @@ npm run test:resume     # Save & Quit restores the same floor, rooms and positio
 npm run test:softlock   # stragglers elsewhere never stall a room
 npm run test:content    # new enemies, ascension, challenges, ships
 npm run test:pc         # mouse & keyboard (click = dash, no joystick, aim modes, hover, touch switch) + guide arrow stability
+npm run test:shop       # shop prices/wallet/heal/reroll, altar pacts, curse effects, saves
 npm run test:training   # barrier, counted hits, respawns, immortal bosses, save untouched
 npm run test:checkpoint # unlocks, starting kit, resume mid-kit, shard rules, old-save migration
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Orrery, Forgemaster

@@ -1,6 +1,6 @@
 {
   "name": "one-more-floor",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "private": true,
   "description": "Mobile-first roguelike PWA. No build step, no backend.",
   "scripts": {
@@ -18,6 +18,7 @@
     "test:pc": "node tools/test-pc.js",
     "test:checkpoint": "node tools/test-checkpoint.js",
     "test:training": "node tools/test-training.js",
+    "test:shop": "node tools/test-shop.js",
     "perf": "node tools/perf.js",
     "icons": "node tools/make-icons.js"
   },

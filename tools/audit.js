@@ -61,7 +61,9 @@ async function simulate(page, opts) {
     let steps = 0;
     try {
       while (steps < o.maxSteps) {
-        if (G.state === 'reward') {
+        if (G.state === 'reward' && G.rewardKind === 'shop') { const k = G.shop.items.findIndex((x) => x.price <= shopWallet()); if (k >= 0) shopBuy(k); shopLeave(); }
+        else if (G.state === 'reward' && G.rewardKind === 'altar') altarChoose(Math.random() < 0.5 ? 0 : -1);
+        else if (G.state === 'reward') {
           const cards = [...document.querySelectorAll('#up-cards .card')];
           const id = cards.length ? cards[(Math.random() * cards.length) | 0].dataset.id : null;
           OMF.UI.show(null); OMF.chooseUpgrade(id);

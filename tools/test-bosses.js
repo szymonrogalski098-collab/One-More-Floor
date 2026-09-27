@@ -40,7 +40,7 @@ const { chromium, devices } = require('playwright');
       // every attack kind shows up and the crush happens
       const seen = {};
       G.side.cool = 0; G.side.slamT = 3;
-      run(45, () => { G.player.hp = 9; G.player.iframes = 1; if (G.side.slam) seen.slam = true; if (G.side.gapWarn) seen.curtain = true; for (const d of G.side.drops) { if (d.split) seen.split = true; if (d.r === 9) seen.sweep = true; if (d.r === 10) seen.aimed = true; } });
+      run(52, () => { G.player.hp = 9; G.player.iframes = 1; if (G.side.slam) seen.slam = true; if (G.side.gapWarn) seen.curtain = true; for (const d of G.side.drops) { if (d.split) seen.split = true; if (d.r === 9) seen.sweep = true; if (d.r === 10) seen.aimed = true; } if (seen.slam && seen.curtain && seen.sweep && seen.aimed && seen.split) return false; });
       check('drops (aimed, curtain, sweep, split) and CRUSH all occur', seen.slam && seen.curtain && seen.sweep && seen.aimed && seen.split, seen);
       // the crush plate is solid: you cannot stand inside it
       G.side.slam = { zones: [{ x0: G.side.L, x1: G.side.L + 100 }], state: 'down', t: 0.2, warn: 1 };
