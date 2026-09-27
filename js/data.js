@@ -223,6 +223,10 @@ const ASCENSION = [
 // Starting there gives a starting kit (upgrade picks with better odds) and extra rerolls;
 // floors below the checkpoint pay no shards.
 function checkpointKit(start) { const skipped = Math.floor((start - 1) / 5); return { picks: 1 + skipped * 2, rerolls: skipped }; }
+// No build remembered for a checkpoint yet: the kit comes with a few fixed upgrades on top.
+function checkpointBonus(start) { const sk = Math.floor((start - 1) / 5), b = ['power', 'ember']; if (sk >= 3) b.push('rapid'); if (sk >= 5) b.push('power'); return b; }
+// The build a player had when passing a checkpoint (the one that went furthest), per ascension.
+function checkpointBuild(asc, start) { const b = ((Save.data.cpBuilds || {})[asc | 0] || {})[start]; return b && b.order && b.order.length ? b : null; }
 function checkpointsFor(asc) { const max = (Save.data.checkpoints || {})[asc | 0] | 0, out = [1]; for (let f = 6; f <= max; f += 5) out.push(f); return out; }
 
 function ascMod(n) { const a = (G.run && G.run.asc) | 0; return a >= n; }

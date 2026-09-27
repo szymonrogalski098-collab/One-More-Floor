@@ -8,7 +8,7 @@ function newRun(snapshot) {
     hurt: 0, dodges: 0, rerolls: meta.reroll | 0, windUsed: false,
     ship: Save.data.ships.includes(Save.data.ship) ? Save.data.ship : 'striker',
     asc: Math.min(Save.data.asc.selected | 0, Save.data.asc.unlocked | 0), hurtAtBoss: 0,
-    start: 1, kitLeft: 0, kitTotal: 0,
+    start: 1, kitLeft: 0, kitTotal: 0, cpPending: {},
   };
   G.player = makePlayer();
   computeStats();
@@ -22,10 +22,8 @@ function newRun(snapshot) {
     G.player.hp = clamp(snapshot.hp, 1, G.stats.maxHp);
     floor = snapshot.floor; type = snapshot.type;
   } else if (checkpointsFor(G.run.asc).includes(Save.data.startSel | 0) && (Save.data.startSel | 0) > 1) {
-    const kit = checkpointKit(Save.data.startSel | 0);
     floor = G.run.start = Save.data.startSel | 0;
-    G.run.kitLeft = G.run.kitTotal = kit.picks;
-    G.run.rerolls += kit.rerolls;
+    startFromCheckpoint(floor);
   }
   if (!snapshot && (meta.start | 0) > 0) {
     const commons = UPGRADES.filter((u) => u.rarity === 0 && u.id !== 'vital' && u.id !== 'mender');
@@ -40,6 +38,30 @@ function newRun(snapshot) {
   if (G.run.kitLeft > 0) openKit();
 }
 
+// Checkpoint start. With a remembered build: get it back minus one random non-epic upgrade.
+// Without one: a few fixed upgrades plus the starting-kit picks.
+function startFromCheckpoint(start) {
+  const run = G.run, kit = checkpointKit(start), build = checkpointBuild(run.asc, start);
+  run.rerolls += kit.rerolls;
+  let note;
+  if (build) {
+    const order = build.order.filter((id) => UPG[id] && Save.isUnlocked(id));
+    const droppable = order.map((id, i) => i).filter((i) => UPG[order[i]].rarity < 2);
+    const di = droppable.length ? pick(droppable) : (order.length ? randInt(0, order.length - 1) : -1);
+    const lost = di >= 0 ? order.splice(di, 1)[0] : null;
+    for (const id of order) addUpgrade(id, true);
+    note = ['BUILD RESTORED', order.length + ' upgrades from your run to floor ' + build.reached + (lost ? ' · lost: ' + UPG[lost].name : '')];
+  } else {
+    const bonus = checkpointBonus(start).filter((id) => UPG[id]);
+    for (const id of bonus) addUpgrade(id, true);
+    run.kitLeft = run.kitTotal = kit.picks;
+    note = ['CHECKPOINT BONUS', bonus.map((id) => UPG[id].name).join(', ') + ' + ' + kit.picks + ' picks'];
+  }
+  computeStats();
+  G.player.hp = G.stats.maxHp;
+  setTimeout(() => UI.toast(note[0], note[1]), 400);
+}
+
 // Checkpoint start: pick the starting kit one card at a time (saved after every pick).
 function openKit() {
   G.state = 'reward';
@@ -51,6 +73,8 @@ function openKit() {
 
 function unlockCheckpoint(floor) {
   const S = Save.data, a = G.run.asc | 0;
+  G.run.cpPending = G.run.cpPending || {};
+  G.run.cpPending[floor] = expandOrder(); // remembered at the end of the run if it went furthest
   if (floor <= (S.checkpoints[a] | 0)) return;
   S.checkpoints[a] = floor;
   Save.save();
@@ -144,7 +168,7 @@ function saveSnapshot() {
     v: 2, floor: run.floor, type: G.room.type, hp: G.player.hp, order: expandOrder(),
     run: { kills: run.kills, shards: run.shards + pendingShards(), dmg: run.dmg, time: run.time, bosses: run.bosses, elites: run.elites,
       hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed, ship: run.ship, asc: run.asc,
-      start: run.start, kitLeft: run.kitLeft, kitTotal: run.kitTotal },
+      start: run.start, kitLeft: run.kitLeft, kitTotal: run.kitTotal, cpPending: run.cpPending },
     floorState: G.room.type === 'boss' && G.room.phase !== 'doors' ? null : serializeFloor(), // a boss fight restarts; a beaten boss stays beaten
   };
   Save.save();
@@ -600,6 +624,11 @@ function finalizeRun(abandon) {
   if (record) S.best.floor = run.floor;
   if (run.kills > S.best.kills) S.best.kills = run.kills;
   S.asc.best[run.asc | 0] = Math.max(S.asc.best[run.asc | 0] | 0, run.floor);
+  // remember the build carried past each checkpoint (keep the one that climbed highest)
+  const cb = S.cpBuilds[run.asc | 0] = S.cpBuilds[run.asc | 0] || {};
+  for (const f in run.cpPending || {}) {
+    if (!cb[f] || run.floor >= (cb[f].reached | 0)) cb[f] = { order: run.cpPending[f], reached: run.floor };
+  }
   checkChallenges('end');
   S.history.unshift({ floor: run.floor, kills: run.kills, time: Math.round(run.time), build: topBuild(), date: Date.now() });
   S.history = S.history.slice(0, 8);

@@ -241,9 +241,11 @@ const UI = {
     $('pick-start').classList.toggle('hidden', list.length < 2);
     $('pk-start-name').textContent = f === 1 ? 'FLOOR 1' : 'CHECKPOINT · FLOOR ' + f;
     $('pk-start-name').style.color = f === 1 ? '' : 'var(--good)';
-    const kit = checkpointKit(f);
+    const kit = checkpointKit(f), build = f > 1 && checkpointBuild(Math.min(S.asc.selected | 0, S.asc.unlocked | 0), f);
     $('pk-start-desc').textContent = f === 1 ? 'From the bottom. Checkpoints: ' + (list.length - 1) + ' unlocked.'
-      : 'Starting kit: ' + kit.picks + ' upgrade picks · +' + kit.rerolls + ' rerolls · floors below ' + f + ' pay no shards';
+      : (build ? 'Your build from the run to floor ' + build.reached + ': ' + Math.max(0, build.order.length - 1) + ' of ' + build.order.length + ' upgrades (one lost at random)'
+        : 'Starting kit: ' + checkpointBonus(f).map((id) => UPG[id].name).join(', ') + ' + ' + kit.picks + ' picks')
+        + ' · +' + kit.rerolls + ' rerolls · floors below ' + f + ' pay no shards';
   },
 
   cycleAsc(dir) {

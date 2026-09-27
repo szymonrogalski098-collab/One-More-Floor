@@ -27,6 +27,7 @@ const { chromium, devices } = require('playwright');
     OMF.startGame(false);
     check('run starts on floor 11 with the kit screen', G.run.floor === 11 && G.state === 'reward' && G.rewardKind === 'kit' && document.getElementById('up-title').textContent === 'STARTING KIT');
     check('kit size 5 picks, +2 rerolls', G.run.kitTotal === 5 && G.run.rerolls === rr0 + 2, [G.run.kitTotal, G.run.rerolls]);
+    check('no remembered build: Power Core and Ember come on top of the picks', !!G.run.upgrades.power && !!G.run.upgrades.ember, G.run.order);
     // quit mid-kit and continue: remaining picks are offered again
     OMF.chooseUpgrade(document.querySelector('#up-cards .card').dataset.id);
     OMF.chooseUpgrade(document.querySelector('#up-cards .card').dataset.id);
@@ -40,6 +41,22 @@ const { chromium, devices } = require('playwright');
     OMF.startGame(false); while (G.run.kitLeft > 0) OMF.chooseUpgrade(document.querySelector('#up-cards .card').dataset.id);
     G.run.floor = 13; G.run.shards = 20; const ab = finalizeRun(true);
     check('ending within the first 3 floors of a checkpoint run pays nothing', ab.noPay && ab.earned === 0);
+    // a build carried past a checkpoint is remembered and restored minus one upgrade
+    S.startSel = 1; OMF.startGame(false);
+    for (const id of ['power', 'power', 'rapid', 'split', 'lens', 'aegis']) OMF.addUpgrade(id, true);
+    OMF.enterFloor(10, 'boss'); run(2.5); OMF.killEnemy(G.boss); run(0.3);
+    G.run.floor = 17; finalizeRun(false);
+    const saved = S.cpBuilds[0] && S.cpBuilds[0][11];
+    check('build and reached floor are remembered for checkpoint 11', saved && saved.reached === 17 && saved.order.length === 6, saved);
+    S.startSel = 11; OMF.UI.renderMenu();
+    check('menu describes the remembered build', document.getElementById('pk-start-desc').textContent.includes('floor 17'));
+    OMF.startGame(false);
+    const n = G.run.order.reduce((a, id) => a + G.run.upgrades[id], 0);
+    check('checkpoint restores the build minus one upgrade, no pick screen', n === 5 && G.state === 'play' && G.run.kitLeft === 0 && !G.run.upgrades.ember, [n, G.state, G.run.order]);
+    // a worse run does not overwrite the better build
+    G.run.upgrades = {}; G.run.order = []; OMF.addUpgrade('swift', true);
+    OMF.enterFloor(10, 'boss'); run(2.5); OMF.killEnemy(G.boss); run(0.3); G.run.floor = 12; finalizeRun(false);
+    check('a shorter run keeps the better remembered build', S.cpBuilds[0][11].reached === 17);
     // floor 1 still works normally
     S.startSel = 1; OMF.startGame(false);
     check('START floor 1 = normal run, no kit', G.run.floor === 1 && G.run.start === 1 && G.state === 'play');
