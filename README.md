@@ -75,7 +75,7 @@ Skitter (chaser), Spitter (ranged), Ram (telegraphed charge), Blob (splits), Fus
 ### Long-term goals
 
 - **Ships:** Striker, Lancer, Scatter, Phantom, Bulwark — each changes how a run plays. Unlock them through challenges or buy them in the Workshop hangar.
-- **Challenges:** 19 goals (bosses, depth, no-hit boss, speed, builds, ascension) that pay shards or unlock ships.
+- **Challenges:** 21 goals (bosses, depth, no-hit boss, speed, builds, ascension, plus two run-long ones: **Flawless Ascent** — reach the floor-25 boss from floor 1 without a single hit, and **Iron Will** — lose 30 HP in one run and still reach floor 40; the pause screen shows your progress) that pay shards or unlock ships.
 - **Ascension:** beating The Mirror unlocks Ascension 1; each level adds a modifier (tougher, faster enemies, elites on every floor, fewer hearts, enraged bosses …) and +15% shards. Best floor is tracked per level.
 
 ### Permanent progression (Workshop)

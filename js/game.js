@@ -743,6 +743,9 @@ function checkChallenges(evt, info) {
   hit('f5', climbed && run.floor >= 5);
   hit('f20', climbed && run.floor >= 20);
   hit('f30', climbed && run.floor >= 30);
+  // shield blocks do not count as hits; each hit costs 1 HP (run.hurt)
+  hit('flawless', evt === 'floor' && run.floor >= 25 && run.hurt === 0 && (run.start || 1) === 1);
+  hit('ironwill', run.floor >= 40 && run.hurt >= 30);
   hit('speed10', evt === 'floor' && run.floor >= 10 && run.time < 480 && (run.start || 1) === 1);
   hit('build12', run.order.length >= 12);
   hit('hoard', run.shards >= 200);

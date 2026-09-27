@@ -1,7 +1,7 @@
 'use strict';
 // Boot, main loop (fixed 60 Hz simulation + variable render), app lifecycle, PWA registration.
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 const STEP = 1 / 60;
 
 const Loop = { last: 0, acc: 0, frameAvg: 1 / 60, slowFor: 0, hudT: 0, raf: 0 };

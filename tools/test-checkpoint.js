@@ -57,6 +57,19 @@ const { chromium, devices } = require('playwright');
     G.run.upgrades = {}; G.run.order = []; OMF.addUpgrade('swift', true);
     OMF.enterFloor(10, 'boss'); run(2.5); OMF.killEnemy(G.boss); run(0.3); G.run.floor = 12; finalizeRun(false);
     check('a shorter run keeps the better remembered build', S.cpBuilds[0][11].reached === 17);
+    // challenges: Flawless Ascent / Iron Will
+    S.challenges = {}; S.startSel = 1;
+    OMF.startGame(false); G.run.hurt = 1; OMF.enterFloor(25, 'boss');
+    check('Flawless Ascent needs zero hits', !S.challenges.flawless);
+    S.startSel = 21; OMF.startGame(false); while (G.run.kitLeft > 0) OMF.chooseUpgrade(document.querySelector('#up-cards .card').dataset.id);
+    G.run.hurt = 0; OMF.enterFloor(25, 'boss');
+    check('Flawless Ascent does not count from a checkpoint', !S.challenges.flawless);
+    S.startSel = 1; OMF.startGame(false); G.run.hurt = 0; OMF.enterFloor(25, 'boss');
+    check('Flawless Ascent: floor-25 boss reached without a hit', !!S.challenges.flawless);
+    OMF.startGame(false); G.run.hurt = 29; OMF.enterFloor(40, 'combat');
+    check('Iron Will needs 30 HP lost', !S.challenges.ironwill);
+    G.run.hurt = 30; OMF.enterFloor(41, 'combat');
+    check('Iron Will: 30 HP lost and floor 40 reached', !!S.challenges.ironwill);
     // floor 1 still works normally
     S.startSel = 1; OMF.startGame(false);
     check('START floor 1 = normal run, no kit', G.run.floor === 1 && G.run.start === 1 && G.state === 'play');

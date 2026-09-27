@@ -241,6 +241,8 @@ const CHALLENGES = [
   { id: 'counter', name: 'Going Up',        desc: 'Survive The Counterweight.',             reward: { shards: 150 } },
   { id: 'orrery',  name: 'Stargazer',       desc: 'Defeat The Orrery.',                     reward: { shards: 180 } },
   { id: 'forge',   name: 'Quenched',        desc: 'Defeat The Forgemaster.',                reward: { shards: 220 } },
+  { id: 'flawless', name: 'Flawless Ascent', desc: 'Reach the boss on floor 25 without taking a single hit (full run from floor 1).', reward: { shards: 500 } },
+  { id: 'ironwill', name: 'Iron Will',       desc: 'Lose 30 HP in one run and still reach floor 40.', reward: { shards: 400 } },
   { id: 'f20',     name: 'Deep Climber',    desc: 'Reach floor 20.',                        reward: { ship: 'scatter' } },
   { id: 'f30',     name: 'Summit Seeker',   desc: 'Reach floor 30.',                        reward: { shards: 400 } },
   { id: 'nohit',   name: 'Untouchable',     desc: 'Defeat a boss without taking damage.',   reward: { ship: 'phantom' } },

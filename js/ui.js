@@ -386,6 +386,11 @@ const UI = {
     $('p-info').textContent = G.training ? 'Training · ' + fmtTime(G.training.t) + ' · ' + G.training.hits + ' hits'
       : 'Floor ' + run.floor + ' · ' + fmtTime(run.time) + ' · ' + run.kills + ' kills';
     $('p-build').classList.toggle('hidden', !!G.training);
+    // progress toward the run-long challenges
+    const goals = [];
+    if (!G.training && !challengeDone('flawless') && run.hurt === 0 && (run.start || 1) === 1 && run.floor < 25) goals.push('Flawless Ascent: no hits so far');
+    if (!G.training && !challengeDone('ironwill') && run.floor < 40) goals.push('Iron Will: ' + Math.min(30, run.hurt) + '/30 HP lost');
+    $('p-goals').textContent = goals.join(' · ');
     $('p-build').innerHTML = run.order.length ? run.order.map((id) => {
       const u = UPG[id];
       return `<div class="build-item">${upgBadge(u)}<div><div class="bi-name">${u.name} ×${run.upgrades[id]}</div><div class="bi-desc">${u.desc}</div></div></div>`;
