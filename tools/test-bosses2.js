@@ -13,6 +13,20 @@ const { chromium, devices } = require('playwright');
       const run = (s, hook) => { for (let i = 0; i < s * 60; i++) { OMF.step(1 / 60); if (hook && hook() === false) break; } };
       S.challenges = {};
       check('10 bosses to floor 50, II from 55', BOSS_ORDER.length === 10 && bossKindFor(35) === 'eclipse' && bossKindFor(40) === 'serpent' && bossKindFor(45) === 'chronos' && bossKindFor(50) === 'architect' && bossKindFor(55) === 'warden' && bossCycle(55) === 1 && bossCycle(50) === 0);
+      // every boss has its own hall; you cannot leave it and can always reach the stairs
+      const shapes = new Set();
+      for (let f = 5; f <= 50; f += 5) {
+        if (f === 20) continue;
+        OMF.startGame(false); OMF.enterFloor(f, 'boss');
+        const c = G.circle, kind = bossKindFor(f);
+        shapes.add(c.pts ? c.pts.length + ':' + Math.round(c.pts[0][0] - c.x) : 'circle:' + kind);
+        let inside = true;
+        for (let i = 0; i < 400; i++) { const o = { x: c.x + (Math.random() - 0.5) * c.R * 3, y: c.y + (Math.random() - 0.5) * c.R * 3 }; hallClamp(o, 8); if (hallDepth(o.x, o.y) < 7.9) inside = false; }
+        const sp = G.spawn;
+        const reach = G.stairs.every((st) => Math.abs(c.y - hallRayT(st.x + st.w / 2, c.y, 0, -1, 0) - (st.y + st.h - 4)) < 1);
+        check(kind + ': own hall (' + (c.pts ? c.pts.length + '-gon' : 'circle') + '), walls hold, spawn inside, stairs on the wall', c.kind === kind && inside && hallDepth(sp.x, sp.y) > 8 && reach);
+      }
+      check('halls differ from each other', shapes.size >= 7, [...shapes]);
       const pats = { eclipse: ['vanish', 'flare', 'blackout', 'crescent'], serpent: ['lunge', 'spit', 'burrow', 'coil'], chronos: ['hands', 'rewind', 'stop'], architect: ['build', 'crush', 'blueprint', 'recall'] };
       for (const [floor, kind] of [[35, 'eclipse'], [40, 'serpent'], [45, 'chronos'], [50, 'architect']]) {
         OMF.startGame(false); OMF.enterFloor(floor, 'boss'); run(2.5);

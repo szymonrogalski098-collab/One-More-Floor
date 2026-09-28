@@ -29,8 +29,7 @@ function solidTile(tx, ty) {
 }
 function solidAt(x, y) {
   if (G.circle) {
-    const c = G.circle;
-    if (dist2(x, y, c.x, c.y) > c.R * c.R) return true;
+    if (hallDepth(x, y) < 0) return true;
     return G.blocks.length > 0 && blockAt(x, y); // Architect blocks
   }
   return solidTile(Math.floor(x / T), Math.floor(y / T));
@@ -49,14 +48,13 @@ function tileRect(tx, ty, tw, th) { return { x: tx * T, y: ty * T, w: tw * T, h:
 const _tileRc = { x: 0, y: 0, w: T, h: T };
 function collideWorld(o, r) {
   if (G.circle) {
-    const c = G.circle, dx = o.x - c.x, dy = o.y - c.y, d = Math.hypot(dx, dy), lim = c.R - r;
     let hit = 0;
     if (o === G.player) for (const st of G.stairs) {
       if (st.locked || o.x < st.x + r - 2 || o.x > st.x + st.w - r + 2 || o.y > st.y + st.h + 6) continue;
       o.x = clamp(o.x, st.x + r, st.x + st.w - r); o.y = Math.max(o.y, st.y + r);
       return 0; // inside the nook
     }
-    if (d > lim && d > 0) { o.x = c.x + (dx / d) * lim; o.y = c.y + (dy / d) * lim; hit = 1; }
+    hit = hallClamp(o, r);
     for (const b of G.blocks) if (b.solid && pushOutRect(o, r, b)) hit = 1;
     return hit;
   }
@@ -97,7 +95,7 @@ function hasLOS(ax, ay, bx, by) {
 
 // Is a circle of radius r at (x,y) fully in open space?
 function spotFree(x, y, r) {
-  if (G.circle) { const c = G.circle; if (dist2(x, y, c.x, c.y) >= (c.R - r) * (c.R - r)) return false; }
+  if (G.circle && hallDepth(x, y) <= r) return false;
   return !solidAt(x, y) && !solidAt(x - r, y) && !solidAt(x + r, y) && !solidAt(x, y - r) && !solidAt(x, y + r)
     && !solidAt(x - r * 0.7, y - r * 0.7) && !solidAt(x + r * 0.7, y + r * 0.7) && !solidAt(x - r * 0.7, y + r * 0.7) && !solidAt(x + r * 0.7, y - r * 0.7);
 }
@@ -234,18 +232,107 @@ function buildSingleRoom(type) {
   return room;
 }
 
-function buildBossHall() {
-  const R = viewDims().VW > viewDims().VH ? 215 : 250; // smaller in landscape (short view)
-  const size = Math.ceil((R * 2 + T * 10) / T); // room above the circle for the stair nook
-  makeGrid(size, size);
-  const c = { x: G.W / 2, y: G.H / 2, R };
-  // grid mirrors the circle for spawn/queries; collision uses the exact circle
-  for (let ty = 0; ty < size; ty++) for (let tx = 0; tx < size; tx++) {
-    if (dist2((tx + 0.5) * T, (ty + 0.5) * T, c.x, c.y) < (R - T * 0.5) * (R - T * 0.5)) G.grid.solid[ty * size + tx] = 0;
+// ---------- boss halls: every boss has its own shape (convex polygon or circle) ----------
+// Shapes are relative to the centre, R is the hall's nominal radius (all shapes stay inside 1.15 R).
+function hallShape(kind, R) {
+  const reg = (n, rot, k) => Array.from({ length: n }, (_, i) => { const a = rot + (i * TAU) / n; return [Math.cos(a) * R * k, Math.sin(a) * R * k]; });
+  const box = (w, h) => [[-w * R, -h * R], [w * R, -h * R], [w * R, h * R], [-w * R, h * R]];
+  switch (kind) {
+    case 'warden': return reg(8, Math.PI / 8, 1.05);            // octagonal fort
+    case 'loom': return box(0.96, 0.84);                         // weaving frame
+    case 'mirror': return reg(6, 0, 1.1);                        // crystal hexagon
+    case 'forge': return [[-1.08, -0.78], [1.08, -0.78], [0.62, 0.9], [-0.62, 0.9]].map(([x, y]) => [x * R, y * R]); // furnace (wide top, narrow hearth)
+    case 'serpent': return reg(22, 0, 1).map(([x, y]) => [x * 0.8, y * 1.12]); // long pit
+    case 'architect': return box(0.9, 0.9);                      // blueprint square
+    default: return null;                                         // circles: orrery, eclipse, chronos
   }
+}
+function buildHallGeometry(c, kind) {
+  const rel = hallShape(kind, c.R);
+  c.kind = kind || null;
+  if (!rel) { c.pts = null; return c; }
+  c.pts = rel.map(([x, y]) => [c.x + x, c.y + y]);
+  // inward normals (polygon is convex, centre inside)
+  c.edges = c.pts.map((p, i) => {
+    const q = c.pts[(i + 1) % c.pts.length], ex = q[0] - p[0], ey = q[1] - p[1], l = Math.hypot(ex, ey) || 1;
+    let nx = -ey / l, ny = ex / l;
+    if ((c.x - p[0]) * nx + (c.y - p[1]) * ny < 0) { nx = -nx; ny = -ny; }
+    return { x: p[0], y: p[1], nx, ny };
+  });
+  return c;
+}
+// distance from (x,y) to the hall wall, positive inside
+function hallDepth(x, y) {
+  const c = G.circle;
+  if (!c.pts) return c.R - Math.hypot(x - c.x, y - c.y);
+  let d = Infinity;
+  for (const e of c.edges) { const v = (x - e.x) * e.nx + (y - e.y) * e.ny; if (v < d) d = v; }
+  return d;
+}
+function hallInside(x, y, r) { return hallDepth(x, y) >= r; }
+// push a circle of radius r back inside the hall; returns 1 when it had to
+function hallClamp(o, r) {
+  const c = G.circle;
+  if (!c.pts) {
+    const dx = o.x - c.x, dy = o.y - c.y, d = Math.hypot(dx, dy), lim = c.R - r;
+    if (d > lim && d > 0) { o.x = c.x + (dx / d) * lim; o.y = c.y + (dy / d) * lim; return 1; }
+    return 0;
+  }
+  let hit = 0;
+  for (let k = 0; k < 10; k++) { // repeat: at sharp corners pushing off one wall can push into the other
+    let moved = false;
+    for (const e of c.edges) {
+      const v = (o.x - e.x) * e.nx + (o.y - e.y) * e.ny;
+      if (v < r - 0.01) { o.x += e.nx * (r - v); o.y += e.ny * (r - v); hit = 1; moved = true; }
+    }
+    if (!moved) break;
+  }
+  return hit;
+}
+// inward normal of the wall nearest to (x,y) (bullet bounces)
+function hallNormal(x, y) {
+  const c = G.circle;
+  if (!c.pts) { const dx = c.x - x, dy = c.y - y, l = Math.hypot(dx, dy) || 1; return { x: dx / l, y: dy / l }; }
+  let best = c.edges[0], bd = Infinity;
+  for (const e of c.edges) { const v = (x - e.x) * e.nx + (y - e.y) * e.ny; if (v < bd) { bd = v; best = e; } }
+  return { x: best.nx, y: best.ny };
+}
+// distance along unit (dx,dy) from (x,y) until the wall is r away
+function hallRayT(x, y, dx, dy, r) {
+  const c = G.circle;
+  if (!c.pts) {
+    const R = c.R - r, ox = x - c.x, oy = y - c.y, bq = ox * dx + oy * dy, cq = ox * ox + oy * oy - R * R, disc = bq * bq - cq;
+    return disc > 0 ? Math.max(0, -bq + Math.sqrt(disc)) : 0;
+  }
+  let t = Infinity;
+  for (const e of c.edges) {
+    const dn = dx * e.nx + dy * e.ny;
+    if (dn >= 0) continue;
+    const v = (x - e.x) * e.nx + (y - e.y) * e.ny;
+    t = Math.min(t, (v - r) / -dn);
+  }
+  return Math.max(0, t === Infinity ? 0 : t);
+}
+function hallPath(g, c = G.circle, inset = 0) {
+  g.beginPath();
+  if (!c.pts) { g.arc(c.x, c.y, c.R - inset, 0, TAU); return; }
+  c.pts.forEach(([x, y], i) => { const kx = x + (c.x - x) * (inset / c.R), ky = y + (c.y - y) * (inset / c.R); if (i) g.lineTo(kx, ky); else g.moveTo(kx, ky); });
+  g.closePath();
+}
+
+function buildBossHall(kind) {
+  const R = viewDims().VW > viewDims().VH ? 215 : 250; // smaller in landscape (short view)
+  const size = Math.ceil((R * 2.3 + T * 10) / T); // room around the hall for the stair nooks
+  makeGrid(size, size);
+  const c = buildHallGeometry({ x: G.W / 2, y: G.H / 2, R }, kind);
   G.circle = c;
+  // grid mirrors the hall for spawn/queries; collision uses the exact shape
+  for (let ty = 0; ty < size; ty++) for (let tx = 0; tx < size; tx++) {
+    if (hallDepth((tx + 0.5) * T, (ty + 0.5) * T) > T * 0.5) G.grid.solid[ty * size + tx] = 0;
+  }
   G.rooms = []; G.halls = []; G.pillars = []; G.traps = [];
-  G.exitRoom = { x: c.x - R * 0.6, y: c.y - R, w: R * 1.2, h: R * 2, circleTop: true };
+  const top = c.y - hallRayT(c.x, c.y, 0, -1, 0);
+  G.exitRoom = { x: c.x - R * 0.6, y: top, w: R * 1.2, h: R * 2, circleTop: true };
   placeArrival(null);
   G.gridVer = 1;
 }
@@ -462,7 +549,7 @@ function placeStairs(types) {
     const c = G.circle;
     const xs = types.length === 1 ? [c.x] : [c.x - 36, c.x + 36];
     types.forEach((type, i) => {
-      const x = xs[i] - 28, edge = c.y - Math.sqrt(Math.max(0, c.R * c.R - (xs[i] - c.x) ** 2));
+      const x = xs[i] - 28, edge = c.y - hallRayT(xs[i], c.y, 0, -1, 0);
       G.stairs.push({ type, x, y: edge - 58, w: 56, h: 62, locked: true, circle: true });
     });
     return;
@@ -484,7 +571,7 @@ function unlockStairs() {
   G.gridVer++; G.fields.clear();
 }
 function placeArrival(rm) {
-  if (G.circle) { const c = G.circle; G.arrival = { x: c.x - 28, y: c.y + c.R - 22, w: 56, h: 44 }; G.spawn = { x: c.x, y: c.y + c.R - 16 }; return; }
+  if (G.circle) { const c = G.circle, bot = c.y + hallRayT(c.x, c.y, 0, 1, 0); G.arrival = { x: c.x - 28, y: bot - 22, w: 56, h: 44 }; G.spawn = { x: c.x, y: bot - 16 }; return; }
   // arrival stairs: a nook in the bottom wall, the top step flush with the wall line
   const tx = rm.tx + Math.floor(rm.tw / 2) - 1, ty = rm.ty + rm.th;
   carve(tx, ty, 3, 2);
@@ -516,22 +603,12 @@ function nextDoorTypes(nextFloor) {
 // ---------- arena helpers used by bosses ----------
 function arenaCenter() { return G.circle ? { x: G.circle.x, y: G.circle.y } : { x: G.W / 2, y: G.H / 2 }; }
 function clampInArena(x, y, r) {
-  if (G.circle) {
-    const c = G.circle, dx = x - c.x, dy = y - c.y, d = Math.hypot(dx, dy), lim = c.R - r;
-    if (d > lim) return { x: c.x + (dx / d) * lim, y: c.y + (dy / d) * lim };
-    return { x, y };
-  }
+  if (G.circle) { const o = { x, y }; hallClamp(o, r); return o; }
   return { x: clamp(x, T + r, G.W - T - r), y: clamp(y, T + r, G.H - T - r) };
 }
 // Ray from (x,y) along unit (dx,dy) to the arena edge (inset by r).
 function rayToEdge(x, y, dx, dy, r) {
-  if (G.circle) {
-    const c = G.circle, R = c.R - r, ox = x - c.x, oy = y - c.y;
-    const bq = ox * dx + oy * dy, cq = ox * ox + oy * oy - R * R;
-    const disc = bq * bq - cq;
-    const t = disc > 0 ? -bq + Math.sqrt(disc) : 0;
-    return { x: x + dx * Math.max(0, t), y: y + dy * Math.max(0, t) };
-  }
+  if (G.circle) { const t = hallRayT(x, y, dx, dy, r); return { x: x + dx * t, y: y + dy * t }; }
   let t = 0;
   while (t < 2000 && spotFree(x + dx * (t + 6), y + dy * (t + 6), r)) t += 6;
   return { x: x + dx * t, y: y + dy * t };

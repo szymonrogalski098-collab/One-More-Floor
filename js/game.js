@@ -133,7 +133,7 @@ function enterFloor(n, type, restore, layout) {
 function buildFloorGeometry(type, floor) {
   const next = nextDoorTypes(floor + 1);
   if (type === 'boss' && BOSSES[bossKindFor(floor)].side) { buildSideElevator(); placeSideDoors(next); return; }
-  if (type === 'boss') { buildBossHall(); placeStairs(next); return; }
+  if (type === 'boss') { buildBossHall(bossKindFor(floor)); placeStairs(next); return; }
   if (isCalm(type)) { buildSingleRoom(); placeStairs(next); return; }
   for (let i = 0; i < 30; i++) {
     buildDungeon(floor, type);
@@ -181,7 +181,7 @@ function pendingShards() { let n = 0; for (const k of G.pickups) if (k.type === 
 // Floor geometry as plain data (used by saves and by the stair previews of the next floor).
 function serializeLayout() {
   if (G.side) return { side: true, stairs: G.stairs.map((st) => ({ ...st })), spawn: G.spawn };
-  if (G.circle) return { circle: true, R: G.circle.R, stairs: G.stairs.map((st) => ({ ...st })), spawn: G.spawn };
+  if (G.circle) return { circle: true, R: G.circle.R, kind: G.circle.kind, stairs: G.stairs.map((st) => ({ ...st })), spawn: G.spawn };
   const g = G.grid, solid = g.solid.slice();
   for (const rm of G.rooms) for (const gt of rm.gates) for (const i of gt.tiles) solid[i] = 0; // gates saved open
   const active = G.room && G.room.active;
@@ -209,7 +209,7 @@ function serializeFloor() {
 
 function restoreFloor(fs) {
   if (fs.side) { buildSideElevator(); G.stairs = fs.stairs.map((st) => ({ ...st })); if (fs.safe) G.spawn.x = fs.safe.x; return; }
-  if (fs.circle) { buildBossHall(); G.stairs = fs.stairs.map((st) => ({ ...st })); if (fs.safe) G.spawn = { x: fs.safe.x, y: fs.safe.y }; return; }
+  if (fs.circle) { buildBossHall(fs.kind); G.stairs = fs.stairs.map((st) => ({ ...st })); if (fs.safe) G.spawn = { x: fs.safe.x, y: fs.safe.y }; return; }
   makeGrid(fs.cols, fs.rows);
   for (let i = 0; i < fs.solid.length; i++) G.grid.solid[i] = fs.solid.charCodeAt(i) === 49 ? 1 : 0;
   G.gridVer = 1;

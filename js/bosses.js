@@ -13,7 +13,7 @@ function spawnBoss(floor) {
   const hp = def.hp * G.scale.hp * (floor === 5 ? 0.75 : 0.88) * (1 + cyc * 0.2) * (ascMod(5) ? 1.25 : 1);
   const b = {
     id: G.nextId++, t: 0, type: 'boss', kind, name: def.name + (cyc > 0 ? ' ' + roman(cyc + 1) : ''),
-    x: arenaCenter().x, y: arenaCenter().y - (G.circle ? G.circle.R : G.H / 2) + def.r + 4, r: def.r, hp, maxHp: hp, color: def.color, hard: cyc > 0 || ascMod(9), phase2: false,
+    x: arenaCenter().x, y: arenaCenter().y - (G.circle ? hallRayT(arenaCenter().x, arenaCenter().y, 0, -1, def.r + 4) : G.H / 2 - def.r - 4), r: def.r, hp, maxHp: hp, color: def.color, hard: cyc > 0 || ascMod(9), phase2: false,
     enter: 1.6, pat: null, pt: 0, cool: 1.2, sub: '', st: 0, step: 0, last: '', spinA: 0, spinDir: 1,
     alpha: 1, air: false, untarget: true, invuln: true, charge: 0,
     vx: 0, vy: 0, kx: 0, ky: 0, flash: 0, slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, burnAcc: 0, orbitCd: 0,

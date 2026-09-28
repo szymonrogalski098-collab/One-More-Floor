@@ -271,7 +271,7 @@ function updatePlayerBullets(dt) {
       if (b.bounce > 0) {
         b.bounce--; b.hits.length = 0;
         if (G.circle) {
-          const c = G.circle, nx0 = b.x - c.x, ny0 = b.y - c.y, nl = Math.hypot(nx0, ny0) || 1, nx = nx0 / nl, ny = ny0 / nl;
+          const n = hallNormal(b.x, b.y), nx = n.x, ny = n.y;
           const dot = b.vx * nx + b.vy * ny;
           b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny;
         } else {

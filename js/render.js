@@ -124,10 +124,8 @@ const Render = {
     const grid = G.grid, cols = grid.cols, rows = grid.rows;
     const open = (tx, ty) => !solidTile(tx, ty);
     if (G.circle) {
-      const cc = G.circle;
-      g.save(); g.beginPath(); g.arc(cc.x, cc.y, cc.R, 0, TAU); g.clip();
-      g.fillStyle = z.a; g.fillRect(0, 0, G.W, G.H);
-      for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) if (((tx + ty) & 1) === 0) { g.fillStyle = z.b; g.fillRect(tx * T, ty * T, T, T); }
+      g.save(); hallPath(g); g.clip();
+      this.drawHallFloor(g, G.circle, z);
       g.restore();
     } else {
       for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) {
@@ -164,8 +162,10 @@ const Render = {
     g.strokeStyle = z.edge;
     if (G.circle) {
       const cc = G.circle;
-      g.globalAlpha = 0.75; g.lineWidth = 3; g.beginPath(); g.arc(cc.x, cc.y, cc.R, 0, TAU); g.stroke();
-      g.globalAlpha = 0.18; g.lineWidth = 10; g.beginPath(); g.arc(cc.x, cc.y, cc.R - 6, 0, TAU); g.stroke();
+      g.strokeStyle = cc.kind && BOSSES[cc.kind] ? BOSSES[cc.kind].color : z.edge; // each hall glows in its boss's colour
+      g.lineJoin = 'round';
+      g.globalAlpha = 0.8; g.lineWidth = 3; hallPath(g); g.stroke();
+      g.globalAlpha = 0.18; g.lineWidth = 10; hallPath(g, cc, 6); g.stroke();
     } else {
       g.lineWidth = 2; g.globalAlpha = 0.7;
       g.beginPath();
@@ -372,10 +372,11 @@ const Render = {
     const icon = (x, y, tp, c, sz) => { g.save(); g.translate(x, y); g.scale(sz, sz); this.drawRoomIcon(g, tp, 0, 0, c); g.restore(); };
     if (lay.side) { this.drawSidePreview(g, cw, ch, lay, z); return; }
     if (lay.circle) {
-      const R = Math.min(cw, ch) * 0.42, cx = cw / 2, cy = ch / 2 + 6;
-      g.fillStyle = z.b; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
-      g.strokeStyle = z.edge; g.lineWidth = 2; g.stroke();
-      const b = BOSSES[bossKindFor(lay.floor)];
+      const R = Math.min(cw, ch) * 0.38, cx = cw / 2, cy = ch / 2 + 6, kind = lay.kind || bossKindFor(lay.floor);
+      const mini = buildHallGeometry({ x: cx, y: cy, R }, kind);
+      g.save(); hallPath(g, mini); g.clip(); this.drawHallFloor(g, mini, z); g.restore();
+      g.strokeStyle = BOSSES[kind] ? BOSSES[kind].color : z.edge; g.lineWidth = 2; g.lineJoin = 'round'; hallPath(g, mini); g.stroke();
+      const b = BOSSES[kind];
       g.fillStyle = b.color; g.beginPath(); g.arc(cx, cy - R * 0.3, 9, 0, TAU); g.fill();
       icon(cx, cy - R * 0.3 - 18, 'boss', '#ff4f6b', 0.9);
       g.fillStyle = '#4df3ff'; g.beginPath(); g.arc(cx, cy + R - 10, 4, 0, TAU); g.fill();
@@ -430,12 +431,94 @@ const Render = {
     ctx.globalAlpha = 1;
   },
 
+  // Floor art of a boss hall (clipped to the hall by the caller). c = hall geometry, z = zone colours.
+  drawHallFloor(g, c, z) {
+    const kind = c.kind, R = c.R, x0 = c.x - R * 1.3, y0 = c.y - R * 1.3, S = R * 2.6, s = R / 250;
+    const rnd = (() => { let v = 1234567; return () => ((v = (v * 16807) % 2147483647) / 2147483647); })(); // same art every time
+    const base = { eclipse: ['#07071a', '#0a0a22'], architect: ['#0b1730', '#0d1b36'], forge: ['#1c0e08', '#22110a'], serpent: ['#0d1a10', '#102013'], chronos: ['#1a1608', '#1f1a0b'], mirror: ['#0c1a1c', '#0f2023'], loom: ['#170d24', '#1c102c'], orrery: ['#0b1024', '#0e142c'], warden: ['#1a140c', '#20180e'] }[kind] || [z.a, z.b];
+    g.fillStyle = base[0]; g.fillRect(x0, y0, S, S);
+    const col = BOSSES[kind] ? BOSSES[kind].color : z.edge;
+    g.lineWidth = 1.2 * s;
+    if (kind === 'warden') { // stone bricks
+      g.strokeStyle = 'rgba(0,0,0,0.45)'; const bh = 22 * s, bw = 44 * s;
+      for (let y = y0, row = 0; y < y0 + S; y += bh, row++) {
+        g.fillStyle = row % 2 ? base[1] : base[0]; g.fillRect(x0, y, S, bh);
+        g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + S, y);
+        for (let x = x0 + (row % 2) * bw / 2; x < x0 + S; x += bw) { g.moveTo(x, y); g.lineTo(x, y + bh); }
+        g.stroke();
+      }
+      g.globalAlpha = 0.25; g.strokeStyle = col; g.lineWidth = 2 * s; hallPath(g, c, 34 * s); g.stroke(); g.globalAlpha = 1;
+    } else if (kind === 'loom') { // woven threads
+      g.globalAlpha = 0.16;
+      for (let k = -S; k < S; k += 18 * s) {
+        g.strokeStyle = (k / (18 * s)) % 2 ? col : '#4df3ff';
+        g.beginPath(); g.moveTo(x0 + k, y0); g.lineTo(x0 + k + S, y0 + S); g.stroke();
+        g.beginPath(); g.moveTo(x0 + k + S, y0); g.lineTo(x0 + k, y0 + S); g.stroke();
+      }
+      g.globalAlpha = 1;
+    } else if (kind === 'mirror') { // crystal facets
+      g.globalAlpha = 0.14; g.strokeStyle = col; const st = 46 * s;
+      for (let a = 0; a < 3; a++) {
+        const ang = (a * Math.PI) / 3, dx = Math.cos(ang), dy = Math.sin(ang);
+        for (let k = -S; k < S; k += st) { g.beginPath(); g.moveTo(c.x - dy * k - dx * S, c.y + dx * k - dy * S); g.lineTo(c.x - dy * k + dx * S, c.y + dx * k + dy * S); g.stroke(); }
+      }
+      g.globalAlpha = 0.08; g.fillStyle = '#ffffff';
+      for (let i = 0; i < 14; i++) { const x = c.x + (rnd() - 0.5) * R * 1.8, y = c.y + (rnd() - 0.5) * R * 1.8, r = (10 + rnd() * 18) * s; g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r * 0.6, y + r * 0.5); g.lineTo(x - r * 0.6, y + r * 0.5); g.closePath(); g.fill(); }
+      g.globalAlpha = 1;
+    } else if (kind === 'orrery') { // orbit rings and stars
+      g.strokeStyle = col;
+      for (let r = 45 * s, i = 0; r < R; r += 42 * s, i++) { g.globalAlpha = 0.12 + (i % 2) * 0.06; g.setLineDash([6 * s, 8 * s]); g.beginPath(); g.arc(c.x, c.y, r, 0, TAU); g.stroke(); }
+      g.setLineDash([]); g.fillStyle = '#ffffff';
+      for (let i = 0; i < 70; i++) { g.globalAlpha = 0.15 + rnd() * 0.35; g.fillRect(c.x + (rnd() - 0.5) * R * 2, c.y + (rnd() - 0.5) * R * 2, 1.6 * s, 1.6 * s); }
+      g.globalAlpha = 1;
+    } else if (kind === 'forge') { // cracked floor glowing with heat
+      g.fillStyle = base[1];
+      for (let i = 0; i < 26; i++) { g.globalAlpha = 0.6; g.fillRect(c.x + (rnd() - 0.5) * R * 2, c.y + (rnd() - 0.5) * R * 2, (20 + rnd() * 40) * s, (14 + rnd() * 26) * s); }
+      g.strokeStyle = '#ff7a3d'; g.lineWidth = 2 * s; g.shadowColor = '#ff7a3d'; g.shadowBlur = 8 * s;
+      for (let i = 0; i < 12; i++) {
+        let x = c.x + (rnd() - 0.5) * R * 1.6, y = c.y + (rnd() - 0.5) * R * 1.6;
+        g.globalAlpha = 0.35 + rnd() * 0.3; g.beginPath(); g.moveTo(x, y);
+        for (let n = 0; n < 5; n++) { x += (rnd() - 0.5) * 50 * s; y += (rnd() - 0.5) * 50 * s; g.lineTo(x, y); }
+        g.stroke();
+      }
+      g.shadowBlur = 0; g.globalAlpha = 1;
+    } else if (kind === 'eclipse') { // night sky
+      for (let i = 0; i < 120; i++) { g.globalAlpha = 0.1 + rnd() * 0.5; g.fillStyle = rnd() < 0.2 ? col : '#ffffff'; const r = (0.6 + rnd() * 1.4) * s; g.beginPath(); g.arc(c.x + (rnd() - 0.5) * R * 2, c.y + (rnd() - 0.5) * R * 2, r, 0, TAU); g.fill(); }
+      g.globalAlpha = 0.08; g.fillStyle = col; g.beginPath(); g.arc(c.x, c.y, R * 0.35, 0, TAU); g.fill();
+      g.globalAlpha = 1;
+    } else if (kind === 'serpent') { // scales
+      g.strokeStyle = col; g.globalAlpha = 0.14; const w = 26 * s;
+      for (let y = y0, row = 0; y < y0 + S; y += w * 0.5, row++) for (let x = x0 + (row % 2) * w / 2; x < x0 + S; x += w) { g.beginPath(); g.arc(x, y, w / 2, 0, Math.PI); g.stroke(); }
+      g.globalAlpha = 1;
+    } else if (kind === 'chronos') { // clock face
+      g.strokeStyle = col;
+      for (let k = 0; k < 60; k++) {
+        const a = (k * TAU) / 60, big = k % 5 === 0, r1 = R * (big ? 0.78 : 0.84), r2 = R * 0.9;
+        g.globalAlpha = big ? 0.45 : 0.2; g.lineWidth = (big ? 6 : 2) * s;
+        g.beginPath(); g.moveTo(c.x + Math.cos(a) * r1, c.y + Math.sin(a) * r1); g.lineTo(c.x + Math.cos(a) * r2, c.y + Math.sin(a) * r2); g.stroke();
+      }
+      g.globalAlpha = 0.18; g.lineWidth = 2 * s; g.beginPath(); g.arc(c.x, c.y, R * 0.6, 0, TAU); g.stroke();
+      g.beginPath(); g.arc(c.x, c.y, R * 0.12, 0, TAU); g.stroke();
+      g.globalAlpha = 0.3; g.fillStyle = col; g.font = `900 ${Math.round(22 * s)}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      ['XII', 'III', 'VI', 'IX'].forEach((t, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 2; g.fillText(t, c.x + Math.cos(a) * R * 0.68, c.y + Math.sin(a) * R * 0.68); });
+      g.globalAlpha = 1;
+    } else if (kind === 'architect') { // blueprint grid
+      g.strokeStyle = '#6fa8ff';
+      for (let x = x0, i = 0; x < x0 + S; x += 20 * s, i++) { g.globalAlpha = i % 5 ? 0.1 : 0.28; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y0 + S); g.stroke(); }
+      for (let y = y0, i = 0; y < y0 + S; y += 20 * s, i++) { g.globalAlpha = i % 5 ? 0.1 : 0.28; g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + S, y); g.stroke(); }
+      g.globalAlpha = 0.3; g.strokeStyle = col; g.setLineDash([8 * s, 6 * s]); g.beginPath(); g.arc(c.x, c.y, R * 0.45, 0, TAU); g.stroke(); g.setLineDash([]);
+      g.globalAlpha = 1;
+    } else { // plain checker (fallback)
+      for (let y = y0, j = 0; y < y0 + S; y += T * s, j++) for (let x = x0, i = 0; x < x0 + S; x += T * s, i++) if (((i + j) & 1) === 0) { g.fillStyle = base[1]; g.fillRect(x, y, T * s, T * s); }
+    }
+  },
+
   // ---------- floors 35-50: boss-owned things in the world ----------
   drawBossExtras(ctx) {
     const b = G.boss, t = G.time;
     // Architect blocks and walls (kept inside the round hall)
     ctx.save();
-    if (G.circle && G.blocks.length) { ctx.beginPath(); ctx.arc(G.circle.x, G.circle.y, G.circle.R, 0, TAU); ctx.clip(); }
+    if (G.circle && G.blocks.length) { hallPath(ctx); ctx.clip(); }
     for (const o of G.blocks) {
       if (!o.solid) {
         const k = o.t / o.warn;
@@ -1301,7 +1384,7 @@ const Render = {
   drawBeams(ctx) {
     if (!G.beams.length) return;
     ctx.save();
-    if (G.circle) { ctx.beginPath(); ctx.arc(G.circle.x, G.circle.y, G.circle.R, 0, TAU); ctx.clip(); }
+    if (G.circle) { hallPath(ctx); ctx.clip(); }
     ctx.lineCap = 'round';
     for (const bm of G.beams) {
       const firing = bm.t > bm.warn && bm.fire > 0;
