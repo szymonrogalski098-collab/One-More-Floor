@@ -75,7 +75,12 @@ Rare effects get a common booster too: Conductor (Arc Coil +10% damage), Kindlin
 5. **The Orrery** (floor 25): planets orbit the boss and hurt on contact. The orbit expands and contracts, planets are flung at you and come back, and in the eclipse the planets line up and a beam fires along that line.
 6. **The Forgemaster** (floor 30): magma lobs leave lava pools, hammer shockwaves spread as rings with one gap (marked green), and the bellows pull you in while embers spiral out.
 
-From floor 35 the bosses return as **II** variants (more HP, rage phase from the start). Below 50% HP every boss except The Counterweight enters a **rage phase**.
+7. **The Eclipse** (floor 35): the hall goes dark, only a few lights remain (you, bullets, flares). It hides and cannot be hit while hidden, leaves glowing eyes that fire at you, throws flares that light the hall and burst, and runs a blackout: your light shrinks and bullets come from the dark edge.
+8. **The Serpent** (floor 40): a long body follows the head. **Only the head takes damage**; the body blocks your bullets and hurts on contact. It lunges along a marked line, spits from every segment, burrows and erupts under you (red circle) and coils around you.
+9. **Chronos** (floor 45): clock hands (two rotating lasers of different speed), rewind (your last positions become clock bombs), and time stop: every bullet freezes, then flies at where you are.
+10. **The Architect** (floor 50, the summit): raises blocks that stop all bullets (yours too), crushes with two walls sliding in from the sides (the green gap is safe), lays laser blueprints and recalls the Warden's slams.
+
+From floor 55 the bosses return as **II** variants (more HP, rage phase from the start). Below 50% HP every boss except The Counterweight enters a **rage phase**.
 
 ### Enemies
 
@@ -166,6 +171,7 @@ js/fx.js                game state, particles, shake, hitstop, slow-mo, quality
 js/world.js             arena, pillars, doors, line of sight
 js/entities.js          player, bullets, enemies, damage, pickups
 js/bosses.js            top-down bosses with attack patterns
+js/bosses2.js           floors 35-50: Eclipse, Serpent, Chronos, Architect
 js/elevator.js          The Counterweight: side-view elevator boss
 js/game.js              run & floor flow, rewards, death, records
 js/render.js            Canvas 2D renderer
@@ -202,6 +208,7 @@ npm run test:evolutions # recipes, offer rules, effects
 npm run test:shop       # shop prices/wallet/heal/reroll, altar pacts, curse effects, saves
 npm run test:training   # barrier, counted hits, respawns, immortal bosses, save untouched
 npm run test:checkpoint # unlocks, starting kit, resume mid-kit, shard rules, old-save migration
+npm run test:bosses2    # Eclipse, Serpent, Chronos, Architect: patterns, mechanics, rewards
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Orrery, Forgemaster
 npm run perf            # frame cost with 4x CPU throttling
 ```

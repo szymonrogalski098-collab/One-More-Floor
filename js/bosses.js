@@ -624,9 +624,9 @@ function onBossDeath(b) {
   G.markers.length = 0;
   G.room.queue.length = 0;
   for (const e of G.enemies) if (!e.dead && e !== b) killEnemy(e, true);
-  G.pools.length = 0; G.waves.length = 0; G.shells.length = 0;
+  G.pools.length = 0; G.waves.length = 0; G.shells.length = 0; G.blocks.length = 0; G.darkK = 1;
   const cyc = bossCycle(run.floor);
-  const total = 25 + cyc * 10 + (['elevator', 'orrery', 'forge'].includes(b.kind) ? 10 : 0);
+  const total = 25 + cyc * 10 + Math.max(0, BOSS_ORDER.indexOf(b.kind) - 2) * 5 + (b.kind === 'architect' ? 40 : 0);
   for (let k = 0; k < 10; k++) dropPickup(b.x, b.y, 'shard', Math.ceil(total / 10));
   dropPickup(b.x, b.y, 'heart', 1);
   dropPickup(b.x, b.y, 'heart', 1);

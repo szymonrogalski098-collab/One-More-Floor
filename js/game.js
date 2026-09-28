@@ -97,7 +97,7 @@ function resetArrays() {
   while (G.eb.length) ebPool.push(G.eb.pop());
   G.enemies.length = 0; G.newEnemies.length = 0; G.markers.length = 0; G.pickups.length = 0;
   G.rings.length = 0; G.texts.length = 0; G.bolts.length = 0; G.beams.length = 0; G.explosions.length = 0;
-  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
+  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.blocks.length = 0; G.darkK = 1; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
 }
 
 function enterFloor(n, type, restore, layout) {
@@ -760,6 +760,7 @@ function step(dt) {
     updateBeams(dt);
     updateShells(dt);
     updateBossHazards(dt);
+    updateBlocks(dt);
     updatePlayerBullets(dt);
     updateEnemyBullets(dt);
     processExplosions();
@@ -839,6 +840,10 @@ function checkChallenges(evt, info) {
     hit('counter', info.kind === 'elevator');
     hit('orrery', info.kind === 'orrery');
     hit('forge', info.kind === 'forge');
+    hit('eclipse', info.kind === 'eclipse');
+    hit('serpent', info.kind === 'serpent');
+    hit('chronos', info.kind === 'chronos');
+    hit('summit', info.kind === 'architect');
     hit('nohit', info.noHit);
     hit('asc3', info.kind === 'mirror' && (run.asc | 0) >= 3);
     hit('asc10', info.kind === 'mirror' && (run.asc | 0) >= 10);

@@ -217,6 +217,7 @@ const Render = {
     this.drawMarkers(ctx);
     this.drawTelegraphs(ctx);
     this.drawHazards(ctx);
+    this.drawBossExtras(ctx);
     this.drawShells(ctx);
     this.drawPickups(ctx);
     this.drawEnemies(ctx);
@@ -233,6 +234,7 @@ const Render = {
     // screen space
     ctx.setTransform(d, 0, 0, d, 0, 0);
     ctx.globalAlpha = 1;
+    this.drawDarkness(ctx);
     ctx.drawImage(this.vignette, 0, 0, this.sw, this.sh);
     this.drawOffscreen(ctx);
     const p = G.player;
@@ -426,6 +428,101 @@ const Render = {
     for (let x = x0 + ((t * 40) % 24); x < x1; x += 24) { ctx.moveTo(x, y - 5); ctx.lineTo(x + 6, y + 5); }
     ctx.stroke();
     ctx.globalAlpha = 1;
+  },
+
+  // ---------- floors 35-50: boss-owned things in the world ----------
+  drawBossExtras(ctx) {
+    const b = G.boss, t = G.time;
+    // Architect blocks and walls (kept inside the round hall)
+    ctx.save();
+    if (G.circle && G.blocks.length) { ctx.beginPath(); ctx.arc(G.circle.x, G.circle.y, G.circle.R, 0, TAU); ctx.clip(); }
+    for (const o of G.blocks) {
+      if (!o.solid) {
+        const k = o.t / o.warn;
+        ctx.globalAlpha = 0.25 + 0.35 * k; ctx.fillStyle = o.kind === 'wall' ? '#ff4f6b' : COL.architect;
+        if (o.kind === 'wall') { // the path of the wall and the safe gap
+          const c = arenaCenter(), R = G.circle ? G.circle.R : 200;
+          ctx.fillRect(o.dir > 0 ? c.x - R : o.gx + o.gap / 2, o.y, o.dir > 0 ? o.gx - o.gap / 2 - (c.x - R) : c.x + R - (o.gx + o.gap / 2), o.h);
+          ctx.globalAlpha = 0.55 + Math.sin(t * 14) * 0.2; ctx.fillStyle = '#8dff6a'; ctx.fillRect(o.gx - o.gap / 2, o.y, o.gap, o.h);
+        } else { ctx.setLineDash([4, 4]); ctx.strokeStyle = COL.architect; ctx.lineWidth = 2; ctx.strokeRect(o.x, o.y, o.w, o.h); ctx.setLineDash([]); }
+        continue;
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(o.x + 3, o.y + 5, o.w, o.h);
+      ctx.fillStyle = o.kind === 'wall' ? '#2b1030' : '#3a1a40'; ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.strokeStyle = COL.architect; ctx.lineWidth = 2; ctx.strokeRect(o.x + 1, o.y + 1, o.w - 2, o.h - 2);
+      if (o.kind === 'block' && o.t > o.warn + o.life - 1.2 && ((t * 10) | 0) % 2) { ctx.globalAlpha = 0.4; ctx.fillStyle = '#ffffff'; ctx.fillRect(o.x, o.y, o.w, o.h); }
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    if (!b || b.dead) return;
+    // Serpent body (the head is drawn with the enemies)
+    if (b.segs && !b.air) {
+      for (let i = b.segs.length - 1; i >= 0; i--) {
+        const s = b.segs[i];
+        ctx.fillStyle = i % 2 ? '#2f9e57' : COL.serpent; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(11,42,20,0.6)'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 0.45, 0, TAU); ctx.fill();
+      }
+    }
+    if (b.kind === 'serpent' && b.sub === 'mark') {
+      const k = Math.min(1, b.st / 1.0);
+      ctx.globalAlpha = 0.18 + 0.3 * k; ctx.fillStyle = '#ff4f3d'; ctx.beginPath(); ctx.arc(b.tx, b.ty, 44 * k, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ff4f3d'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(b.tx, b.ty, 44, 0, TAU); ctx.stroke();
+    }
+    // Chronos rewind marks: a ghost clock filling up
+    for (const m of b.marks || []) {
+      const k = m.t / m.fuse;
+      ctx.globalAlpha = 0.15 + 0.25 * k; ctx.fillStyle = COL.chronos; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.arc(m.x, m.y, 42, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chronos; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, 42, 0, TAU); ctx.stroke();
+    }
+    // Architect recalled slams
+    for (const s of b.slams || []) {
+      const k = s.t / s.fuse;
+      ctx.globalAlpha = 0.18 + 0.3 * k; ctx.fillStyle = '#ff4f3d'; ctx.beginPath(); ctx.arc(s.x, s.y, SLAM_R * k, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ff4f3d'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(s.x, s.y, SLAM_R, 0, TAU); ctx.stroke();
+    }
+    // Eclipse eyes and flares
+    for (const e of b.eyes || []) {
+      if (e.t < 0) continue;
+      const k = e.t / e.fire;
+      ctx.globalAlpha = 1; ctx.fillStyle = '#ff4f6b'; ctx.beginPath(); ctx.ellipse(e.x, e.y, 9, 4 + 3 * k, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#1a0008'; ctx.beginPath(); ctx.arc(e.x, e.y, 2.5, 0, TAU); ctx.fill();
+    }
+    for (const f of b.flares || []) {
+      ctx.globalCompositeOperation = 'lighter'; this.drawGlow(ctx, f.x, f.y, 30, '#ffe9a8', 0.9); ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1; ctx.fillStyle = '#fff6d8'; ctx.beginPath(); ctx.arc(f.x, f.y, 5, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  // The Eclipse: everything outside a few lights is dark.
+  drawDarkness(ctx) {
+    const b = G.boss;
+    if (!b || b.dead || b.kind !== 'eclipse' || !G.run) return;
+    if (!this.darkCv) { this.darkCv = document.createElement('canvas'); this.lightSpr = this.makeLight(); }
+    const c = this.darkCv, d = Q.dpr;
+    if (c.width !== Math.round(this.sw * d) || c.height !== Math.round(this.sh * d)) { c.width = Math.round(this.sw * d); c.height = Math.round(this.sh * d); }
+    const g = c.getContext('2d');
+    g.setTransform(d, 0, 0, d, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, this.sw, this.sh);
+    g.fillStyle = 'rgba(3,2,10,0.93)'; g.fillRect(0, 0, this.sw, this.sh);
+    g.globalCompositeOperation = 'destination-out';
+    const s = this.scale, light = (x, y, r) => { const p = this.toScreen(x, y), R = r * s; g.drawImage(this.lightSpr, p.x - R, p.y - R, R * 2, R * 2); };
+    const p = G.player;
+    if (p) light(p.x, p.y, 125 * G.darkK);
+    if (b.alpha > 0.5) light(b.x, b.y, 70);
+    for (const e of b.eyes || []) if (e.t >= 0) light(e.x, e.y, 30);
+    for (const f of b.flares || []) light(f.x, f.y, 110);
+    for (const o of G.eb) light(o.x, o.y, 16);
+    ctx.drawImage(c, 0, 0, this.sw, this.sh);
+  },
+  makeLight() {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    return c;
   },
 
   // ---------- Forgemaster lava pools & shockwaves ----------
@@ -1007,6 +1104,39 @@ const Render = {
       ctx.fillStyle = b.phase2 ? '#ff4f6b' : '#1b2c55';
       const a = Math.atan2(G.player.y - b.y, G.player.x - b.x);
       ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.2, Math.sin(a) * r * 0.2, r * 0.24, 0, TAU); ctx.fill();
+    } else if (b.kind === 'eclipse') {
+      // a dark disc with a burning corona
+      ctx.fillStyle = '#e9ecff'; ctx.beginPath(); ctx.arc(0, 0, r * 1.08, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#05040c'; ctx.beginPath(); ctx.arc(r * 0.12, -r * 0.08, r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = fill; ctx.lineWidth = 2;
+      for (let k = 0; k < 8; k++) { const a = (k * TAU) / 8 + b.t * 0.7; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 1.15, Math.sin(a) * r * 1.15); ctx.lineTo(Math.cos(a) * r * 1.45, Math.sin(a) * r * 1.45); ctx.stroke(); }
+      const a = Math.atan2(G.player.y - b.y, G.player.x - b.x);
+      ctx.fillStyle = b.phase2 ? '#ff4f6b' : '#dfe4ff'; ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.35, Math.sin(a) * r * 0.35, r * 0.18, 0, TAU); ctx.fill();
+    } else if (b.kind === 'serpent') {
+      const a = Math.atan2(b.vy || 0.01, b.vx || 0.01);
+      ctx.rotate(a);
+      ctx.fillStyle = fill; ctx.beginPath(); ctx.ellipse(0, 0, r * 1.25, r, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0b2a14'; ctx.beginPath(); ctx.arc(r * 0.45, -r * 0.45, r * 0.22, 0, TAU); ctx.arc(r * 0.45, r * 0.45, r * 0.22, 0, TAU); ctx.fill();
+      ctx.fillStyle = b.phase2 ? '#ff4f6b' : '#eaffef'; ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.45, r * 0.1, 0, TAU); ctx.arc(r * 0.5, r * 0.45, r * 0.1, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#ff4f8b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(r * 1.2, 0); ctx.lineTo(r * 1.6, -3); ctx.moveTo(r * 1.2, 0); ctx.lineTo(r * 1.6, 3); ctx.stroke();
+    } else if (b.kind === 'chronos') {
+      // clock face with two hands
+      ctx.fillStyle = '#2a2208'; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = fill; ctx.lineWidth = 3; ctx.stroke();
+      ctx.lineWidth = 2;
+      for (let k = 0; k < 12; k++) { const a = (k * TAU) / 12; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.78, Math.sin(a) * r * 0.78); ctx.lineTo(Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92); ctx.stroke(); }
+      ctx.lineCap = 'round'; ctx.strokeStyle = b.phase2 ? '#ff4f6b' : '#fff4c8';
+      ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(b.t * 2) * r * 0.75, Math.sin(b.t * 2) * r * 0.75); ctx.stroke();
+      ctx.lineWidth = 4.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(b.t * 0.3) * r * 0.5, Math.sin(b.t * 0.3) * r * 0.5); ctx.stroke();
+      ctx.lineCap = 'butt';
+    } else if (b.kind === 'architect') {
+      // rotating nested squares
+      ctx.save(); ctx.rotate(b.t * 0.5);
+      ctx.fillStyle = fill; ctx.fillRect(-r, -r, r * 2, r * 2);
+      ctx.rotate(-b.t * 1.2 + Math.PI / 4); ctx.fillStyle = '#1a0a1c'; ctx.fillRect(-r * 0.68, -r * 0.68, r * 1.36, r * 1.36);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.strokeRect(-r * 0.68, -r * 0.68, r * 1.36, r * 1.36);
+      ctx.restore();
+      ctx.fillStyle = b.phase2 ? '#ff4f6b' : '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, r * 0.22 + Math.sin(b.t * 5) * 1.5, 0, TAU); ctx.fill();
     } else if (b.kind === 'forge') {
       // anvil body with a glowing furnace mouth
       ctx.fillStyle = fill;

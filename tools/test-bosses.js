@@ -12,8 +12,8 @@ const { chromium, devices } = require('playwright');
       const G = OMF.G, S = OMF.Save.data, I = OMF.Input, vec0 = I.vector;
       const run = (secs, hook) => { for (let i = 0; i < secs * 60; i++) { OMF.step(1 / 60); if (hook && hook() === false) break; } };
       S.challenges = {};
-      check('boss order: 5 warden … 20 elevator, 25 orrery, 30 forge, 35 warden II',
-        bossKindFor(5) === 'warden' && bossKindFor(20) === 'elevator' && bossKindFor(25) === 'orrery' && bossKindFor(30) === 'forge' && bossKindFor(35) === 'warden' && bossCycle(35) === 1 && bossCycle(30) === 0);
+      check('boss order: 5 warden … 20 elevator, 25 orrery, 30 forge, 55 warden II',
+        bossKindFor(5) === 'warden' && bossKindFor(20) === 'elevator' && bossKindFor(25) === 'orrery' && bossKindFor(30) === 'forge' && bossKindFor(55) === 'warden' && bossCycle(55) === 1 && bossCycle(30) === 0);
 
       // ---------- Counterweight ----------
       OMF.startGame(false); OMF.enterFloor(20, 'boss');

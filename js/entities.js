@@ -285,6 +285,8 @@ function updatePlayerBullets(dt) {
     }
     if (gone) { sparks(b.x, b.y, Math.atan2(-b.vy, -b.vx), 1.4, b.crit ? COL.pCrit : COL.pBullet, 2, 90, 0.15); killPB(i); continue; }
 
+    if (serpentBlocks(b)) { killPB(i); continue; } // the Serpent's body is armour
+
     // destructible enemy projectiles (Loom orbs)
     let consumed = false;
     for (let j = G.eb.length - 1; j >= 0; j--) {
@@ -690,7 +692,11 @@ const AI = {
     const p = G.player;
     const d = Math.sqrt(dist2(e.x, e.y, p.x, p.y));
     const tg = chaseTarget(e, dt);
-    if (d < 180) steer(e, e.x - (p.x - e.x), e.y - (p.y - e.y), e.speed * sm, dt, 3);
+    // it keeps its distance, but never hides behind cover for long (no stalled rooms)
+    e.losT = (e.losT || 0) - dt;
+    if (e.losT <= 0) { e.losT = 0.3; e.blind = hasLOS(e.x, e.y, p.x, p.y) ? 0 : (e.blind || 0) + 0.3; }
+    if (e.blind > 2) steer(e, tg.x, tg.y, e.speed * 1.4 * sm, dt, 3);
+    else if (d < 180) steer(e, e.x - (p.x - e.x), e.y - (p.y - e.y), e.speed * sm, dt, 3);
     else if (d > 300 || e.wpOk === false) steer(e, tg.x, tg.y, e.speed * sm, dt, 3);
     else brake(e, dt, 3);
     e.atk -= dt * G.scale.fire;

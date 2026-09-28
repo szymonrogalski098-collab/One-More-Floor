@@ -9,7 +9,7 @@ const G = {
   enemies: [], newEnemies: [], pb: [], eb: [], markers: [], pickups: [],
   parts: [], rings: [], texts: [], bolts: [], beams: [], explosions: [],
   pillars: [], doors: [], shrine: null, boss: null,
-  shells: [], pools: [], waves: [], side: null, grid: null, gridVer: 1, fields: new Map(), circle: null, rooms: [], halls: [], exitRoom: null, spawn: null,
+  shells: [], pools: [], waves: [], blocks: [], darkK: 1, side: null, grid: null, gridVer: 1, fields: new Map(), circle: null, rooms: [], halls: [], exitRoom: null, spawn: null,
   trauma: 0, hitstop: 0, slowT: 0, slowScale: 1,
   flash: 0, fade: 0, fadeDir: 0, transCb: null,
   nextId: 1,

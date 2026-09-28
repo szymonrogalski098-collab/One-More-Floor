@@ -31,7 +31,7 @@ function solidAt(x, y) {
   if (G.circle) {
     const c = G.circle;
     if (dist2(x, y, c.x, c.y) > c.R * c.R) return true;
-    return false;
+    return G.blocks.length > 0 && blockAt(x, y); // Architect blocks
   }
   return solidTile(Math.floor(x / T), Math.floor(y / T));
 }
@@ -57,6 +57,7 @@ function collideWorld(o, r) {
       return 0; // inside the nook
     }
     if (d > lim && d > 0) { o.x = c.x + (dx / d) * lim; o.y = c.y + (dy / d) * lim; hit = 1; }
+    for (const b of G.blocks) if (b.solid && pushOutRect(o, r, b)) hit = 1;
     return hit;
   }
   let hit = 0;
