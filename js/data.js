@@ -18,11 +18,11 @@ const COL = {
   loom: '#c77dff',
   mirror: '#5cf2c4',
   counter: '#ff6fa8',
-  orrery: '#7fb8ff',
+  polarity: '#c9b8ff',
   forge: '#ff7a3d',
-  eclipse: '#b8c2ff',
-  serpent: '#6dff9e',
-  chronos: '#ffe08a',
+  keys: '#e6c36a',
+  collapse: '#c9955a',
+  puppeteer: '#ff5c8a',
   architect: '#ff6fd8',
 };
 
@@ -210,15 +210,15 @@ const BOSSES = {
   loom:   { name: 'THE LOOM',     sub: 'The beams rotate. Run with them.', hp: 1250, r: 24, color: COL.loom },
   mirror: { name: 'THE MIRROR',   sub: 'Only the real one has a solid core.', hp: 1150, r: 24, color: COL.mirror },
   elevator: { name: 'THE COUNTERWEIGHT', sub: 'It cannot be hurt. Survive the ride — dashing will not save you.', hp: 1, r: 30, color: COL.counter, side: true },
-  orrery: { name: 'THE ORRERY',   sub: 'Watch the orbits. When the planets align, get off the line.', hp: 1300, r: 24, color: COL.orrery },
+  polarity: { name: 'THE POLARITY', sub: 'Your dash now swaps colour. Absorb your colour, avoid the other.', hp: 1300, r: 26, color: COL.polarity, special: true },
   forge:  { name: 'THE FORGEMASTER', sub: 'Mind the lava. Every shockwave has a gap.', hp: 1400, r: 27, color: COL.forge },
-  eclipse:   { name: 'THE ECLIPSE',   sub: 'It hides in the dark. Watch for the eyes.', hp: 1400, r: 24, color: COL.eclipse },
-  serpent:   { name: 'THE SERPENT',   sub: 'Only the head can be hurt. The body blocks your shots.', hp: 1500, r: 18, color: COL.serpent },
-  chronos:   { name: 'CHRONOS',       sub: 'Your past catches up. Keep moving.', hp: 1500, r: 25, color: COL.chronos },
+  keys:      { name: 'THE WARDEN OF KEYS', sub: 'Light the four seals. It hears every dash.', hp: 400, r: 13, color: COL.keys, special: true },
+  collapse:  { name: 'THE COLLAPSE',  sub: 'The bridge will not wait. Keep moving.', hp: 1100, r: 34, color: COL.collapse, special: true },
+  puppeteer: { name: 'THE PUPPETEER', sub: 'Pull far away to snap the strings.', hp: 1600, r: 24, color: COL.puppeteer },
   architect: { name: 'THE ARCHITECT', sub: 'The summit. It builds the arena against you.', hp: 2200, r: 28, color: COL.architect },
 };
 // boss floors 5..30, then the cycle repeats as II, III … variants
-const BOSS_ORDER = ['warden', 'loom', 'mirror', 'elevator', 'orrery', 'forge', 'eclipse', 'serpent', 'chronos', 'architect'];
+const BOSS_ORDER = ['warden', 'loom', 'mirror', 'elevator', 'polarity', 'forge', 'keys', 'collapse', 'puppeteer', 'architect'];
 function bossKindFor(floor) { return BOSS_ORDER[(Math.floor(floor / 5) - 1) % BOSS_ORDER.length]; }
 function bossCycle(floor) { return Math.floor((Math.floor(floor / 5) - 1) / BOSS_ORDER.length); }
 
@@ -294,11 +294,11 @@ const CHALLENGES = [
   { id: 'loom',    name: 'Loom Breaker',    desc: 'Defeat The Loom.',                       reward: { ship: 'lancer' } },
   { id: 'mirror',  name: 'Shattered',       desc: 'Defeat The Mirror (unlocks Ascension).', reward: { shards: 150 } },
   { id: 'counter', name: 'Going Up',        desc: 'Survive The Counterweight.',             reward: { shards: 150 } },
-  { id: 'orrery',  name: 'Stargazer',       desc: 'Defeat The Orrery.',                     reward: { shards: 180 } },
+  { id: 'polarity', name: 'Opposites Attract', desc: 'Defeat The Polarity.',                reward: { shards: 180 } },
   { id: 'forge',   name: 'Quenched',        desc: 'Defeat The Forgemaster.',                reward: { shards: 220 } },
-  { id: 'eclipse', name: 'Night Owl',       desc: 'Defeat The Eclipse.',                    reward: { shards: 250 } },
-  { id: 'serpent', name: 'Snake Charmer',   desc: 'Defeat The Serpent.',                    reward: { shards: 280 } },
-  { id: 'chronos', name: 'Timekeeper',      desc: 'Defeat Chronos.',                        reward: { shards: 320 } },
+  { id: 'keys',     name: 'Escape Artist',  desc: 'Bury The Warden of Keys.',              reward: { shards: 250 } },
+  { id: 'collapse', name: 'Bridge Burner',  desc: 'Defeat The Collapse.',                  reward: { shards: 280 } },
+  { id: 'puppeteer',name: 'Cut the Strings', desc: 'Defeat The Puppeteer.',                reward: { shards: 320 } },
   { id: 'summit',  name: 'The Summit',      desc: 'Defeat The Architect on floor 50.',      reward: { shards: 800 } },
   { id: 'flawless', name: 'Flawless Ascent', desc: 'Reach the boss on floor 25 without taking a single hit (full run from floor 1).', reward: { shards: 500 } },
   { id: 'ironwill', name: 'Iron Will',       desc: 'Lose 30 HP in one run and still reach floor 40.', reward: { shards: 400 } },

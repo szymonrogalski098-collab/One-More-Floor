@@ -58,8 +58,9 @@ const Render = {
   camTarget() {
     const p = G.player, R = G.room;
     let tx = p ? p.x : G.W / 2, ty = p ? p.y : G.H / 2;
-    if (R && R.active && R.active.w <= this.VW && R.active.h <= this.VH) { tx = R.active.x + R.active.w / 2; ty = R.active.y + R.active.h / 2; }
-    else if (G.boss && !G.boss.dead) { tx += (G.boss.x - tx) * 0.3; ty += (G.boss.y - ty) * 0.3; }
+    if (G.bridge && (G.bridge.phase === 'run' || G.bridge.phase === 'final')) { tx = G.W / 2; ty = G.bridge.camY; } // the bridge scrolls on its own
+    else if (R && R.active && R.active.w <= this.VW && R.active.h <= this.VH) { tx = R.active.x + R.active.w / 2; ty = R.active.y + R.active.h / 2; }
+    else if (G.boss && !G.boss.dead && G.circle) { tx += (G.boss.x - tx) * 0.3; ty += (G.boss.y - ty) * 0.3; }
     const cx = G.W <= this.VW ? G.W / 2 : clamp(tx, this.VW / 2, G.W - this.VW / 2);
     const cy = G.H <= this.VH ? G.H / 2 : clamp(ty, this.VH / 2, G.H - this.VH / 2);
     return { x: cx, y: cy };
@@ -121,6 +122,7 @@ const Render = {
     g.setTransform(k, 0, 0, k, 0, 0);
     g.fillStyle = '#07060f'; g.fillRect(0, 0, G.W, G.H);
     if (G.side) { this.buildSideBg(g, z); return; }
+    if (G.bridge) { this.buildBridgeBg(g, z); return; }
     const grid = G.grid, cols = grid.cols, rows = grid.rows;
     const open = (tx, ty) => !solidTile(tx, ty);
     if (G.circle) {
@@ -221,12 +223,12 @@ const Render = {
     this.drawShells(ctx);
     this.drawPickups(ctx);
     this.drawEnemies(ctx);
-    this.drawPlanets(ctx);
     this.drawPlayer(ctx);
     this.drawGuide(ctx);
     this.drawPlayerBullets(ctx);
     this.drawEnemyBullets(ctx);
     this.drawBeams(ctx);
+    this.drawCurtain(ctx);
     this.drawParticles(ctx);
     this.drawTexts(ctx);
     }
@@ -435,7 +437,7 @@ const Render = {
   drawHallFloor(g, c, z) {
     const kind = c.kind, R = c.R, x0 = c.x - R * 1.3, y0 = c.y - R * 1.3, S = R * 2.6, s = R / 250;
     const rnd = (() => { let v = 1234567; return () => ((v = (v * 16807) % 2147483647) / 2147483647); })(); // same art every time
-    const base = { eclipse: ['#07071a', '#0a0a22'], architect: ['#0b1730', '#0d1b36'], forge: ['#1c0e08', '#22110a'], serpent: ['#0d1a10', '#102013'], chronos: ['#1a1608', '#1f1a0b'], mirror: ['#0c1a1c', '#0f2023'], loom: ['#170d24', '#1c102c'], orrery: ['#0b1024', '#0e142c'], warden: ['#1a140c', '#20180e'] }[kind] || [z.a, z.b];
+    const base = { polarity: ['#0c0c1c', '#10101f'], puppeteer: ['#1e0f0c', '#24130f'], architect: ['#0b1730', '#0d1b36'], forge: ['#1c0e08', '#22110a'], serpent: ['#0d1a10', '#102013'], chronos: ['#1a1608', '#1f1a0b'], mirror: ['#0c1a1c', '#0f2023'], loom: ['#170d24', '#1c102c'], orrery: ['#0b1024', '#0e142c'], warden: ['#1a140c', '#20180e'] }[kind] || [z.a, z.b];
     g.fillStyle = base[0]; g.fillRect(x0, y0, S, S);
     const col = BOSSES[kind] ? BOSSES[kind].color : z.edge;
     g.lineWidth = 1.2 * s;
@@ -465,11 +467,12 @@ const Render = {
       g.globalAlpha = 0.08; g.fillStyle = '#ffffff';
       for (let i = 0; i < 14; i++) { const x = c.x + (rnd() - 0.5) * R * 1.8, y = c.y + (rnd() - 0.5) * R * 1.8, r = (10 + rnd() * 18) * s; g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r * 0.6, y + r * 0.5); g.lineTo(x - r * 0.6, y + r * 0.5); g.closePath(); g.fill(); }
       g.globalAlpha = 1;
-    } else if (kind === 'orrery') { // orbit rings and stars
-      g.strokeStyle = col;
-      for (let r = 45 * s, i = 0; r < R; r += 42 * s, i++) { g.globalAlpha = 0.12 + (i % 2) * 0.06; g.setLineDash([6 * s, 8 * s]); g.beginPath(); g.arc(c.x, c.y, r, 0, TAU); g.stroke(); }
-      g.setLineDash([]); g.fillStyle = '#ffffff';
-      for (let i = 0; i < 70; i++) { g.globalAlpha = 0.15 + rnd() * 0.35; g.fillRect(c.x + (rnd() - 0.5) * R * 2, c.y + (rnd() - 0.5) * R * 2, 1.6 * s, 1.6 * s); }
+    } else if (kind === 'polarity') { // split floor: blue half, red half, pulsing seam
+      g.globalAlpha = 0.22; g.fillStyle = '#4d8cff'; g.fillRect(x0, y0, S / 2, S);
+      g.fillStyle = '#ff4f6b'; g.fillRect(x0 + S / 2, y0, S / 2, S);
+      g.globalAlpha = 0.18; g.strokeStyle = '#ffffff';
+      for (let r = 40 * s; r < R; r += 40 * s) { g.beginPath(); g.arc(c.x, c.y, r, 0, TAU); g.stroke(); }
+      g.globalAlpha = 0.5; g.lineWidth = 3 * s; g.beginPath(); g.moveTo(c.x, y0); g.lineTo(c.x, y0 + S); g.stroke();
       g.globalAlpha = 1;
     } else if (kind === 'forge') { // cracked floor glowing with heat
       g.fillStyle = base[1];
@@ -482,25 +485,14 @@ const Render = {
         g.stroke();
       }
       g.shadowBlur = 0; g.globalAlpha = 1;
-    } else if (kind === 'eclipse') { // night sky
-      for (let i = 0; i < 120; i++) { g.globalAlpha = 0.1 + rnd() * 0.5; g.fillStyle = rnd() < 0.2 ? col : '#ffffff'; const r = (0.6 + rnd() * 1.4) * s; g.beginPath(); g.arc(c.x + (rnd() - 0.5) * R * 2, c.y + (rnd() - 0.5) * R * 2, r, 0, TAU); g.fill(); }
-      g.globalAlpha = 0.08; g.fillStyle = col; g.beginPath(); g.arc(c.x, c.y, R * 0.35, 0, TAU); g.fill();
-      g.globalAlpha = 1;
-    } else if (kind === 'serpent') { // scales
-      g.strokeStyle = col; g.globalAlpha = 0.14; const w = 26 * s;
-      for (let y = y0, row = 0; y < y0 + S; y += w * 0.5, row++) for (let x = x0 + (row % 2) * w / 2; x < x0 + S; x += w) { g.beginPath(); g.arc(x, y, w / 2, 0, Math.PI); g.stroke(); }
-      g.globalAlpha = 1;
-    } else if (kind === 'chronos') { // clock face
-      g.strokeStyle = col;
-      for (let k = 0; k < 60; k++) {
-        const a = (k * TAU) / 60, big = k % 5 === 0, r1 = R * (big ? 0.78 : 0.84), r2 = R * 0.9;
-        g.globalAlpha = big ? 0.45 : 0.2; g.lineWidth = (big ? 6 : 2) * s;
-        g.beginPath(); g.moveTo(c.x + Math.cos(a) * r1, c.y + Math.sin(a) * r1); g.lineTo(c.x + Math.cos(a) * r2, c.y + Math.sin(a) * r2); g.stroke();
-      }
-      g.globalAlpha = 0.18; g.lineWidth = 2 * s; g.beginPath(); g.arc(c.x, c.y, R * 0.6, 0, TAU); g.stroke();
-      g.beginPath(); g.arc(c.x, c.y, R * 0.12, 0, TAU); g.stroke();
-      g.globalAlpha = 0.3; g.fillStyle = col; g.font = `900 ${Math.round(22 * s)}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      ['XII', 'III', 'VI', 'IX'].forEach((t, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 2; g.fillText(t, c.x + Math.cos(a) * R * 0.68, c.y + Math.sin(a) * R * 0.68); });
+    } else if (kind === 'puppeteer') { // theatre stage: planks, footlights, curtain fringe
+      g.strokeStyle = 'rgba(0,0,0,0.5)'; const pw = 28 * s;
+      for (let x = x0, i = 0; x < x0 + S; x += pw, i++) { g.fillStyle = i % 2 ? '#2a1712' : '#301a14'; g.fillRect(x, y0, pw, S); g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y0 + S); g.stroke(); }
+      g.fillStyle = '#7a1030'; const top = c.y - hallRayT(c.x, c.y, 0, -1, 0);
+      for (let x = x0; x < x0 + S; x += 22 * s) { g.beginPath(); g.moveTo(x, top); g.lineTo(x + 11 * s, top + 26 * s); g.lineTo(x + 22 * s, top); g.fill(); }
+      g.fillStyle = '#ffd48a';
+      const bot = c.y + hallRayT(c.x, c.y, 0, 1, 0);
+      for (let x = c.x - R; x < c.x + R; x += 40 * s) { g.globalAlpha = 0.35; g.beginPath(); g.arc(x, bot - 8 * s, 4 * s, 0, TAU); g.fill(); }
       g.globalAlpha = 1;
     } else if (kind === 'architect') { // blueprint grid
       g.strokeStyle = '#6fa8ff';
@@ -539,49 +531,137 @@ const Render = {
     ctx.restore();
     ctx.globalAlpha = 1;
     if (!b || b.dead) return;
-    // Serpent body (the head is drawn with the enemies)
-    if (b.segs && !b.air) {
-      for (let i = b.segs.length - 1; i >= 0; i--) {
-        const s = b.segs[i];
-        ctx.fillStyle = i % 2 ? '#2f9e57' : COL.serpent; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
-        ctx.fillStyle = 'rgba(11,42,20,0.6)'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 0.45, 0, TAU); ctx.fill();
-      }
-    }
-    if (b.kind === 'serpent' && b.sub === 'mark') {
-      const k = Math.min(1, b.st / 1.0);
-      ctx.globalAlpha = 0.18 + 0.3 * k; ctx.fillStyle = '#ff4f3d'; ctx.beginPath(); ctx.arc(b.tx, b.ty, 44 * k, 0, TAU); ctx.fill();
-      ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ff4f3d'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(b.tx, b.ty, 44, 0, TAU); ctx.stroke();
-    }
-    // Chronos rewind marks: a ghost clock filling up
-    for (const m of b.marks || []) {
-      const k = m.t / m.fuse;
-      ctx.globalAlpha = 0.15 + 0.25 * k; ctx.fillStyle = COL.chronos; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.arc(m.x, m.y, 42, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.closePath(); ctx.fill();
-      ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chronos; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, 42, 0, TAU); ctx.stroke();
-    }
+    this.drawSpecials(ctx, b);
     // Architect recalled slams
     for (const s of b.slams || []) {
       const k = s.t / s.fuse;
       ctx.globalAlpha = 0.18 + 0.3 * k; ctx.fillStyle = '#ff4f3d'; ctx.beginPath(); ctx.arc(s.x, s.y, SLAM_R * k, 0, TAU); ctx.fill();
       ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ff4f3d'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(s.x, s.y, SLAM_R, 0, TAU); ctx.stroke();
     }
-    // Eclipse eyes and flares
-    for (const e of b.eyes || []) {
-      if (e.t < 0) continue;
-      const k = e.t / e.fire;
-      ctx.globalAlpha = 1; ctx.fillStyle = '#ff4f6b'; ctx.beginPath(); ctx.ellipse(e.x, e.y, 9, 4 + 3 * k, 0, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#1a0008'; ctx.beginPath(); ctx.arc(e.x, e.y, 2.5, 0, TAU); ctx.fill();
-    }
-    for (const f of b.flares || []) {
-      ctx.globalCompositeOperation = 'lighter'; this.drawGlow(ctx, f.x, f.y, 30, '#ffe9a8', 0.9); ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1; ctx.fillStyle = '#fff6d8'; ctx.beginPath(); ctx.arc(f.x, f.y, 5, 0, TAU); ctx.fill();
-    }
     ctx.globalAlpha = 1;
   },
 
-  // The Eclipse: everything outside a few lights is dark.
-  drawDarkness(ctx) {
+  // ---------- special-room bosses ----------
+  drawSpecials(ctx, b) {
+    const t = G.time, p = G.player;
+    // Polarity: coloured floor zones and the charged beam
+    for (const z of b.zones || []) {
+      const k = Math.min(1, z.t / z.warn);
+      if (z.t < 0) continue;
+      ctx.globalAlpha = z.done ? 0.55 : 0.15 + 0.25 * k + Math.sin(t * 16) * 0.05; ctx.fillStyle = POL_COL[z.pol];
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.r * (z.done ? 1 : k), 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.95; ctx.strokeStyle = POL_COL[z.pol]; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, TAU); ctx.stroke();
+    }
+    if (G.polBeam) {
+      const B = G.polBeam, k = 1 - B.t / 0.35;
+      ctx.globalAlpha = k; ctx.strokeStyle = B.col; ctx.lineWidth = 14 * k + 2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(B.x1, B.y1); ctx.lineTo(B.x2, B.y2); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4 * k + 1; ctx.stroke(); ctx.lineCap = 'butt';
+    }
+    // Keys: seals with a filling ring, walls about to move
+    if (G.maze) {
+      for (const s of G.maze.seals) {
+        ctx.globalAlpha = 1; ctx.fillStyle = s.lit ? COL.keys : '#2a2418'; ctx.beginPath(); ctx.arc(s.x, s.y, 14, 0, TAU); ctx.fill();
+        ctx.strokeStyle = COL.keys; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = s.lit ? '#1a1206' : COL.keys; ctx.font = '900 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✦', s.x, s.y + 1);
+        if (!s.lit && s.t > 0) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(s.x, s.y, 20, -Math.PI / 2, -Math.PI / 2 + TAU * (s.t / 2)); ctx.stroke(); }
+      }
+      const sh = G.maze.shifting;
+      if (sh && ((t * 8) | 0) % 2) {
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ff4f6b'; for (const d of sh.close) for (const [x, y] of d.tiles) ctx.fillRect(x * T + 3, y * T + 3, T - 6, T - 6);
+        ctx.fillStyle = '#8dff6a'; for (const d of sh.open) for (const [x, y] of d.tiles) ctx.fillRect(x * T + 3, y * T + 3, T - 6, T - 6);
+      }
+      if (b.kind === 'keys' && b.alertT > 0) { ctx.globalAlpha = 0.5; ctx.strokeStyle = COL.keys; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.alertX, b.alertY, 12 + (3 - b.alertT) * 20, 0, TAU); ctx.stroke(); }
+    }
+    // Collapse: the bridge plates, lane warnings and boulders
+    if (G.bridge) this.drawBridge(ctx);
+    // Puppeteer: needles, threads, puppets
+    for (const n of b.needles || []) {
+      if (n.t < 0) continue;
+      if (!n.flying) {
+        const e = rayToEdge(n.ax, n.ay, Math.cos(n.a), Math.sin(n.a), 0);
+        ctx.globalAlpha = 0.3 + 0.5 * (n.t / n.warn); ctx.strokeStyle = '#ff5c8a'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.moveTo(n.ax, n.ay); ctx.lineTo(e.x, e.y); ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        ctx.globalAlpha = 1; ctx.strokeStyle = '#ffd6e4'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(n.x - Math.cos(n.a) * 12, n.y - Math.sin(n.a) * 12); ctx.lineTo(n.x, n.y); ctx.stroke();
+        ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.moveTo(n.ax, n.ay); ctx.lineTo(n.x, n.y); ctx.stroke();
+      }
+    }
+    for (const q of b.puppets || []) {
+      if (q.x == null) continue;
+      ctx.globalAlpha = 0.55; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#ffb3c9'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-7, -8); ctx.lineTo(-3, 0); ctx.lineTo(-7, 8); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,179,201,0.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(q.x, q.y - 12); ctx.lineTo(q.x, q.y - 60); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    for (const th of G.threads || []) {
+      const d = Math.sqrt(dist2(th.px, th.py, p.x, p.y)), k = Math.min(1, d / 190);
+      ctx.strokeStyle = th.tension > 0 ? '#ffffff' : k > 0.8 ? '#ffd6e4' : '#ff5c8a'; ctx.lineWidth = 1.5 + th.tension * 3;
+      ctx.beginPath(); ctx.moveTo(th.px, th.py); ctx.quadraticCurveTo((th.px + p.x) / 2, (th.py + p.y) / 2 + 30 * (1 - k), p.x, p.y); ctx.stroke();
+      ctx.fillStyle = '#ff5c8a'; ctx.beginPath(); ctx.arc(th.px, th.py, 4, 0, TAU); ctx.fill();
+    }
+    // slowing wells (Architect)
+    for (const w of G.wells || []) {
+      const k = Math.min(1, w.t / w.warn);
+      ctx.globalAlpha = 0.18 * k + 0.05; ctx.fillStyle = '#6fa8ff'; ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.6 * k; ctx.strokeStyle = '#6fa8ff'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.arc(w.x, w.y, w.r - ((t * 20) % 12), 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1;
+  },
+  // Puppeteer's curtain: half of the stage hidden for a moment
+  drawCurtain(ctx) {
     const b = G.boss;
-    if (!b || b.dead || b.kind !== 'eclipse' || !G.run) return;
+    if (!b || b.dead || !b.curtain || !G.circle) return;
+    const c = b.curtain, R = G.circle.R, cx = G.circle.x, k = Math.min(1, c.t / 0.5, (c.dur - c.t) / 0.4);
+    const x = c.side < 0 ? cx - R * 1.2 : cx, w = R * 1.2, top = G.circle.y - R, h = R * 2 * k;
+    ctx.save(); hallPath(ctx); ctx.clip();
+    ctx.fillStyle = '#5a0c24'; ctx.fillRect(x, top, w, h);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; for (let fx = x; fx < x + w; fx += 16) ctx.fillRect(fx, top, 6, h);
+    ctx.fillStyle = '#ffcf6b'; ctx.fillRect(x, top + h - 6, w, 4);
+    ctx.restore();
+  },
+  buildBridgeBg(g, z) {
+    const B = G.bridge;
+    g.fillStyle = '#030208'; g.fillRect(0, 0, G.W, G.H);
+    for (let i = 0; i < 260; i++) { g.globalAlpha = 0.05 + Math.random() * 0.1; g.fillStyle = '#9d8cff'; g.fillRect(Math.random() * G.W, Math.random() * G.H, 2, 2); }
+    g.globalAlpha = 0.5; g.fillStyle = '#1a1410'; g.fillRect(B.bx - 10, 0, 6, G.H); g.fillRect(B.bx + B.pw * 3 + 4, 0, 6, G.H); // ropes
+    g.globalAlpha = 1;
+  },
+  drawBridge(ctx) {
+    const B = G.bridge, { VH } = viewDims(), t = G.time;
+    const top = this.cam.y - VH / 2 - 40, bot = this.cam.y + VH / 2 + 40;
+    const r0 = Math.max(0, Math.floor((top - B.y0) / B.ph)), r1 = Math.min(B.total - 1, Math.ceil((bot - B.y0) / B.ph));
+    for (let r = r0; r <= r1; r++) for (let l = 0; l < 3; l++) {
+      const q = B.plates[r][l], rc = bridgeRect(r, l);
+      if (q.s === 'gone') { ctx.fillStyle = '#020105'; ctx.fillRect(rc.x + 1, rc.y + 1, rc.w - 2, rc.h - 2); continue; }
+      const sh = q.s === 'crack' ? Math.sin(t * 60 + r + l) * q.t * 2 : 0;
+      ctx.fillStyle = q.s === 's' ? '#3a3040' : r % 2 ? '#4a3b2c' : '#54432f';
+      ctx.fillRect(rc.x + 2 + sh, rc.y + 2, rc.w - 4, rc.h - 4);
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.strokeRect(rc.x + 2.5 + sh, rc.y + 2.5, rc.w - 5, rc.h - 5);
+      if (q.s === 'crack') {
+        ctx.strokeStyle = `rgba(255,120,60,${0.4 + q.t * 0.6})`; ctx.lineWidth = 1.5; ctx.beginPath();
+        ctx.moveTo(rc.x + rc.w * 0.2, rc.y + 6); ctx.lineTo(rc.x + rc.w * 0.5, rc.y + rc.h * 0.5); ctx.lineTo(rc.x + rc.w * 0.35, rc.y + rc.h - 6);
+        ctx.moveTo(rc.x + rc.w * 0.5, rc.y + rc.h * 0.5); ctx.lineTo(rc.x + rc.w * 0.85, rc.y + rc.h * 0.3); ctx.stroke();
+      }
+    }
+    for (const w of B.lanesWarn) {
+      ctx.globalAlpha = 0.12 + 0.3 * (w.t / w.warn) + Math.sin(t * 20) * 0.05; ctx.fillStyle = '#ff4f3d';
+      ctx.fillRect(B.bx + w.lane * B.pw + 4, top, B.pw - 8, bot - top);
+    }
+    ctx.globalAlpha = 1;
+    for (const o of B.boulders) {
+      ctx.fillStyle = '#6a5a48'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#2a2016'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(o.x + Math.cos(o.a) * o.r, o.y + Math.sin(o.a) * o.r); ctx.lineTo(o.x - Math.cos(o.a) * o.r, o.y - Math.sin(o.a) * o.r); ctx.stroke();
+    }
+  },
+
+  // Darkness (the labyrinth): everything outside a few lights is black.
+  drawDarkness(ctx) {
+    const lights = G.run && typeof darknessLights === 'function' ? darknessLights() : null;
+    if (!lights) return;
     if (!this.darkCv) { this.darkCv = document.createElement('canvas'); this.lightSpr = this.makeLight(); }
     const c = this.darkCv, d = Q.dpr;
     if (c.width !== Math.round(this.sw * d) || c.height !== Math.round(this.sh * d)) { c.width = Math.round(this.sw * d); c.height = Math.round(this.sh * d); }
@@ -589,15 +669,10 @@ const Render = {
     g.setTransform(d, 0, 0, d, 0, 0);
     g.globalCompositeOperation = 'source-over';
     g.clearRect(0, 0, this.sw, this.sh);
-    g.fillStyle = 'rgba(3,2,10,0.93)'; g.fillRect(0, 0, this.sw, this.sh);
+    g.fillStyle = 'rgba(3,2,10,0.94)'; g.fillRect(0, 0, this.sw, this.sh);
     g.globalCompositeOperation = 'destination-out';
-    const s = this.scale, light = (x, y, r) => { const p = this.toScreen(x, y), R = r * s; g.drawImage(this.lightSpr, p.x - R, p.y - R, R * 2, R * 2); };
-    const p = G.player;
-    if (p) light(p.x, p.y, 125 * G.darkK);
-    if (b.alpha > 0.5) light(b.x, b.y, 70);
-    for (const e of b.eyes || []) if (e.t >= 0) light(e.x, e.y, 30);
-    for (const f of b.flares || []) light(f.x, f.y, 110);
-    for (const o of G.eb) light(o.x, o.y, 16);
+    const s = this.scale;
+    for (const [x, y, r] of lights) { const p = this.toScreen(x, y), R = r * s; g.drawImage(this.lightSpr, p.x - R, p.y - R, R * 2, R * 2); }
     ctx.drawImage(c, 0, 0, this.sw, this.sh);
   },
   makeLight() {
@@ -628,28 +703,6 @@ const Render = {
       // the gap edges glow green so the way out is easy to read
       ctx.strokeStyle = '#8dff6a'; ctx.lineWidth = 3;
       for (const s of [-1, 1]) { const a = w.gapA + (s * w.gapW) / 2; ctx.beginPath(); ctx.moveTo(w.x + Math.cos(a) * (w.r - 10), w.y + Math.sin(a) * (w.r - 10)); ctx.lineTo(w.x + Math.cos(a) * (w.r + 10), w.y + Math.sin(a) * (w.r + 10)); ctx.stroke(); }
-    }
-    ctx.globalAlpha = 1;
-  },
-
-  // ---------- Orrery planets (drawn in world space) ----------
-  drawPlanets(ctx) {
-    const b = G.boss;
-    if (!b || b.dead || !b.planets || b.enter > 0) return;
-    ctx.globalAlpha = 0.18; ctx.strokeStyle = COL.orrery; ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]);
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.orbR, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
-    for (const pl of b.planets) {
-      if (pl.mode === 'aim') {
-        ctx.globalAlpha = 0.3 + 0.5 * (pl.t / 0.55); ctx.strokeStyle = '#ff4f6b'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(pl.x, pl.y); ctx.lineTo(pl.tx, pl.ty); ctx.stroke();
-      }
-      ctx.globalCompositeOperation = 'lighter';
-      this.drawGlow(ctx, pl.x, pl.y, pl.r * 2.6, COL.orrery, 0.6);
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1; ctx.fillStyle = '#cfe2ff';
-      ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.r, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#4b6fb3'; ctx.beginPath(); ctx.arc(pl.x - pl.r * 0.3, pl.y + pl.r * 0.2, pl.r * 0.35, 0, TAU); ctx.fill();
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(pl.x, pl.y, pl.r * 1.6, pl.r * 0.45, -0.4, 0, TAU); ctx.stroke();
     }
     ctx.globalAlpha = 1;
   },
@@ -1176,42 +1229,38 @@ const Render = {
       ctx.beginPath(); ctx.arc(Math.cos(b.eyeA) * r * 0.25, Math.sin(b.eyeA) * r * 0.25, r * 0.3, 0, TAU); ctx.fill();
     } else if (b.kind === 'mirror') {
       this.mirrorShape(ctx, b, fill, true);
-    } else if (b.kind === 'orrery') {
-      // a brass sun with rotating rings
-      ctx.fillStyle = fill;
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
-      ctx.strokeStyle = '#dbe9ff'; ctx.lineWidth = 2;
-      ctx.save(); ctx.rotate(b.t * 0.8); ctx.scale(1, 0.35); ctx.beginPath(); ctx.arc(0, 0, r + 9, 0, TAU); ctx.stroke(); ctx.restore();
-      ctx.save(); ctx.rotate(-b.t * 0.6 + 1); ctx.scale(1, 0.35); ctx.beginPath(); ctx.arc(0, 0, r + 14, 0, TAU); ctx.stroke(); ctx.restore();
-      ctx.fillStyle = '#fff6d8'; ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, TAU); ctx.fill();
-      ctx.fillStyle = b.phase2 ? '#ff4f6b' : '#1b2c55';
-      const a = Math.atan2(G.player.y - b.y, G.player.x - b.x);
-      ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.2, Math.sin(a) * r * 0.2, r * 0.24, 0, TAU); ctx.fill();
-    } else if (b.kind === 'eclipse') {
-      // a dark disc with a burning corona
-      ctx.fillStyle = '#e9ecff'; ctx.beginPath(); ctx.arc(0, 0, r * 1.08, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#05040c'; ctx.beginPath(); ctx.arc(r * 0.12, -r * 0.08, r, 0, TAU); ctx.fill();
-      ctx.strokeStyle = fill; ctx.lineWidth = 2;
-      for (let k = 0; k < 8; k++) { const a = (k * TAU) / 8 + b.t * 0.7; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 1.15, Math.sin(a) * r * 1.15); ctx.lineTo(Math.cos(a) * r * 1.45, Math.sin(a) * r * 1.45); ctx.stroke(); }
-      const a = Math.atan2(G.player.y - b.y, G.player.x - b.x);
-      ctx.fillStyle = b.phase2 ? '#ff4f6b' : '#dfe4ff'; ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.35, Math.sin(a) * r * 0.35, r * 0.18, 0, TAU); ctx.fill();
-    } else if (b.kind === 'serpent') {
-      const a = Math.atan2(b.vy || 0.01, b.vx || 0.01);
+    } else if (b.kind === 'polarity') {
+      // two half-discs spinning around each other
+      ctx.save(); ctx.rotate(b.t * 1.2);
+      ctx.fillStyle = POL_COL[0]; ctx.beginPath(); ctx.arc(0, 0, r, Math.PI / 2, Math.PI * 1.5); ctx.fill();
+      ctx.fillStyle = POL_COL[1]; ctx.beginPath(); ctx.arc(0, 0, r, -Math.PI / 2, Math.PI / 2); ctx.fill();
+      ctx.fillStyle = POL_COL[1]; ctx.beginPath(); ctx.arc(0, -r / 2, r / 2, 0, TAU); ctx.fill();
+      ctx.fillStyle = POL_COL[0]; ctx.beginPath(); ctx.arc(0, r / 2, r / 2, 0, TAU); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, TAU); ctx.stroke();
+    } else if (b.kind === 'keys') {
+      // a hunched hunter with a ring of keys; its eyes glow
+      const a = b.face || 0;
       ctx.rotate(a);
-      ctx.fillStyle = fill; ctx.beginPath(); ctx.ellipse(0, 0, r * 1.25, r, 0, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#0b2a14'; ctx.beginPath(); ctx.arc(r * 0.45, -r * 0.45, r * 0.22, 0, TAU); ctx.arc(r * 0.45, r * 0.45, r * 0.22, 0, TAU); ctx.fill();
-      ctx.fillStyle = b.phase2 ? '#ff4f6b' : '#eaffef'; ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.45, r * 0.1, 0, TAU); ctx.arc(r * 0.5, r * 0.45, r * 0.1, 0, TAU); ctx.fill();
-      ctx.strokeStyle = '#ff4f8b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(r * 1.2, 0); ctx.lineTo(r * 1.6, -3); ctx.moveTo(r * 1.2, 0); ctx.lineTo(r * 1.6, 3); ctx.stroke();
-    } else if (b.kind === 'chronos') {
-      // clock face with two hands
-      ctx.fillStyle = '#2a2208'; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
-      ctx.strokeStyle = fill; ctx.lineWidth = 3; ctx.stroke();
-      ctx.lineWidth = 2;
-      for (let k = 0; k < 12; k++) { const a = (k * TAU) / 12; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.78, Math.sin(a) * r * 0.78); ctx.lineTo(Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92); ctx.stroke(); }
-      ctx.lineCap = 'round'; ctx.strokeStyle = b.phase2 ? '#ff4f6b' : '#fff4c8';
-      ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(b.t * 2) * r * 0.75, Math.sin(b.t * 2) * r * 0.75); ctx.stroke();
-      ctx.lineWidth = 4.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(b.t * 0.3) * r * 0.5, Math.sin(b.t * 0.3) * r * 0.5); ctx.stroke();
-      ctx.lineCap = 'butt';
+      ctx.fillStyle = '#3a2f1a'; ctx.beginPath(); ctx.ellipse(0, 0, r * 1.3, r, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = fill; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = b.alertT > 0 ? '#ff4f3d' : '#ffe39a';
+      ctx.beginPath(); ctx.arc(r * 0.7, -r * 0.35, 2.6, 0, TAU); ctx.arc(r * 0.7, r * 0.35, 2.6, 0, TAU); ctx.fill();
+      ctx.strokeStyle = fill; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(-r * 0.6, 0, r * 0.45, 0, TAU); ctx.stroke();
+    } else if (b.kind === 'collapse') {
+      // a stone giant: shoulders and a glowing maw
+      ctx.fillStyle = '#4a3a2a'; ctx.beginPath(); ctx.ellipse(0, 0, r * 1.6, r, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = fill; ctx.fillRect(-r * 0.7, -r * 0.8, r * 1.4, r * 1.3);
+      ctx.fillStyle = '#1a120a'; ctx.fillRect(-r * 0.45, -r * 0.1, r * 0.9, r * 0.35);
+      ctx.fillStyle = b.phase2 ? '#ff4f3d' : '#ffb13d'; ctx.fillRect(-r * 0.4, -r * 0.5, r * 0.2, r * 0.14); ctx.fillRect(r * 0.2, -r * 0.5, r * 0.2, r * 0.14);
+    } else if (b.kind === 'puppeteer') {
+      // a masked head with a crossbar and dangling strings
+      ctx.strokeStyle = '#d8c8a8'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-r * 1.4, -r * 1.2); ctx.lineTo(r * 1.4, -r * 1.2); ctx.stroke();
+      for (const k of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(k * r * 1.1, -r * 1.2); ctx.lineTo(k * r * 0.6, -r * 0.2 + Math.sin(b.t * 3 + k) * 3); ctx.stroke(); }
+      ctx.fillStyle = '#f2e8dc'; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.85, r, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#1a0a10'; ctx.beginPath(); ctx.ellipse(-r * 0.32, -r * 0.15, r * 0.16, r * 0.24, 0, 0, TAU); ctx.ellipse(r * 0.32, -r * 0.15, r * 0.16, r * 0.24, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = fill; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, r * 0.3, r * 0.35, 0.2, Math.PI - 0.2); ctx.stroke();
     } else if (b.kind === 'architect') {
       // rotating nested squares
       ctx.save(); ctx.rotate(b.t * 0.5);
@@ -1260,7 +1309,7 @@ const Render = {
     ctx.save();
     ctx.translate(p.x, p.y); ctx.rotate(a);
     const ship = G.run ? G.run.ship : 'striker';
-    ctx.fillStyle = p.dashT > 0 ? '#ffffff' : COL.player;
+    ctx.fillStyle = p.pol != null ? POL_COL[p.pol] : p.dashT > 0 ? '#ffffff' : COL.player; // The Polarity: your colour
     ctx.beginPath();
     if (ship === 'lancer') { ctx.moveTo(15, 0); ctx.lineTo(-6, -5); ctx.lineTo(-2, 0); ctx.lineTo(-6, 5); }
     else if (ship === 'scatter') { ctx.moveTo(10, 0); ctx.lineTo(-6, -11); ctx.lineTo(-2, 0); ctx.lineTo(-6, 11); }
@@ -1272,6 +1321,11 @@ const Render = {
     ctx.fillStyle = COL.playerCore;
     ctx.beginPath(); ctx.arc(1, 0, 2.6, 0, TAU); ctx.fill();
     ctx.restore();
+    if (p.pol != null && G.boss && G.boss.kind === 'polarity') { // beam charge around you
+      const k = (G.boss.charge2 || 0) / polarityNeed(G.boss);
+      ctx.globalAlpha = 0.9; ctx.strokeStyle = POL_COL[p.pol]; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 17, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.stroke(); ctx.globalAlpha = 1;
+    }
     if (p.shield > 0) {
       ctx.strokeStyle = '#9fd8ff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.55 + Math.sin(t * 5) * 0.2;
       ctx.beginPath();

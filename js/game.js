@@ -97,7 +97,7 @@ function resetArrays() {
   while (G.eb.length) ebPool.push(G.eb.pop());
   G.enemies.length = 0; G.newEnemies.length = 0; G.markers.length = 0; G.pickups.length = 0;
   G.rings.length = 0; G.texts.length = 0; G.bolts.length = 0; G.beams.length = 0; G.explosions.length = 0;
-  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.blocks.length = 0; G.darkK = 1; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
+  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.blocks.length = 0; G.darkK = 1; G.maze = null; G.bridge = null; G.threads = []; G.wells = []; G.polBeam = null; G.pupTrail = []; if (G.run) { G.run.sealed = {}; if (G.stats) computeStats(); } if (G.player) G.player.pol = null; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
 }
 
 function enterFloor(n, type, restore, layout) {
@@ -133,6 +133,8 @@ function enterFloor(n, type, restore, layout) {
 function buildFloorGeometry(type, floor) {
   const next = nextDoorTypes(floor + 1);
   if (type === 'boss' && BOSSES[bossKindFor(floor)].side) { buildSideElevator(); placeSideDoors(next); return; }
+  if (type === 'boss' && bossKindFor(floor) === 'keys') { buildLabyrinth(); placeStairs(next); return; }
+  if (type === 'boss' && bossKindFor(floor) === 'collapse') { buildBridge(); placeStairs(next); return; }
   if (type === 'boss') { buildBossHall(bossKindFor(floor)); placeStairs(next); return; }
   if (isCalm(type)) { buildSingleRoom(); placeStairs(next); return; }
   for (let i = 0; i < 30; i++) {
@@ -223,7 +225,7 @@ function restoreFloor(fs) {
 
 // Pre-build the floor behind every staircase so standing on it can show its full map,
 // and climbing it leads to exactly that floor.
-const WORLD_KEYS = ['grid', 'W', 'H', 'circle', 'side', 'fields', 'gridVer', 'rooms', 'halls', 'pillars', 'traps', 'stairs', 'exitRoom', 'spawn', 'arrival'];
+const WORLD_KEYS = ['grid', 'W', 'H', 'circle', 'side', 'maze', 'bridge', 'fields', 'gridVer', 'rooms', 'halls', 'pillars', 'traps', 'stairs', 'exitRoom', 'spawn', 'arrival'];
 function makePreviews() {
   if (G.training) { G.previews = []; return; }
   const saved = {};
@@ -453,6 +455,11 @@ function guideTarget() {
   if (R.phase === 'doors' && G.stairOn && !G.stairOn.locked) return null; // already on the stairs
   if (R.phase === 'doors' && G.side && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.dir < 0 ? G.side.L + 4 : G.side.R - 4, y: G.player.y }; }
   if (R.phase === 'doors' && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.x + d.w / 2, y: d.y + d.h + 16 }; }
+  if (R.phase === 'fight' && keysActive()) { // the labyrinth: nearest seal still dark
+    let best = null, bd = Infinity;
+    for (const s of G.maze.seals) { if (s.lit) continue; const d = dist2(s.x, s.y, G.player.x, G.player.y); if (d < bd) { bd = d; best = s; } }
+    return best;
+  }
   if (R.phase !== 'fight' || R.active || R.type === 'boss') return null;
   const next = G.rooms.find((r) => r.state === 'idle');
   if (next) return { x: next.x + next.w / 2, y: next.y + next.h / 2 };
@@ -749,6 +756,7 @@ function step(dt) {
       G.fade = clamp(G.arriveT * 2.2, 0, 1);
       Input.consumeDash();
     } else if (G.state === 'play') updatePlayer(dt);
+    if (G.state === 'play') specialsStep(dt);
     updateTraps(dt);
     if (G.player.alive) { // safe = corridor or an already cleared room (never a room that is or will be fought)
       const here = roomAt(G.player.x, G.player.y, -2);
@@ -838,11 +846,11 @@ function checkChallenges(evt, info) {
     hit('loom', info.kind === 'loom');
     hit('mirror', info.kind === 'mirror');
     hit('counter', info.kind === 'elevator');
-    hit('orrery', info.kind === 'orrery');
+    hit('polarity', info.kind === 'polarity');
     hit('forge', info.kind === 'forge');
-    hit('eclipse', info.kind === 'eclipse');
-    hit('serpent', info.kind === 'serpent');
-    hit('chronos', info.kind === 'chronos');
+    hit('keys', info.kind === 'keys');
+    hit('collapse', info.kind === 'collapse');
+    hit('puppeteer', info.kind === 'puppeteer');
     hit('summit', info.kind === 'architect');
     hit('nohit', info.noHit);
     hit('asc3', info.kind === 'mirror' && (run.asc | 0) >= 3);

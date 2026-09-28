@@ -1,4 +1,4 @@
-// New bosses: The Counterweight (side-view elevator, floor 20), The Orrery (25), The Forgemaster (30).
+// New bosses: The Counterweight (side-view elevator, floor 20), The Forgemaster (30).
 const { chromium, devices } = require('playwright');
 (async () => {
   const b = await chromium.launch();
@@ -12,8 +12,8 @@ const { chromium, devices } = require('playwright');
       const G = OMF.G, S = OMF.Save.data, I = OMF.Input, vec0 = I.vector;
       const run = (secs, hook) => { for (let i = 0; i < secs * 60; i++) { OMF.step(1 / 60); if (hook && hook() === false) break; } };
       S.challenges = {};
-      check('boss order: 5 warden … 20 elevator, 25 orrery, 30 forge, 55 warden II',
-        bossKindFor(5) === 'warden' && bossKindFor(20) === 'elevator' && bossKindFor(25) === 'orrery' && bossKindFor(30) === 'forge' && bossKindFor(55) === 'warden' && bossCycle(55) === 1 && bossCycle(30) === 0);
+      check('boss order: 5 warden … 20 elevator, 25 polarity, 30 forge, 55 warden II',
+        bossKindFor(5) === 'warden' && bossKindFor(20) === 'elevator' && bossKindFor(25) === 'polarity' && bossKindFor(30) === 'forge' && bossKindFor(55) === 'warden' && bossCycle(55) === 1 && bossCycle(30) === 0);
 
       // ---------- Counterweight ----------
       OMF.startGame(false); OMF.enterFloor(20, 'boss');
@@ -89,17 +89,16 @@ const { chromium, devices } = require('playwright');
       run(1.5);
       check('dying in the elevator shows the death screen', G.state === 'dead');
 
-      // ---------- Orrery & Forgemaster ----------
-      for (const [floor, kind, pats] of [[25, 'orrery', ['expand', 'fling', 'eclipse', 'nova']], [30, 'forge', ['magma', 'quake', 'bellows']]]) {
+      // ---------- Forgemaster ----------
+      for (const [floor, kind, pats] of [[30, 'forge', ['magma', 'quake', 'bellows']]]) {
         OMF.startGame(false); OMF.enterFloor(floor, 'boss');
         run(2.5);
         const bs = G.boss;
-        check(kind + ': spawns in the circular hall', bs && bs.kind === kind && !!G.circle);
+        check(kind + ': spawns in its hall', bs && bs.kind === kind && !!G.circle);
         const got = {}, haz = {};
-        run(70, () => { G.player.hp = 9; G.player.iframes = 1; if (bs.pat) got[bs.pat] = true; if (G.pools.length) haz.pool = true; if (G.waves.length) haz.wave = true; if (bs.planets && bs.planets.some((p) => p.mode === 'out')) haz.fling = true; });
+        run(70, () => { G.player.hp = 9; G.player.iframes = 1; if (bs.pat) got[bs.pat] = true; if (G.pools.length) haz.pool = true; if (G.waves.length) haz.wave = true; });
         check(kind + ': uses every pattern', pats.every((p) => got[p]), got);
         if (kind === 'forge') check('forge: lava pools and shockwaves appear', haz.pool && haz.wave, haz);
-        if (kind === 'orrery') check('orrery: planets are flung and come back', haz.fling && bs.planets.every((p) => ['orbit', 'back', 'out', 'aim'].includes(p.mode)));
         // hazards hurt
         if (kind === 'forge') {
           bs.pat = null; bs.cool = 99; bs.atk = 99; clearEnemyBullets(); G.shells.length = 0; G.beams.length = 0;

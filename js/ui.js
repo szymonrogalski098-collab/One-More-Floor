@@ -156,15 +156,17 @@ const UI = {
       $('hud-best').style.color = run.floor > best && best > 0 ? 'var(--gold)' : '';
     }
     if (h.shards !== run.shards) { h.shards = run.shards; $('hud-shards').textContent = run.shards; }
-    const upKey = run.order.map((id) => id + run.upgrades[id]).join(',') + '|' + (run.curses || []).join(',');
+    const upKey = run.order.map((id) => id + run.upgrades[id]).join(',') + '|' + (run.curses || []).join(',') + '|' + Object.keys(run.sealed || {}).join(',');
     if (h.ups !== upKey) {
       h.ups = upKey;
       $('hud-ups').innerHTML = run.order.map((id) => {
         const u = UPG[id], n = run.upgrades[id];
-        return `<span class="chip" style="--c:${TAGS[u.tag].color}">${u.icon}${n > 1 ? '<b>' + n + '</b>' : ''}</span>`;
+        return `<span class="chip${isSealed(id) ? ' sealed' : ''}" style="--c:${TAGS[u.tag].color}">${u.icon}${n > 1 ? '<b>' + n + '</b>' : ''}</span>`;
       }).join('') + (run.curses || []).map((c) => `<span class="chip curse">${CURSE[c].icon}</span>`).join('');
     }
-    // dash button
+    // dash button (it swaps colour against The Polarity)
+    const lbl = polarityActive() ? 'SWAP' : 'DASH';
+    if (h.dashLbl !== lbl) { h.dashLbl = lbl; document.querySelector('#btn-dash .dash-label').textContent = lbl; }
     const full = p.dashCharges >= s.dashCharges;
     const prog = full ? 1 : Math.round((p.dashRecharge / s.dashCd) * 40) / 40;
     if (h.dashP !== prog) { h.dashP = prog; $('btn-dash').style.setProperty('--p', prog); }

@@ -232,7 +232,7 @@ function updateSlam(dt) {
     addShake(0.6); sfx('slam');
     for (const z of sl.zones) {
       burst((z.x0 + z.x1) / 2, S.floorY - 4, '#ffb13d', 18, 220, 0.5, 4);
-      if (p.alive && p.x + PLAYER_HITBOX > z.x0 && p.x - PLAYER_HITBOX < z.x1) hurtPlayer((z.x0 + z.x1) / 2, S.floorY, true);
+      if (p.alive && p.x + PLAYER_HITBOX > z.x0 && p.x - PLAYER_HITBOX < z.x1) hurtPlayer((z.x0 + z.x1) / 2, S.floorY, true, true);
     }
   } else if (sl.state === 'down' && sl.t >= 1.1) { sl.state = 'up'; sl.t = 0; }
   else if (sl.state === 'up' && sl.t >= 0.45) S.slam = null;

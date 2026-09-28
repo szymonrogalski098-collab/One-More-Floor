@@ -242,9 +242,9 @@ function hallShape(kind, R) {
     case 'loom': return box(0.96, 0.84);                         // weaving frame
     case 'mirror': return reg(6, 0, 1.1);                        // crystal hexagon
     case 'forge': return [[-1.08, -0.78], [1.08, -0.78], [0.62, 0.9], [-0.62, 0.9]].map(([x, y]) => [x * R, y * R]); // furnace (wide top, narrow hearth)
-    case 'serpent': return reg(22, 0, 1).map(([x, y]) => [x * 0.8, y * 1.12]); // long pit
+    case 'puppeteer': return box(1.0, 0.72);                     // theatre stage (wide, shallow)
     case 'architect': return box(0.9, 0.9);                      // blueprint square
-    default: return null;                                         // circles: orrery, eclipse, chronos
+    default: return null;                                         // circle (polarity)
   }
 }
 function buildHallGeometry(c, kind) {

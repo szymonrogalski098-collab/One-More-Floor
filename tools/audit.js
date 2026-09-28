@@ -75,7 +75,7 @@ async function simulate(page, opts) {
         if (o.god && G.player.hp < 3) G.player.hp = 3;
         if (G.boss && res.bossesSeen.indexOf(G.boss.kind + '@' + G.run.floor) === -1) res.bossesSeen.push(G.boss.kind + '@' + G.run.floor);
         if (o.fastBoss && G.side && G.boss) G.side.t += 1 / 60;
-        if (o.fastBoss && G.boss && G.boss.enter <= 0 && G.boss.pt > 3) G.boss.hp -= G.boss.maxHp * 0.004;
+        if (o.fastBoss && G.boss && G.boss.enter <= 0 && (G.boss.pt > 3 || G.boss.t > 4)) { G.boss.hp -= G.boss.maxHp * 0.004; if (G.boss.hp <= 0) OMF.killEnemy(G.boss); } // also the bosses your guns cannot hurt
         window.__bot(G);
         OMF.step(1 / 60);
         steps++;
@@ -93,7 +93,7 @@ async function simulate(page, opts) {
     } catch (e) { res.errors.push(e.message + ' ' + (e.stack || '').split('\n').slice(0, 3).join(' | ')); }
     res.steps = steps; res.stepsMs = performance.now() - t0;
     res.bossLeft = G.boss ? +(G.boss.hp / G.boss.maxHp).toFixed(2) : null; res.hurtBy = G.run && G.run.hurt;
-    res.final = { state: G.state, floor: G.run ? G.run.floor : null, hp: G.player && G.player.hp, kills: G.run && G.run.kills, time: G.run && G.run.time, ups: G.run && JSON.stringify(G.run.upgrades) };
+    res.final = { state: G.state, floor: G.run ? G.run.floor : null, room: G.room && (G.room.type + ':' + G.room.phase + ':' + (G.room.active ? G.room.active.id : '-')), stairs: G.stairs.length, alive: G.enemies.filter((e) => !e.dead).length, pos: G.player && [Math.round(G.player.x), Math.round(G.player.y)], hp: G.player && G.player.hp, kills: G.run && G.run.kills, time: G.run && G.run.time, ups: G.run && JSON.stringify(G.run.upgrades) };
     return res;
   }, opts);
 }
@@ -127,6 +127,13 @@ async function simulate(page, opts) {
   const g = await simulate(page, { maxSteps: 60 * 60 * 40, god: true, fastBoss: true, untilFloor: 31 });
   log('GOD RUN', JSON.stringify(g.final), 'bosses', g.bossesSeen.join(','), 'max', g.maxEnemies, g.maxEB, g.maxParts, g.errors);
   log('  floors', g.floors.join(' '));
+
+  // 2b) God-mode bot through each late boss room (labyrinth, bridge, stage, summit) and out the stairs
+  for (const f of [25, 35, 40, 45, 50]) {
+    await page.evaluate((f) => { OMF.startGame(false); OMF.enterFloor(f, 'boss'); }, f);
+    const l = await simulate(page, { maxSteps: 60 * 60 * 8, god: true, fastBoss: true, untilFloor: f + 1 });
+    log('LATE BOSS', f, l.bossesSeen.join(','), JSON.stringify({ floor: l.final.floor, room: l.final.room, pos: l.final.pos, time: Math.round(l.final.time) }), l.final.floor === f + 1 ? 'OK' : 'STUCK', l.errors);
+  }
 
   // 3) All upgrades maxed stress test on a boss floor
   const s = await page.evaluate(() => {

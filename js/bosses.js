@@ -19,11 +19,8 @@ function spawnBoss(floor) {
     vx: 0, vy: 0, kx: 0, ky: 0, flash: 0, slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, burnAcc: 0, orbitCd: 0,
     tx: arenaCenter().x, ty: arenaCenter().y, dead: false, spawnIn: 0, eyeA: Math.PI / 2, atk: 1.5, oa: 0, fakes: [],
   };
-  if (kind === 'orrery') {
-    const n = b.hard ? 4 : 3;
-    b.orbR = 58; b.planets = [];
-    for (let i = 0; i < n; i++) b.planets.push({ i, n, mode: 'orbit', x: b.x, y: b.y, vx: 0, vy: 0, r: 11, t: 0, slot: 0 });
-  }
+  if (kind === 'keys') { const ex = G.exitRoom; b.x = ex.x + ex.w / 2; b.y = ex.y + ex.h / 2; b.invuln = true; b.untarget = true; b.enter = 1.2; }
+  if (kind === 'collapse') { b.enter = 1.2; }
   if (G.training && G.training.cfg.hard) { b.hard = true; }
   G.enemies.push(b);
   G.boss = b;
@@ -40,11 +37,12 @@ function updateBoss(b, dt, sm) {
   if (b.enter > 0) {
     b.enter -= dt;
     const c = arenaCenter();
-    b.y = lerp(b.y, c.y - (G.circle ? G.circle.R * 0.45 : G.H * 0.22), 1 - Math.exp(-dt * 3));
+    if (G.circle) b.y = lerp(b.y, c.y - G.circle.R * 0.45, 1 - Math.exp(-dt * 3));
     b.vx = b.vy = 0;
-    if (b.enter <= 0) { b.invuln = false; b.untarget = false; }
+    if (b.enter <= 0 && !['keys', 'collapse'].includes(b.kind)) { b.invuln = false; b.untarget = false; }
     return;
   }
+  if (!BOSSES[b.kind].special) updateBossSeal(b, dt);
   if (!b.phase2 && b.hp < b.maxHp * 0.5) {
     b.phase2 = true;
     hitstop(0.12); addShake(0.5); sfx('roar');
@@ -133,7 +131,7 @@ const BOSS_AI = {
           ring(b.x, b.y, 10, SLAM_R + 6, 0.35, COL.warden, 4);
           burst(b.x, b.y, COL.warden, 16, 220, 0.5, 4);
           const R = SLAM_R + PLAYER_HITBOX;
-          if (dist2(b.x, b.y, p.x, p.y) < R * R) hurtPlayer(b.x, b.y);
+          if (dist2(b.x, b.y, p.x, p.y) < R * R) hurtPlayer(b.x, b.y, false, true); // heavy: breaks through the shield
           const n = hard ? 18 : 14, off = Math.random() * TAU;
           for (let i = 0; i < n; i++) fireEB(b.x, b.y, off + (i * TAU) / n, 112, { color: COL.warden });
           b.sub = 'rest'; b.st = 0; b.step++;
@@ -180,7 +178,7 @@ const BOSS_AI = {
           const n = hard ? 3 : 2, dir = chance(0.5) ? 1 : -1;
           const a0 = angToPlayer(b) + Math.PI / n + rand(-0.3, 0.3);
           for (let k = 0; k < n; k++) {
-            G.beams.push({ rot: true, cx: b.x, cy: b.y, a: a0 + (k * TAU) / n, spd: (hard ? 0.95 : 0.72) * dir, len: 900, w: 13,
+            G.beams.push({ rot: true, pierce: true, cx: b.x, cy: b.y, a: a0 + (k * TAU) / n, spd: (hard ? 0.95 : 0.72) * dir, len: 900, w: 13,
               warn: 1.15, fire: hard ? 4.6 : 4.0, t: 0, color: COL.loom, ax: 0, ay: 0, bx: 0, by: 0, owner: b.id });
           }
           sfx('charge');
@@ -355,102 +353,6 @@ const BOSS_AI = {
   },
 };
 
-// ---------------- ORRERY ----------------
-// Planets orbit the boss and hurt on contact. They cannot be shot.
-function orreryPlanets(b, dt, hard) {
-  const p = G.player;
-  b.spinA += dt * (hard ? 1.5 : 1.15) * b.spinDir;
-  for (const pl of b.planets) {
-    const a = b.spinA + (pl.i * TAU) / pl.n + (pl.slot || 0);
-    const ox = b.x + Math.cos(a) * b.orbR, oy = b.y + Math.sin(a) * b.orbR;
-    pl.t += dt;
-    if (pl.mode === 'orbit') { pl.x = ox; pl.y = oy; }
-    else if (pl.mode === 'aim') { pl.x = ox; pl.y = oy; if (pl.t >= 0.55) { pl.mode = 'out'; pl.t = 0; const d = Math.hypot(pl.tx - pl.x, pl.ty - pl.y) || 1; pl.vx = ((pl.tx - pl.x) / d) * 340; pl.vy = ((pl.ty - pl.y) / d) * 340; sfx('dash'); } }
-    else if (pl.mode === 'out') {
-      pl.x += pl.vx * dt; pl.y += pl.vy * dt;
-      if (pl.t > 0.8 || solidAt(pl.x, pl.y)) { pl.mode = 'back'; pl.t = 0; addShake(0.08); if (hard) for (let k = 0; k < 6; k++) fireEB(pl.x, pl.y, (k * TAU) / 6, 90, { color: COL.orrery }); }
-    } else if (pl.mode === 'back') {
-      const d = Math.hypot(ox - pl.x, oy - pl.y);
-      if (d < 12) pl.mode = 'orbit';
-      else { const sp = Math.min(d / dt, 260 + pl.t * 200); pl.x += ((ox - pl.x) / d) * sp * dt; pl.y += ((oy - pl.y) / d) * sp * dt; }
-    }
-    const rr = pl.r + PLAYER_HITBOX;
-    if (p.alive && dist2(pl.x, pl.y, p.x, p.y) < rr * rr) hurtPlayer(pl.x, pl.y);
-  }
-}
-
-BOSS_AI.orrery = function (b, dt, hard, sm) {
-  const p = G.player, R = G.circle ? G.circle.R : 200;
-  orreryPlanets(b, dt, hard);
-  if (!b.pat) {
-    bossDrift(b, dt, 45 * sm);
-    b.orbR += (58 - b.orbR) * Math.min(1, dt * 3);
-    for (const pl of b.planets) pl.slot = (pl.slot || 0) * Math.exp(-dt * 3);
-    b.atk -= dt;
-    if (b.atk <= 0) { b.atk = hard ? 1.0 : 1.4; for (let k = -1; k <= 1; k++) fireEB(b.x, b.y, angToPlayer(b) + k * 0.2, 150, { color: COL.orrery }); sfx('eshoot'); }
-    b.cool -= dt;
-    if (b.cool <= 0) startPattern(b, ['expand', 'fling', 'eclipse', 'nova']);
-    return;
-  }
-  b.pt += dt;
-  if (b.pat === 'expand') {
-    brake(b, dt, 6);
-    const dur = hard ? 5.2 : 4.6, k = Math.min(1, b.pt / dur);
-    if (b.step === 0) { b.step = 1; b.spinDir = chance(0.5) ? 1 : -1; sfx('charge'); }
-    b.orbR = 58 + (R * 0.82 - 58) * Math.sin(k * Math.PI);
-    if (hard) { b.st -= dt; if (b.st <= 0 && k > 0.15 && k < 0.85) { b.st = 0.7; for (const pl of b.planets) fireEB(pl.x, pl.y, Math.atan2(p.y - pl.y, p.x - pl.x), 120, { color: COL.orrery }); sfx('eshoot'); } }
-    if (k >= 1) endPattern(b, 0.9);
-  } else if (b.pat === 'fling') {
-    brake(b, dt, 6);
-    b.st -= dt;
-    const n = b.planets.length;
-    if (b.st <= 0 && b.step < n) {
-      const pl = b.planets[b.step++];
-      pl.mode = 'aim'; pl.t = 0; pl.tx = p.x; pl.ty = p.y;
-      b.st = hard ? 0.45 : 0.6;
-    }
-    if (b.step >= n && b.planets.every((pl) => pl.mode === 'orbit')) endPattern(b, 1.0);
-    if (b.pt > 8) { for (const pl of b.planets) pl.mode = 'orbit'; endPattern(b, 1.0); }
-  } else if (b.pat === 'eclipse') {
-    // the planets line up through the boss; a beam then fires along that line (both ways)
-    const c = arenaCenter();
-    if (b.sub === '') { b.sub = 'move'; }
-    if (b.sub === 'move') {
-      steer(b, c.x, c.y, 160, dt, 5);
-      if (dist2(b.x, b.y, c.x, c.y) < 12 * 12 || b.pt > 1.4) { b.sub = 'align'; b.st = 0; b.ang = angToPlayer(b); }
-    } else if (b.sub === 'align') {
-      brake(b, dt, 10);
-      b.st += dt;
-      for (const pl of b.planets) { const want = pl.i % 2 ? b.ang + Math.PI : b.ang; const cur = b.spinA + (pl.i * TAU) / pl.n; pl.slot = (pl.slot || 0) + angleDiff(cur + (pl.slot || 0), want) * Math.min(1, dt * 8); }
-      if (b.step === 0 && b.st > 0.25) {
-        b.step = 1;
-        for (const a of [b.ang, b.ang + Math.PI]) {
-          const e = rayToEdge(b.x, b.y, Math.cos(a), Math.sin(a), 0);
-          G.beams.push({ rot: false, ax: b.x, ay: b.y, bx: e.x, by: e.y, w: 20, warn: hard ? 0.85 : 1.0, fire: 0.55, t: 0, color: COL.orrery });
-        }
-        sfx('charge');
-      }
-      if (b.st > (hard ? 1.7 : 1.9)) {
-        b.eclipses = (b.eclipses || 0) + 1;
-        if (hard && b.eclipses < 2) { b.sub = 'align'; b.st = 0; b.step = 0; b.ang = angToPlayer(b) + (chance(0.5) ? 0.9 : -0.9); }
-        else { b.eclipses = 0; for (const pl of b.planets) pl.slot = 0; endPattern(b, 1.0); }
-      }
-    }
-  } else if (b.pat === 'nova') {
-    brake(b, dt, 6);
-    const waves = hard ? 3 : 2;
-    if (b.pt < 0.5) { b.charge = b.pt / 0.5; return; }
-    b.charge = 0;
-    b.st -= dt;
-    if (b.st <= 0 && b.step < waves) {
-      b.st = 0.7; b.step++;
-      for (const pl of b.planets) for (let k = 0; k < 8; k++) fireEB(pl.x, pl.y, (k * TAU) / 8 + b.step * 0.4, 95, { color: COL.orrery });
-      sfx('eshoot');
-    }
-    if (b.step >= waves && b.st <= 0) endPattern(b, 1.0);
-  }
-};
-
 // ---------------- FORGEMASTER ----------------
 // Magma lobs leave lava pools, hammer shockwaves (ring with a gap), bellows that pull you in.
 BOSS_AI.forge = function (b, dt, hard, sm) {
@@ -528,7 +430,7 @@ function updateBossHazards(dt) {
     if (w.r > 900) { G.waves.splice(i, 1); continue; }
     if (!p.alive) continue;
     const d = Math.hypot(p.x - w.x, p.y - w.y);
-    if (Math.abs(d - w.r) < w.w / 2 + PLAYER_HITBOX && Math.abs(angleDiff(w.gapA, Math.atan2(p.y - w.y, p.x - w.x))) > w.gapW / 2) hurtPlayer(w.x, w.y);
+    if (Math.abs(d - w.r) < w.w / 2 + PLAYER_HITBOX && Math.abs(angleDiff(w.gapA, Math.atan2(p.y - w.y, p.x - w.x))) > w.gapW / 2) hurtPlayer(w.x, w.y, false, true);
   }
 }
 
@@ -596,7 +498,7 @@ function updateBeams(dt) {
     if (firing && !bm.sounded) { bm.sounded = true; sfx('laser'); addShake(0.12); }
     if (firing && p.alive) {
       const rr = bm.w / 2 + PLAYER_HITBOX;
-      if (segPointDist2(p.x, p.y, bm.ax, bm.ay, bm.bx, bm.by) < rr * rr) hurtPlayer(p.x - Math.cos(bm.a || 0), p.y);
+      if (segPointDist2(p.x, p.y, bm.ax, bm.ay, bm.bx, bm.by) < rr * rr) hurtPlayer(p.x - Math.cos(bm.a || 0), p.y, false, !!bm.pierce);
     }
   }
 }
@@ -611,6 +513,7 @@ function onBossDeath(b) {
   }
   checkChallenges('boss', { kind: b.kind, noHit });
   unlockCheckpoint(run.floor + 1);
+  specialsOnBossDeath();
   G.boss = null;
   slowmo(1.4, 0.25);
   hitstop(0.2);

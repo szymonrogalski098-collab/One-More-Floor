@@ -28,7 +28,7 @@ function computeStats() {
   if (cursed('frail')) s.maxHp -= 1;
   if (cursed('myopia')) s.range *= 0.8;
   if (cursed('sluggish')) s.dashCd *= 1.25;
-  for (const id in run.upgrades) UPG[id].mod(s, run.upgrades[id]);
+  for (const id in run.upgrades) { if (run.sealed && run.sealed[id]) continue; UPG[id].mod(s, run.upgrades[id]); } // sealed upgrades do nothing
   s.dmg = s.baseDmg * s.dmgMul;
   s.rof = s.baseRof * Math.max(0.4, s.rofMul);
   s.maxHp = Math.max(1, s.maxHp);
@@ -132,7 +132,8 @@ function updatePlayer(dt) {
     if (p.dashRecharge >= s.dashCd) { p.dashRecharge = 0; p.dashCharges++; G.hudDirty = true; }
   } else p.dashRecharge = 0;
 
-  if (Input.consumeDash()) tryDash();
+  if (polarityActive()) { if (Input.consumeDash()) polaritySwap(); p.dashBuffer = 0; } // the dash button swaps colour
+  else if (Input.consumeDash()) tryDash();
   else if (p.dashBuffer > 0) { p.dashBuffer -= dt; if (p.dashCharges > 0 && p.dashT <= 0) tryDash(); }
 
   const v = Input.vector();
@@ -143,9 +144,9 @@ function updatePlayer(dt) {
     if (Math.random() < 0.7) part(p.x, p.y, 0, 0, 0.22, 7, 'rgba(77,243,255,0.5)', 0, 0);
     if (p.dashT <= 0) endDash();
   } else {
-    const k = 1 - Math.exp(-dt * 18);
-    p.vx += (v.x * s.move - p.vx) * k;
-    p.vy += (v.y * s.move - p.vy) * k;
+    const k = 1 - Math.exp(-dt * 18), mv = s.move * playerSlow();
+    p.vx += (v.x * mv - p.vx) * k;
+    p.vy += (v.y * mv - p.vy) * k;
     p.x += p.vx * dt; p.y += p.vy * dt;
     if (v.mag > 0.1) p.face = Math.atan2(v.y, v.x);
   }
@@ -196,6 +197,7 @@ function enemiesAround() {
 function playerFire() {
   const p = G.player, s = G.stats;
   if (G.training && !G.training.cfg.shoot) return false;
+  if (polarityActive() || keysActive()) return false; // no weapons against these two
   let a;
   if (mouseAim()) {
     if (!enemiesAround()) return false;
@@ -284,8 +286,6 @@ function updatePlayerBullets(dt) {
       } else gone = true;
     }
     if (gone) { sparks(b.x, b.y, Math.atan2(-b.vy, -b.vx), 1.4, b.crit ? COL.pCrit : COL.pBullet, 2, 90, 0.15); killPB(i); continue; }
-
-    if (serpentBlocks(b)) { killPB(i); continue; } // the Serpent's body is armour
 
     // destructible enemy projectiles (Loom orbs)
     let consumed = false;
@@ -387,6 +387,7 @@ function fireEB(x, y, ang, speed, o) {
   b.homing = (o && o.homing) || 0; b.turn = (o && o.turn) || 0;
   b.delay = (o && o.delay) || 0; b.dvx = (o && o.dvx) || 0; b.dvy = (o && o.dvy) || 0;
   b.accel = (o && o.accel) || 0; b.maxSp = (o && o.maxSp) || 400;
+  b.pol = o && o.pol != null ? o.pol : -1;
   G.eb.push(b);
   return b;
 }
@@ -422,6 +423,11 @@ function updateEnemyBullets(dt) {
     if (p.alive) {
       const rr = b.r + PLAYER_HITBOX;
       if (dist2(b.x, b.y, p.x, p.y) < rr * rr) {
+        if (b.pol >= 0 && p.pol != null) { // The Polarity: your colour is absorbed, the other ignores your shield
+          if (b.pol === p.pol) { polarityAbsorb(b); killEB(i); continue; }
+          if (hurtPlayer(b.x, b.y, true, true)) { const k = arr.indexOf(b); if (k !== -1) killEB(k); i = Math.min(i, arr.length); continue; }
+          continue;
+        }
         // hurtPlayer may clear nearby bullets (mutating this array), so re-locate b afterwards
         if (hurtPlayer(b.x, b.y)) {
           const k = arr.indexOf(b);
@@ -843,6 +849,7 @@ function updateEnemies(dt) {
 function damageEnemy(e, dmg, crit, kx, ky, quiet) {
   if (e.dead || e.untarget) return;
   if (e.invuln) { if (!quiet) sparks(e.x, e.y, 0, TAU, '#ffffff', 2, 60); return; }
+  if (e.kind === 'polarity' && !G._polBeam) { if (!quiet) sparks(e.x, e.y, 0, TAU, '#ffffff', 2, 60); return; } // only charged beams hurt it
   if (G.stats && G.stats.frostDmg && e.slowT > 0) dmg *= 1 + G.stats.frostDmg; // Absolute Zero
   e.hp -= dmg;
   if (G.training && e.type === 'boss') e.hp = Math.max(e.hp, e.maxHp * 0.02); // training bosses cannot die
@@ -919,8 +926,8 @@ function processExplosions() {
 }
 
 // ================= Player damage =================
-// noDodge: attacks that dashing cannot pass through (The Counterweight)
-function hurtPlayer(sx, sy, noDodge) {
+// noDodge: attacks that dashing cannot pass through; pierce: heavy attacks that ignore the Aegis shield
+function hurtPlayer(sx, sy, noDodge, pierce) {
   const p = G.player;
   if (!p.alive || G.state !== 'play') return false;
   if (p.dashIfr > 0 && !noDodge) {
@@ -930,7 +937,7 @@ function hurtPlayer(sx, sy, noDodge) {
   if (p.iframes > 0) return false;
   if (G.training) return trainingHit(sx, sy);
   const run = G.run, s = G.stats;
-  if (p.shield > 0) {
+  if (p.shield > 0 && !pierce) {
     p.shield = 0; p.shieldT = s.aegisCd; p.iframes = 0.7;
     ring(p.x, p.y, 10, 40, 0.3, '#9fd8ff', 3);
     burst(p.x, p.y, '#9fd8ff', 12, 160, 0.4, 3);

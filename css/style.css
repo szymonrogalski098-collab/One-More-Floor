@@ -389,6 +389,7 @@ html.pc .touch-only { display: none !important; }
 .curse-line { margin-top: 8px; font-size: 12px; color: #ffb3c9; line-height: 1.35; }
 .curse-line b { color: #ff4f8b; letter-spacing: 0.06em; margin-right: 4px; }
 .altar-card { border-color: rgba(255, 79, 139, 0.55) !important; }
+.chip.sealed { opacity: 0.35; text-decoration: line-through; filter: grayscale(1); }
 .chip.curse { --c: #ff4f8b; border-color: rgba(255, 79, 139, 0.8); }
 .build-item.curse .badge { --tc: #ff4f8b; }
 .build-item.curse .bi-name { color: #ff8fb0; }
