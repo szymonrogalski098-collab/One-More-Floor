@@ -13,7 +13,7 @@ const { chromium, devices } = require('playwright');
       const G = OMF.G, S = OMF.Save.data, I = OMF.Input, vec0 = I.vector, cd0 = I.consumeDash;
       const run = (secs, hook) => { for (let i = 0; i < secs * 60; i++) { OMF.step(1 / 60); if (hook && hook() === false) break; } };
       const god = () => { G.player.hp = 9; G.player.iframes = 1; };
-      const dashOnce = () => { let once = true; I.consumeDash = () => { const v = once; once = false; return v; }; OMF.step(1 / 60); I.consumeDash = cd0; };
+      const dashOnce = () => { let once = true; I.consumeDash = () => { const v = once; once = false; return v; }; for (let k = 0; k < 30 && once; k++) OMF.step(1 / 60); I.consumeDash = cd0; }; // steps until the press is read (hitstop can skip a frame)
       const quiet = (bs) => { bs.pat = null; bs.cool = 99; bs.atk = 99; clearEnemyBullets(); };
       S.challenges = {};
 
@@ -40,10 +40,10 @@ const { chromium, devices } = require('playwright');
       bs.charge2 = polarityNeed(bs) - 1; fireEB(p.x - 30, p.y, 0, 300, { color: POL_COL[p.pol], pol: p.pol, r: 6 }); run(0.2, god);
       check('polarity: a full charge fires the beam (1/6 of its HP)', bs.hp < hp0 - bs.maxHp / 7 && (bs.charge2 || 0) === 0, [hp0, bs.hp]);
       // colour zones burn only the same colour
-      bs.zones.push({ x: p.x, y: p.y, r: 58, pol: 1 - p.pol, t: 1.2, warn: 1.15, life: 0.6 }); p.iframes = 0; const h1 = p.hp; OMF.step(1 / 60);
-      check('polarity: a zone of the other colour is safe', p.hp === h1);
-      bs.zones.push({ x: p.x, y: p.y, r: 58, pol: p.pol, t: 1.2, warn: 1.15, life: 0.6 }); p.iframes = 0; p.dashIfr = 0; OMF.step(1 / 60);
-      check('polarity: a zone of your colour burns', p.hp === h1 - 1);
+      bs.zones.push({ x: p.x, y: p.y, r: 58, pol: p.pol, t: 1.2, warn: 1.15, life: 0.6 }); p.iframes = 0; const h1 = p.hp; OMF.step(1 / 60);
+      check('polarity: a zone of your colour is safe', p.hp === h1);
+      bs.zones.push({ x: p.x, y: p.y, r: 58, pol: 1 - p.pol, t: 1.2, warn: 1.15, life: 0.6 }); p.iframes = 0; p.dashIfr = 0; OMF.step(1 / 60);
+      check('polarity: a zone of the other colour burns', p.hp === h1 - 1);
       const got = {}; bs.cool = 0;
       run(60, () => { god(); if (bs.pat) got[bs.pat] = true; if (['wave', 'zebra', 'floor', 'spiral'].every((k) => got[k])) return false; });
       check('polarity: uses every pattern', ['wave', 'zebra', 'floor', 'spiral'].every((k) => got[k]), got);
@@ -87,26 +87,41 @@ const { chromium, devices } = require('playwright');
       B.plates[row][lane].s = 'ok'; const rc = bridgeRect(row, lane);
       p.x = rc.x + rc.w / 2; p.y = rc.y + rc.h / 2; OMF.step(1 / 60);
       check('collapse: a plate cracks when you step on it', B.plates[row][lane].s === 'crack');
-      p.x = rc.x + rc.w / 2 + B.pw; run(1.1, () => { god(); B.boulders.length = 0; B.lanesWarn.length = 0; });
-      check('collapse: a cracked plate falls after a second', B.plates[row][lane].s === 'gone');
+      p.x = rc.x + rc.w / 2 + B.pw; run(1.0, () => { god(); B.boulders.length = 0; B.lanesWarn.length = 0; });
+      const held = B.plates[row][lane].s === 'crack';
+      run(0.7, () => { god(); B.boulders.length = 0; B.lanesWarn.length = 0; });
+      check('collapse: a cracked plate holds 1.6 s, then falls', held && B.plates[row][lane].s === 'gone');
       // stepping into a hole hurts (through the shield) and puts you back on a plate
       p.fallAt = -9; p.shield = 1; p.hp = 5; p.iframes = 0; p.dashIfr = 0; p.x = rc.x + rc.w / 2; p.y = rc.y + rc.h / 2; OMF.step(1 / 60);
       const pl = plateAt(p.x, p.y);
       check('collapse: falling hurts through the shield and respawns on a plate', p.hp === 4 && p.shield === 1 && pl && pl.s !== 'gone', { hp: p.hp, s: pl && pl.s });
+      check('collapse: the respawn is mid-view on plates that hold for a moment', Math.abs(p.y - B.camY) < 110 && pl.safe > 1 && p.iframes >= 1.4, { dy: p.y - B.camY, safe: pl.safe });
       // standing still gets you left behind
       const h2 = G.run.hurt; run(12, () => { p.hp = 9; B.boulders.length = 0; });
       check('collapse: standing still you fall behind', G.run.hurt > h2);
       // the dash crosses a hole
       p.fallAt = -9; p.iframes = 0; const r2 = Math.floor((p.y - B.y0) / B.ph); B.plates[r2 - 1][1].s = 'gone'; B.plates[r2 - 2][1].s = 'ok'; B.plates[r2][1].s = 'ok';
-      p.x = B.bx + B.pw * 1.5; p.y = B.y0 + r2 * B.ph + B.ph / 2; const h3 = G.run.hurt;
-      const hp_ = window.hurtPlayer, why = []; window.hurtPlayer = (x, y, a, c) => { why.push([Math.round(x), Math.round(y), Math.round(p.x), Math.round(p.y), Math.round(B.camY), p.dashT > 0, (plateAt(p.x, p.y) || {}).s]); return hp_(x, y, a, c); };
-      I.vector = () => ({ x: 0, y: -1, mag: 1 }); dashOnce(); run(0.2, () => { B.boulders.length = 0; B.lanesWarn.length = 0; }); I.vector = vec0; window.hurtPlayer = hp_;
+      p.x = B.bx + B.pw * 1.5; p.y = B.y0 + r2 * B.ph + B.ph / 2; p.dashCharges = G.stats.dashCharges; p.vx = p.vy = 0; const h3 = G.run.hurt;
+      const hp_ = window.hurtPlayer, why = []; window.hurtPlayer = (x, y, a, c) => { why.push([Math.round(x), Math.round(y), Math.round(p.x), Math.round(p.y), Math.round(B.camY), p.dashT > 0, (plateAt(p.x, p.y) || {}).s, r2, B.y0, p.dashCharges, G.hitstop, G.state]); return hp_(x, y, a, c); };
+      I.vector = () => ({ x: 0, y: -1, mag: 1 }); dashOnce(); I.vector = () => ({ x: 0, y: 0, mag: 0 }); run(0.2, () => { B.boulders.length = 0; B.lanesWarn.length = 0; }); I.vector = vec0; window.hurtPlayer = hp_;
       check('collapse: a dash jumps over a hole', G.run.hurt === h3, why);
       // skip to the end
       B.camY = B.endCam + 1; p.x = B.bx + B.pw * 1.5; p.y = B.y0 + B.ph * 3; run(0.3, god);
-      check('collapse: at the end the giant becomes targetable', B.phase === 'final' && !bs.untarget && !bs.invuln);
+      check('collapse: the scrolling stops at the plaza', B.phase === 'arrive' && bs.untarget);
+      check('collapse: the plaza is a big arena', B.plaza.w >= 20 * 20 && B.plaza.h >= 16 * 20, [B.plaza.w, B.plaza.h]);
+      p.y = B.y0 - 30; run(0.3, god);
+      check('collapse: stepping onto the plaza starts the fight, giant targetable', B.phase === 'final' && !bs.untarget && !bs.invuln);
+      const cam = Render.camTarget();
+      check('collapse: on the plaza the camera follows you', Math.abs(cam.y - Math.min(Math.max(p.y, viewDims().VH / 2), G.H - viewDims().VH / 2)) < 2, [cam.y, p.y]);
+      let rolled = false, inside = true;
+      run(8, () => { god(); if (B.boulders.some((o) => o.vx)) rolled = true; if (!pointInRect(bs.x, bs.y, B.plaza, 1)) inside = false; });
+      check('collapse: boulders roll across the plaza, the giant stays on it', rolled && inside && B.plates.every((rw) => rw.some((q) => q.s !== 'crack' || true)));
       OMF.killEnemy(bs); run(0.5);
       check('collapse: defeat settles the bridge, grants challenge', B.phase === 'done' && !G.boss && !!S.challenges.collapse && B.plates.every((rw) => rw.every((q) => q.s === 's' || q.s === 'gone')));
+      run(1.5); if (G.state === 'reward') OMF.chooseUpgrade('__skip');
+      check('collapse: exits are in the plaza side walls', G.stairs.length >= 1 && G.stairs.every((st) => st.wall && !st.locked));
+      { const st = G.stairs[0]; p.x = st.wall < 0 ? st.x + st.w + 30 : st.x - 30; p.y = st.y + st.h / 2; I.vector = () => ({ x: st.wall, y: 0, mag: 1 }); run(3, () => G.run.floor === 40); I.vector = vec0; run(1); }
+      check('collapse: walking into a side exit climbs to 41', G.run.floor === 41);
 
       // ---------- Puppeteer ----------
       OMF.startGame(false); OMF.addUpgrade('aegis', true); OMF.addUpgrade('power', true); OMF.enterFloor(45, 'boss'); run(2.5);
@@ -118,9 +133,12 @@ const { chromium, devices } = require('playwright');
       check('puppeteer: a string slows you', G.stats.move * playerSlow() < mv0 * 0.9);
       const th = G.threads[0]; th.px = p.x; th.py = p.y - 260; run(1, () => { god(); quiet(bs); });
       check('puppeteer: pulling far away snaps it and frees the upgrade', G.threads.length === 0 && !isSealed('aegis'));
+      G.threads.push({ px: p.x + 150, py: p.y, id: null, tension: 0 }); const x0 = p.x; bs.yankT = 0.5; run(0.3, () => { god(); quiet(bs); });
+      check('puppeteer: a yank drags you toward the pin', p.x > x0 + 20, p.x - x0);
+      clearStrings(); bs.yankT = 0;
       bs.cool = 0; const seen = {};
-      run(60, () => { god(); if (bs.pat) seen[bs.pat] = true; if (bs.curtain) seen.cur = true; if (bs.puppets.some((q) => q.x != null)) seen.pup = true; if (seen.cur && seen.pup && seen.string) return false; });
-      check('puppeteer: strings, puppets and the curtain', seen.cur && seen.pup && seen.string, seen);
+      run(150, () => { god(); if (bs.pat) seen[bs.pat] = true; if (bs.curtain) seen.cur = true; if (bs.puppets.some((q) => q.x != null)) seen.pup = true; if (bs.needles.length >= 3) seen.fan = true; if (seen.cur && seen.pup && seen.string && seen.fan) return false; });
+      check('puppeteer: fans of strings, puppets and the curtain', seen.cur && seen.pup && seen.string && seen.fan, seen);
       OMF.killEnemy(bs); run(0.5);
       check('puppeteer: defeat cuts all strings, grants challenge', !G.threads.length && !Object.keys(G.run.sealed).length && !!S.challenges.puppeteer);
 
@@ -136,7 +154,7 @@ const { chromium, devices } = require('playwright');
       const base = playerSlow(); G.pools.push({ x: p.x, y: p.y, r: 40, t: 1, life: 5 });
       check('forge: lava slows you', playerSlow() < base * 0.7);
       G.pools.length = 0;
-      p.shield = 1; p.hp = 5; p.iframes = 0; p.dashIfr = 0; const d = Math.hypot(p.x - bs.x, p.y - bs.y);
+      bs.sealT = 99; G.run.sealed = {}; computeStats(); quiet(bs); G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; p.x = bs.x; p.y = bs.y + 90; p.shield = 1; p.hp = 5; p.iframes = 0; p.dashIfr = 0; const d = Math.hypot(p.x - bs.x, p.y - bs.y);
       G.waves.push({ x: bs.x, y: bs.y, r: d, spd: 0, w: 14, gapA: Math.atan2(p.y - bs.y, p.x - bs.x) + Math.PI, gapW: 0.5, color: '#fff' });
       OMF.step(1 / 60); G.waves.length = 0;
       check('forge: quake waves pierce the shield', p.hp === 4 && p.shield === 1, { hp: p.hp, sh: p.shield });
@@ -154,6 +172,14 @@ const { chromium, devices } = require('playwright');
         OMF.exitTraining();
       }
       for (const f of [34, 39]) { OMF.startGame(false); OMF.enterFloor(f, 'rest'); check('floor ' + f + ' stairs preview the next room', G.previews.length >= 1); }
+      // climbing into the special rooms through the stairs (the floor comes from the preview) keeps them special
+      for (const [f, key] of [[34, 'maze'], [39, 'bridge']]) {
+        OMF.startGame(false); OMF.enterFloor(f, 'rest'); OMF.goThroughDoor(G.stairs[0]); run(3.5);
+        check('climbing to ' + (f + 1) + ' builds the ' + key, G.run.floor === f + 1 && !!G[key] && G.boss && (key === 'maze' ? G.maze.seals.every((s) => !s.lit) : G.bridge.phase === 'run'));
+        // save & quit mid-fight, resume: the room is rebuilt and the fight restarts
+        OMF.startGame(true); run(2.5);
+        check('resume on ' + (f + 1) + ' keeps the ' + key, G.run.floor === f + 1 && !!G[key] && !!G.boss && (key === 'maze' || G.bridge.plates.some((rw) => rw.some((q) => q.h && q.s === 'gone'))));
+      }
       I.vector = vec0; I.consumeDash = cd0;
       return out;
     });

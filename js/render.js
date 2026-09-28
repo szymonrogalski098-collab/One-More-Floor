@@ -58,7 +58,7 @@ const Render = {
   camTarget() {
     const p = G.player, R = G.room;
     let tx = p ? p.x : G.W / 2, ty = p ? p.y : G.H / 2;
-    if (G.bridge && (G.bridge.phase === 'run' || G.bridge.phase === 'final')) { tx = G.W / 2; ty = G.bridge.camY; } // the bridge scrolls on its own
+    if (G.bridge && (G.bridge.phase === 'run' || G.bridge.phase === 'arrive')) { tx = G.W / 2; ty = G.bridge.camY; } // the bridge scrolls on its own
     else if (R && R.active && R.active.w <= this.VW && R.active.h <= this.VH) { tx = R.active.x + R.active.w / 2; ty = R.active.y + R.active.h / 2; }
     else if (G.boss && !G.boss.dead && G.circle) { tx += (G.boss.x - tx) * 0.3; ty += (G.boss.y - ty) * 0.3; }
     const cx = G.W <= this.VW ? G.W / 2 : clamp(tx, this.VW / 2, G.W - this.VW / 2);
@@ -333,32 +333,37 @@ const Render = {
     if (G.arrival) this.drawStairShape(ctx, G.arrival, '#6c5cff', 0.45, false);
     for (const st of G.stairs || []) {
       const col = ROOM[st.type].color, on = G.stairOn === st;
+      // side stairs are the same drawing turned so the steps rise toward the outside
+      const rot = st.wall ? st.wall * Math.PI / 2 : 0;
+      const L = st.wall ? { x: -st.h / 2, y: -st.w / 2, w: st.h, h: st.w } : st;
+      if (st.wall) { ctx.save(); ctx.translate(st.x + st.w / 2, st.y + st.h / 2); ctx.rotate(rot); }
       if (!st.locked) {
         ctx.globalCompositeOperation = 'lighter';
-        this.drawGlow(ctx, st.x + st.w / 2, st.y + st.h / 2, 55, col, 0.5 + Math.sin(t * 4 + st.x) * 0.2);
+        this.drawGlow(ctx, L.x + L.w / 2, L.y + L.h / 2, 55, col, 0.5 + Math.sin(t * 4 + L.x) * 0.2);
         ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       }
-      this.drawStairShape(ctx, st, st.locked ? '#5a5680' : col, st.locked ? 0.5 : 1, true);
+      this.drawStairShape(ctx, L, st.locked ? '#5a5680' : col, st.locked ? 0.5 : 1, true);
       // type hint: small icon on the top step, full preview when standing on the stairs
       ctx.globalAlpha = st.locked ? 0.35 : on ? 1 : 0.6;
-      this.drawRoomIcon(ctx, st.type, st.x + st.w / 2, st.y + 11, st.locked ? '#9c96c9' : col);
+      ctx.save(); ctx.translate(L.x + L.w / 2, L.y + 11); ctx.rotate(-rot); this.drawRoomIcon(ctx, st.type, 0, 0, st.locked ? '#9c96c9' : col); ctx.restore();
       ctx.globalAlpha = 1;
       if (st.locked) {
         // energy bar across the bottom step
         ctx.strokeStyle = '#ff4f6b'; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.55 + Math.sin(t * 8) * 0.2;
-        ctx.beginPath(); ctx.moveTo(st.x + 2, st.y + st.h - 2); ctx.lineTo(st.x + st.w - 2, st.y + st.h - 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(L.x + 2, L.y + L.h - 2); ctx.lineTo(L.x + L.w - 2, L.y + L.h - 2); ctx.stroke();
         ctx.globalAlpha = 1;
       } else {
         // chevrons drifting up the steps
         const k = (t * 1.2) % 1;
         ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
         for (let i = 0; i < 2; i++) {
-          const y = st.y + st.h - 8 - ((k + i * 0.5) % 1) * (st.h - 22);
+          const y = L.y + L.h - 8 - ((k + i * 0.5) % 1) * (L.h - 22);
           ctx.globalAlpha = 0.8 * Math.sin(((k + i * 0.5) % 1) * Math.PI);
-          ctx.beginPath(); ctx.moveTo(st.x + st.w / 2 - 7, y + 4); ctx.lineTo(st.x + st.w / 2, y - 2); ctx.lineTo(st.x + st.w / 2 + 7, y + 4); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(L.x + L.w / 2 - 7, y + 4); ctx.lineTo(L.x + L.w / 2, y - 2); ctx.lineTo(L.x + L.w / 2 + 7, y + 4); ctx.stroke();
         }
         ctx.globalAlpha = 1; ctx.lineCap = 'butt';
       }
+      if (st.wall) ctx.restore();
     }
   },
 
@@ -627,8 +632,16 @@ const Render = {
     const B = G.bridge;
     g.fillStyle = '#030208'; g.fillRect(0, 0, G.W, G.H);
     for (let i = 0; i < 260; i++) { g.globalAlpha = 0.05 + Math.random() * 0.1; g.fillStyle = '#9d8cff'; g.fillRect(Math.random() * G.W, Math.random() * G.H, 2, 2); }
-    g.globalAlpha = 0.5; g.fillStyle = '#1a1410'; g.fillRect(B.bx - 10, 0, 6, G.H); g.fillRect(B.bx + B.pw * 3 + 4, 0, 6, G.H); // ropes
+    g.globalAlpha = 0.5; g.fillStyle = '#1a1410'; g.fillRect(B.bx - 10, B.y0, 6, G.H - B.y0); g.fillRect(B.bx + B.pw * 3 + 4, B.y0, 6, G.H - B.y0); // ropes
     g.globalAlpha = 1;
+    // the plaza at the end: big flagstones on a cliff
+    const P = B.plaza;
+    g.fillStyle = '#1c1612'; g.fillRect(P.x - 8, P.y - 8, P.w + 16, P.h + 16);
+    for (let y = P.y; y < P.y + P.h; y += 40) for (let x = P.x; x < P.x + P.w; x += 40) {
+      g.fillStyle = ((x + y) / 40) % 2 ? '#3a3040' : '#352b3a'; g.fillRect(x + 1, y + 1, Math.min(40, P.x + P.w - x) - 2, Math.min(40, P.y + P.h - y) - 2);
+    }
+    for (let i = 0; i < 26; i++) { const x = P.x + Math.random() * P.w, y = P.y + Math.random() * P.h; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + rand(-14, 14), y + rand(-14, 14)); g.stroke(); }
+    g.strokeStyle = COL.collapse; g.globalAlpha = 0.6; g.lineWidth = 2; g.strokeRect(P.x - 1, P.y - 1, P.w + 2, P.h + 2); g.globalAlpha = 1;
   },
   drawBridge(ctx) {
     const B = G.bridge, { VH } = viewDims(), t = G.time;
@@ -647,6 +660,15 @@ const Render = {
         ctx.moveTo(rc.x + rc.w * 0.5, rc.y + rc.h * 0.5); ctx.lineTo(rc.x + rc.w * 0.85, rc.y + rc.h * 0.3); ctx.stroke();
       }
     }
+    for (const w of B.rowsWarn) { // plaza: a boulder will roll along this row
+      if (w.t < 0) continue;
+      ctx.globalAlpha = 0.12 + 0.3 * (w.t / w.warn) + Math.sin(t * 20) * 0.05; ctx.fillStyle = '#ff4f3d';
+      ctx.fillRect(B.plaza.x, w.y - 20, B.plaza.w, 40);
+      ctx.globalAlpha = 0.9; ctx.fillStyle = '#ffb13d';
+      const ax = w.dir > 0 ? B.plaza.x + 10 : B.plaza.x + B.plaza.w - 10;
+      ctx.beginPath(); ctx.moveTo(ax + w.dir * 10, w.y); ctx.lineTo(ax - w.dir * 4, w.y - 8); ctx.lineTo(ax - w.dir * 4, w.y + 8); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
     for (const w of B.lanesWarn) {
       ctx.globalAlpha = 0.12 + 0.3 * (w.t / w.warn) + Math.sin(t * 20) * 0.05; ctx.fillStyle = '#ff4f3d';
       ctx.fillRect(B.bx + w.lane * B.pw + 4, top, B.pw - 8, bot - top);

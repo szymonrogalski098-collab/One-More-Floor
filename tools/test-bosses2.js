@@ -24,10 +24,20 @@ const { chromium, devices } = require('playwright');
         let inside = true;
         for (let i = 0; i < 400; i++) { const o = { x: c.x + (Math.random() - 0.5) * c.R * 3, y: c.y + (Math.random() - 0.5) * c.R * 3 }; hallClamp(o, 8); if (hallDepth(o.x, o.y) < 7.9) inside = false; }
         const sp = G.spawn;
-        const reach = G.stairs.every((st) => Math.abs(c.y - hallRayT(st.x + st.w / 2, c.y, 0, -1, 0) - (st.y + st.h - 4)) < 1);
-        check(kind + ': own hall (' + (c.pts ? c.pts.length + '-gon' : 'circle') + '), walls hold, spawn inside, stairs on the wall', c.kind === kind && inside && hallDepth(sp.x, sp.y) > 8 && reach);
+        const reach = G.stairs.length === 2 && G.stairs.every((st) => { const y = st.y + st.h / 2, edge = c.x + st.wall * hallRayT(c.x, y, st.wall, 0, 0); return !!st.wall && Math.abs(edge - (st.wall < 0 ? st.x + st.w - 4 : st.x + 4)) < 1; }) && G.stairs[0].wall !== G.stairs[1].wall;
+        const arr = G.arrival, bot = c.y + hallRayT(c.x, c.y, 0, 1, 0), flush = arr.y >= bot - 3;
+        check(kind + ': own hall (' + (c.pts ? c.pts.length + '-gon' : 'circle') + '), walls hold, spawn inside, stairs in the side walls, arrival below the wall line', c.kind === kind && inside && hallDepth(sp.x, sp.y) > 8 && reach && flush);
       }
       check('halls differ from each other', shapes.size >= 7, [...shapes]);
+      // walking out through a side staircase after the boss
+      for (const f of [5, 30]) {
+        OMF.startGame(false); OMF.enterFloor(f, 'boss'); run(2.5); OMF.killEnemy(G.boss); run(1.5);
+        if (G.state === 'reward') OMF.chooseUpgrade('__skip');
+        const st = G.stairs[G.stairs.length - 1], p = G.player, I = OMF.Input, v0 = I.vector;
+        p.x = G.circle.x; p.y = st.y + st.h / 2;
+        I.vector = () => ({ x: st.wall, y: 0, mag: 1 }); run(5, () => G.run.floor === f); I.vector = v0; run(1);
+        check('floor ' + f + ': walking into a side staircase climbs', G.run.floor === f + 1 && G.room.type === st.type, { floor: G.run.floor });
+      }
       const pats = { puppeteer: ['string', 'puppets', 'curtain'], architect: ['build', 'crush', 'blueprint', 'recall'] };
       for (const [floor, kind] of [[45, 'puppeteer'], [50, 'architect']]) {
         OMF.startGame(false); OMF.enterFloor(floor, 'boss'); run(2.5);

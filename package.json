@@ -1,6 +1,6 @@
 {
   "name": "one-more-floor",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "private": true,
   "description": "Mobile-first roguelike PWA. No build step, no backend.",
   "scripts": {

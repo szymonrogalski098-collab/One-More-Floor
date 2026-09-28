@@ -194,6 +194,7 @@ function serializeLayout() {
       gates: rm.gates.map((gt) => ({ tiles: gt.tiles, horiz: gt.horiz })) })),
     halls: G.halls, pillars: G.pillars, traps: G.traps.map((t) => ({ ...t, hitCycle: -1 })),
     stairs: G.stairs.map((st) => ({ ...st })), arrival: G.arrival, exitId: G.rooms.indexOf(G.exitRoom), spawn: G.spawn,
+    maze: G.maze ? JSON.parse(JSON.stringify(G.maze)) : null, bridge: G.bridge ? JSON.parse(JSON.stringify(G.bridge)) : null, // special boss rooms
   };
 }
 
@@ -221,6 +222,8 @@ function restoreFloor(fs) {
   G.exitRoom = G.rooms[fs.exitId] || G.rooms[G.rooms.length - 1];
   const sp = fs.safe || fs.spawn;
   G.spawn = { x: sp.x, y: sp.y };
+  if (fs.maze) restoreMaze(fs.maze);
+  if (fs.bridge) restoreBridge(fs.bridge);
 }
 
 // Pre-build the floor behind every staircase so standing on it can show its full map,
@@ -246,7 +249,7 @@ function applyRestoreState(fs) {
     en.sleep = e.sleep; en.hp = Math.max(1, en.maxHp * e.hp); en.roomId = e.roomId; en.spawnIn = 0;
   }
   if (G.shrine && fs.shrineUsed) G.shrine.used = true;
-  if (fs.phase === 'doors') { G.room.restorePhase = 'doors'; }
+  if (fs.phase === 'doors') { G.room.restorePhase = 'doors'; if (G.bridge) specialsOnBossDeath(); }
   else if (fs.phase === 'rest') G.room.restorePhase = 'rest';
   G.restored = true;
 }
@@ -442,10 +445,14 @@ function updateStairs() {
   const p = G.player;
   let near = null;
   for (const st of G.stairs) {
-    if (p.x > st.x - 4 && p.x < st.x + st.w + 4 && p.y > st.y - 4 && p.y < st.y + st.h + 24) { near = st; break; }
+    const hit = st.wall ? p.y > st.y - 4 && p.y < st.y + st.h + 4 && p.x > st.x - (st.wall > 0 ? 24 : 4) && p.x < st.x + st.w + (st.wall < 0 ? 24 : 4)
+      : p.x > st.x - 4 && p.x < st.x + st.w + 4 && p.y > st.y - 4 && p.y < st.y + st.h + 24;
+    if (hit) { near = st; break; }
   }
   if (near !== G.stairOn) { G.stairOn = near; UI.stairInfo(near); }
-  if (near && !near.locked && G.room.phase === 'doors' && p.y - p.r < near.y + 10) startClimb(near);
+  if (!near || near.locked || G.room.phase !== 'doors') return;
+  const out = near.wall < 0 ? p.x - p.r < near.x + 10 : near.wall > 0 ? p.x + p.r > near.x + near.w - 10 : p.y - p.r < near.y + 10;
+  if (out) startClimb(near);
 }
 
 // Where the guide arrow should point (next room, a straggler, or the doors).
@@ -454,7 +461,7 @@ function guideTarget() {
   if (!R || G.training) return null;
   if (R.phase === 'doors' && G.stairOn && !G.stairOn.locked) return null; // already on the stairs
   if (R.phase === 'doors' && G.side && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.dir < 0 ? G.side.L + 4 : G.side.R - 4, y: G.player.y }; }
-  if (R.phase === 'doors' && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return { x: d.x + d.w / 2, y: d.y + d.h + 16 }; }
+  if (R.phase === 'doors' && G.stairs.length) { const d = G.stairOn || G.stairs[0]; return d.wall ? { x: d.wall < 0 ? d.x + d.w + 16 : d.x - 16, y: d.y + d.h / 2 } : { x: d.x + d.w / 2, y: d.y + d.h + 16 }; }
   if (R.phase === 'fight' && keysActive()) { // the labyrinth: nearest seal still dark
     let best = null, bd = Infinity;
     for (const s of G.maze.seals) { if (s.lit) continue; const d = dist2(s.x, s.y, G.player.x, G.player.y); if (d < bd) { bd = d; best = s; } }
@@ -665,6 +672,11 @@ function updateClimb(dt) {
   const c = G.climb, p = G.player;
   c.t += dt;
   if (c.st.side) { p.x += c.st.dir * 80 * dt; p.vx = c.st.dir * 80; p.vy = 0; } // out through the side door
+  else if (c.st.wall) { // side stairs of a boss hall
+    p.y += (c.st.y + c.st.h / 2 - p.y) * Math.min(1, dt * 8);
+    p.x += c.st.wall * 70 * dt;
+    p.face = c.st.wall < 0 ? Math.PI : 0; p.vx = c.st.wall * 70; p.vy = 0;
+  }
   else {
     p.x += (c.st.x + c.st.w / 2 - p.x) * Math.min(1, dt * 8);
     p.y -= 70 * dt;

@@ -50,7 +50,13 @@ function collideWorld(o, r) {
   if (G.circle) {
     let hit = 0;
     if (o === G.player) for (const st of G.stairs) {
-      if (st.locked || o.x < st.x + r - 2 || o.x > st.x + st.w - r + 2 || o.y > st.y + st.h + 6) continue;
+      if (st.locked) continue;
+      if (st.wall) { // side nook
+        if (o.y < st.y + r - 2 || o.y > st.y + st.h - r + 2 || (st.wall < 0 ? o.x > st.x + st.w + 6 : o.x < st.x - 6)) continue;
+        o.y = clamp(o.y, st.y + r, st.y + st.h - r); o.x = st.wall < 0 ? Math.max(o.x, st.x + r) : Math.min(o.x, st.x + st.w - r);
+        return 0;
+      }
+      if (o.x < st.x + r - 2 || o.x > st.x + st.w - r + 2 || o.y > st.y + st.h + 6) continue;
       o.x = clamp(o.x, st.x + r, st.x + st.w - r); o.y = Math.max(o.y, st.y + r);
       return 0; // inside the nook
     }
@@ -546,11 +552,20 @@ function placeStairs(types) {
   G.stairs = [];
   const ex = G.exitRoom, tw = 3, th = 3;
   if (G.circle) {
-    const c = G.circle;
-    const xs = types.length === 1 ? [c.x] : [c.x - 36, c.x + 36];
+    // boss halls: the way out is cut into the side walls (left / right), away from the boss at the top
+    const c = G.circle, walls = types.length === 1 ? [1] : [-1, 1];
     types.forEach((type, i) => {
-      const x = xs[i] - 28, edge = c.y - hallRayT(xs[i], c.y, 0, -1, 0);
-      G.stairs.push({ type, x, y: edge - 58, w: 56, h: 62, locked: true, circle: true });
+      const wall = walls[i], y = c.y + 10, edge = c.x + wall * hallRayT(c.x, y, wall, 0, 0);
+      G.stairs.push({ type, x: wall < 0 ? edge - 58 : edge - 4, y: y - 28, w: 62, h: 56, locked: true, circle: true, wall });
+    });
+    return;
+  }
+  if (ex.sideStairs) { // grid rooms with side exits (the Collapse's plaza)
+    const walls = types.length === 1 ? [1] : [-1, 1], ty = ex.ty + Math.floor(ex.th / 2) - 1;
+    types.forEach((type, i) => {
+      const wall = walls[i], s = { type, ...tileRect(wall < 0 ? ex.tx - th : ex.tx + ex.tw, ty, th, tw), locked: true, wall };
+      fillSolid(s.tx, s.ty, s.tw, s.th);
+      G.stairs.push(s);
     });
     return;
   }
@@ -571,7 +586,7 @@ function unlockStairs() {
   G.gridVer++; G.fields.clear();
 }
 function placeArrival(rm) {
-  if (G.circle) { const c = G.circle, bot = c.y + hallRayT(c.x, c.y, 0, 1, 0); G.arrival = { x: c.x - 28, y: bot - 22, w: 56, h: 44 }; G.spawn = { x: c.x, y: bot - 16 }; return; }
+  if (G.circle) { const c = G.circle, bot = c.y + hallRayT(c.x, c.y, 0, 1, 0); G.arrival = { x: c.x - 28, y: bot - 2, w: 56, h: 40 }; G.spawn = { x: c.x, y: bot - 16 }; return; } // nook below the wall line
   // arrival stairs: a nook in the bottom wall, the top step flush with the wall line
   const tx = rm.tx + Math.floor(rm.tw / 2) - 1, ty = rm.ty + rm.th;
   carve(tx, ty, 3, 2);

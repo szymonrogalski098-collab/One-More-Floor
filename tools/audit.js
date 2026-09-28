@@ -28,7 +28,8 @@ window.__bot = function (G) {
   }
   if (G.room.phase === 'doors' && G.stairs.length) {
     const d = G.stairs[0]; let tx = d.x + d.w / 2, ty = d.y + d.h + 16;
-    if (Math.abs(p.x - tx) < 12 && p.y < ty + 30) ty = d.y;
+    if (d.wall) { ty = d.y + d.h / 2; tx = d.wall < 0 ? d.x + d.w + 16 : d.x - 16; if (Math.abs(p.y - ty) < 12) tx = d.wall < 0 ? d.x : d.x + d.w; }
+    else if (Math.abs(p.x - tx) < 12 && p.y < ty + 30) ty = d.y;
     const w = routeTo(p.x, p.y, p.r, tx, ty); if (w) { tx = w.x; ty = w.y; }
     mx = tx - p.x; my = ty - p.y;
   } else if (G.room.phase === 'rest' && G.shrine && !G.shrine.used) {
