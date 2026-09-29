@@ -139,6 +139,7 @@ const Render = {
         }
       }
     }
+    if (!G.circle) for (const rm of G.rooms || []) if (rm.variant) this.drawVariantFloor(g, rm);
     // cracks on open floor
     g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1.2;
     for (let i = 0; i < Math.min(40, (G.W * G.H) / 30000); i++) {
@@ -184,6 +185,63 @@ const Render = {
     g.globalAlpha = 1;
   },
 
+  // Floor art of the rare room variants (rooms.js): each looks like what it does.
+  drawVariantFloor(g, rm) {
+    const V = ROOM_VARIANTS[rm.variant], x0 = rm.x, y0 = rm.y, w = rm.w, h = rm.h;
+    const open = (tx, ty) => { const v = G.grid.solid[ty * G.grid.cols + tx]; return v === 0; };
+    const each = (fn) => { for (let ty = rm.ty; ty < rm.ty + rm.th; ty++) for (let tx = rm.tx; tx < rm.tx + rm.tw; tx++) if (open(tx, ty)) fn(tx * T, ty * T, tx, ty); };
+    g.save();
+    if (rm.variant === 'grand') { // big pale flagstones with a gold inlay
+      each((x, y, tx, ty) => { g.fillStyle = (((tx >> 1) + (ty >> 1)) & 1) ? '#2e2a45' : '#35304f'; g.fillRect(x, y, T, T); });
+      g.strokeStyle = 'rgba(255,212,77,0.35)'; g.lineWidth = 2; g.strokeRect(x0 + 2 * T, y0 + 2 * T, w - 4 * T, h - 4 * T);
+      g.strokeStyle = 'rgba(255,212,77,0.18)'; g.strokeRect(x0 + 3 * T, y0 + 3 * T, w - 6 * T, h - 6 * T);
+      g.fillStyle = 'rgba(255,212,77,0.22)'; g.beginPath(); g.arc(x0 + w / 2, y0 + h / 2, 2.2 * T, 0, TAU); g.fill();
+    } else if (rm.variant === 'gauntlet') { // steel grating
+      each((x, y) => { g.fillStyle = '#1d1a26'; g.fillRect(x, y, T, T); g.strokeStyle = 'rgba(255,138,61,0.12)'; g.lineWidth = 1; g.beginPath(); for (let k = 4; k < T; k += 5) { g.moveTo(x + k, y); g.lineTo(x, y + k); } g.stroke(); });
+    } else if (rm.variant === 'corridor') { // a long carpet runner
+      each((x, y, tx, ty) => { g.fillStyle = (tx & 1) ? '#231d36' : '#261f3b'; g.fillRect(x, y, T, T); });
+      const cy = y0 + h / 2;
+      g.fillStyle = '#3d1f4f'; g.fillRect(x0 + T, cy - T * 1.2, w - 2 * T, T * 2.4);
+      g.fillStyle = 'rgba(195,139,255,0.55)'; g.fillRect(x0 + T, cy - T * 1.2, w - 2 * T, 2); g.fillRect(x0 + T, cy + T * 1.2 - 2, w - 2 * T, 2);
+    } else if (rm.variant === 'conveyor') { // riveted plates (the belts are drawn live)
+      each((x, y) => { g.fillStyle = '#1b2230'; g.fillRect(x, y, T, T); g.fillStyle = 'rgba(77,243,255,0.12)'; g.fillRect(x + 2, y + 2, 2, 2); g.fillRect(x + T - 4, y + T - 4, 2, 2); });
+    } else if (rm.variant === 'colonnade') { // green-veined checker
+      each((x, y, tx, ty) => { g.fillStyle = ((tx + ty) & 1) ? '#1e2a22' : '#233128'; g.fillRect(x, y, T, T); });
+    } else if (rm.variant === 'dark') { // near-black floor, barely visible seams
+      each((x, y) => { g.fillStyle = '#0c0a18'; g.fillRect(x, y, T, T); g.strokeStyle = 'rgba(140,125,255,0.06)'; g.strokeRect(x + 0.5, y + 0.5, T - 1, T - 1); });
+    } else if (rm.variant === 'chasm') { // cracked stone around a bottomless pit
+      each((x, y, tx, ty) => { g.fillStyle = ((tx + ty) & 1) ? '#2a2130' : '#2e2434'; g.fillRect(x, y, T, T); });
+      for (let ty = rm.ty; ty < rm.ty + rm.th; ty++) for (let tx = rm.tx; tx < rm.tx + rm.tw; tx++) {
+        if (!pitTile(tx, ty)) continue;
+        const x = tx * T, y = ty * T;
+        g.fillStyle = '#020104'; g.fillRect(x, y, T, T);
+        g.strokeStyle = 'rgba(255,79,107,0.7)'; g.lineWidth = 2; g.beginPath();
+        if (!pitTile(tx - 1, ty)) { g.moveTo(x, y); g.lineTo(x, y + T); }
+        if (!pitTile(tx + 1, ty)) { g.moveTo(x + T, y); g.lineTo(x + T, y + T); }
+        if (!pitTile(tx, ty - 1)) { g.moveTo(x, y); g.lineTo(x + T, y); }
+        if (!pitTile(tx, ty + 1)) { g.moveTo(x, y + T); g.lineTo(x + T, y + T); }
+        g.stroke();
+      }
+    }
+    g.restore();
+  },
+  // live parts of room variants: the belts run
+  drawRoomFx(ctx) {
+    if (!G.belts || !G.belts.length) return;
+    const t = G.time;
+    for (const bt of G.belts) {
+      const on = G.rooms[bt.roomId] && G.rooms[bt.roomId].state === 'active';
+      ctx.fillStyle = 'rgba(10,30,40,0.85)'; ctx.fillRect(bt.x, bt.y, bt.w, bt.h);
+      ctx.strokeStyle = 'rgba(77,243,255,0.45)'; ctx.lineWidth = 1.5; ctx.strokeRect(bt.x + 0.75, bt.y + 0.75, bt.w - 1.5, bt.h - 1.5);
+      ctx.save(); ctx.beginPath(); ctx.rect(bt.x, bt.y, bt.w, bt.h); ctx.clip();
+      const off = ((on ? t * 80 : 0) * bt.dx) % 24, cy = bt.y + bt.h / 2;
+      ctx.strokeStyle = on ? 'rgba(77,243,255,0.6)' : 'rgba(77,243,255,0.25)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let x = bt.x - 24 + off; x < bt.x + bt.w + 24; x += 24) { ctx.moveTo(x - bt.dx * 5, cy - 8); ctx.lineTo(x + bt.dx * 3, cy); ctx.lineTo(x - bt.dx * 5, cy + 8); }
+      ctx.stroke(); ctx.restore(); ctx.lineCap = 'butt';
+    }
+  },
+
   worldTransform(shx, shy) {
     const d = Q.dpr, s = this.scale;
     const ox = this.offX + this.VW * s / 2 - this.cam.x * s, oy = this.offY + this.VH * s / 2 - this.cam.y * s;
@@ -212,6 +270,7 @@ const Render = {
       this.drawTexts(ctx);
     } else {
     this.drawGates(ctx);
+    this.drawRoomFx(ctx);
     this.drawTraps(ctx);
     this.drawBarrier(ctx);
     this.drawStairs(ctx);
@@ -397,9 +456,8 @@ const Render = {
     x0 -= 1; y0 -= 1; x1 += 2; y1 += 2;
     const k = Math.min((cw - 12) / (x1 - x0), (ch - 12) / (y1 - y0));
     const ox = (cw - (x1 - x0) * k) / 2 - x0 * k, oy = (ch - (y1 - y0) * k) / 2 - y0 * k;
-    const open = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows && sol.charCodeAt(y * cols + x) === 48;
-    g.fillStyle = z.b;
-    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (open(x, y)) g.fillRect(ox + x * k, oy + y * k, k + 0.5, k + 0.5);
+    const open = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows && sol.charCodeAt(y * cols + x) !== 49;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (open(x, y)) { g.fillStyle = sol.charCodeAt(y * cols + x) === 50 ? '#020104' : z.b; g.fillRect(ox + x * k, oy + y * k, k + 0.5, k + 0.5); }
     g.strokeStyle = z.edge; g.lineWidth = 1.2; g.beginPath();
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
       if (!open(x, y)) continue;
@@ -417,7 +475,12 @@ const Render = {
     lay.rooms.forEach((rm) => {
       const [x, y, w, h] = tr(rm);
       if (rm.kind === 'exit') { g.strokeStyle = type === 'elite' ? COL.gold : '#ffffff'; g.globalAlpha = 0.7; g.lineWidth = 1.5; g.strokeRect(x + 1, y + 1, w - 2, h - 2); g.globalAlpha = 1; }
-      if (rm.kind !== 'start' && !isCalm(type)) icon(x + w / 2, y + h / 2, type === 'elite' && rm.kind === 'exit' ? 'elite' : 'combat', 'rgba(255,79,107,0.8)', Math.max(0.45, Math.min(0.8, k / 10)));
+      if (rm.variant) { // a rare room: its name instead of the swords
+        const V = ROOM_VARIANTS[rm.variant];
+        g.strokeStyle = V.color; g.globalAlpha = 0.9; g.lineWidth = 1.5; g.strokeRect(x + 1, y + 1, w - 2, h - 2);
+        g.fillStyle = V.color; g.font = '800 ' + Math.max(8, Math.min(11, k * 0.9)) + 'px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(V.name.toUpperCase(), x + w / 2, y + h / 2); g.globalAlpha = 1;
+      } else if (rm.kind !== 'start' && !isCalm(type)) icon(x + w / 2, y + h / 2, type === 'elite' && rm.kind === 'exit' ? 'elite' : 'combat', 'rgba(255,79,107,0.8)', Math.max(0.45, Math.min(0.8, k / 10)));
     });
     if (isCalm(type) && lay.rooms[0]) { const [x, y, w, h] = tr(lay.rooms[0]); icon(x + w / 2, y + h / 2, type, ROOM[type].color, 0.8); }
     for (const st of lay.stairs) { const [x, y, w, h] = tr(st); g.fillStyle = ROOM[st.type].color; g.globalAlpha = 0.85; g.fillRect(x, y, w, h); g.globalAlpha = 1; }

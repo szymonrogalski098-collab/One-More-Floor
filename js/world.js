@@ -69,11 +69,14 @@ function collideWorld(o, r) {
   o.x = clamp(o.x, r, G.W - r); o.y = clamp(o.y, r, G.H - r);
   // centre inside a wall/block (shoved there by crowd pushes or knockback): per-tile resolution could
   // bounce it around inside a thick block forever, so hop to the nearest open tile first
+  // pits (chasm rooms) block walking; a dashing player flies over them
+  const g = G.grid, overPit = o === G.player && o.dashT > 0;
+  const blk = (tx, ty) => { if (tx < 0 || ty < 0 || tx >= g.cols || ty >= g.rows) return true; const v = g.solid[ty * g.cols + tx]; return v === 1 || (v === PIT && !overPit); };
   const ctx = Math.floor(o.x / T), cty = Math.floor(o.y / T);
-  if (solidTile(ctx, cty)) {
+  if (blk(ctx, cty)) {
     let bx = 0, by = 0, bd = Infinity;
     for (let oy = -3; oy <= 3; oy++) for (let ox = -3; ox <= 3; ox++) {
-      if (solidTile(ctx + ox, cty + oy)) continue;
+      if (blk(ctx + ox, cty + oy)) continue;
       const px = clamp(o.x, (ctx + ox) * T, (ctx + ox + 1) * T), py = clamp(o.y, (cty + oy) * T, (cty + oy + 1) * T);
       const d = dist2(o.x, o.y, px, py);
       if (d < bd) { bd = d; bx = px; by = py; }
@@ -83,7 +86,7 @@ function collideWorld(o, r) {
   const x0 = Math.floor((o.x - r) / T), x1 = Math.floor((o.x + r) / T);
   const y0 = Math.floor((o.y - r) / T), y1 = Math.floor((o.y + r) / T);
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
-    if (!solidTile(tx, ty)) continue;
+    if (!blk(tx, ty)) continue;
     _tileRc.x = tx * T; _tileRc.y = ty * T;
     const h = pushOutRect(o, r, _tileRc);
     if (h) hit = h;
@@ -102,6 +105,7 @@ function hasLOS(ax, ay, bx, by) {
 // Is a circle of radius r at (x,y) fully in open space?
 function spotFree(x, y, r) {
   if (G.circle && hallDepth(x, y) <= r) return false;
+  if (G.grid && !G.circle && (pitAt(x, y) || pitAt(x - r, y) || pitAt(x + r, y) || pitAt(x, y - r) || pitAt(x, y + r))) return false;
   return !solidAt(x, y) && !solidAt(x - r, y) && !solidAt(x + r, y) && !solidAt(x, y - r) && !solidAt(x, y + r)
     && !solidAt(x - r * 0.7, y - r * 0.7) && !solidAt(x + r * 0.7, y + r * 0.7) && !solidAt(x - r * 0.7, y + r * 0.7) && !solidAt(x + r * 0.7, y - r * 0.7);
 }
@@ -155,7 +159,7 @@ function distField(tx, ty) {
 
 // Next waypoint (tile centre) when walking from (x,y) towards (tx,ty); null when the line is clear.
 function routeTo(x, y, r, tx, ty) {
-  if (hasLOS(x, y, tx, ty)) return null;
+  if (hasLOS(x, y, tx, ty) && !pitOnLine(x, y, tx, ty)) return null;
   if (G.circle) return null;
   const g = G.grid, f = distField(Math.floor(tx / T), Math.floor(ty / T));
   const cx = Math.floor(x / T), cy = Math.floor(y / T);
@@ -164,8 +168,8 @@ function routeTo(x, y, r, tx, ty) {
   for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
     if (!ox && !oy) continue;
     const nx = cx + ox, ny = cy + oy;
-    if (solidTile(nx, ny)) continue;
-    if (ox && oy && (solidTile(cx + ox, cy) || solidTile(cx, cy + oy))) continue; // no corner cutting
+    if (solidTile(nx, ny) || pitTile(nx, ny)) continue;
+    if (ox && oy && (solidTile(cx + ox, cy) || solidTile(cx, cy + oy) || pitTile(cx + ox, cy) || pitTile(cx, cy + oy))) continue; // no corner cutting
     const d = f[ny * g.cols + nx];
     if (d < 0) continue;
     if (best < 0 || d < best) { best = d; bx = nx; by = ny; }
@@ -360,7 +364,10 @@ function buildDungeon(floor, type) {
   }
   const minR = Math.min(...path.map((p) => p.r)), minC = Math.min(...path.map((p) => p.c)), maxC = Math.max(...path.map((p) => p.c));
   const rowsCells = -minR + 1, colsCells = maxC - minC + 1;
-  makeGrid(colsCells * CELL_W + 2, rowsCells * CELL_H + 4);
+  // a rare room variant: a fight room if there is one, else the exit room (rooms.js)
+  const variant = rollVariant(floor, type), vIdx = path.length > 2 ? randInt(1, path.length - 2) : path.length - 1;
+  const CW = variant && variantBigCells(variant) ? 30 : CELL_W, CH = variant && variantBigCells(variant) ? 22 : CELL_H;
+  makeGrid(colsCells * CW + 2, rowsCells * CH + 4);
   G.gridVer = 1;
 
   // rooms (tile coords), each constrained to overlap its predecessor so a straight corridor fits
@@ -368,21 +375,22 @@ function buildDungeon(floor, type) {
   for (let i = 0; i < path.length; i++) {
     const cell = path[i];
     const kind = i === 0 ? 'start' : i === path.length - 1 ? 'exit' : 'fight';
-    const tw = kind === 'start' ? 9 : kind === 'exit' ? randInt(13, 16) : randInt(11, 16);
-    const th = kind === 'start' ? 9 : randInt(9, 13);
-    const cx0 = 1 + (cell.c - minC) * CELL_W, cy0 = 3 + (cell.r - minR) * CELL_H;
-    let tx = cx0 + randInt(2, CELL_W - tw - 2), ty = cy0 + randInt(2, CELL_H - th - 2);
+    const vs = variant && i === vIdx ? variantSize(variant) : null;
+    const tw = vs ? vs[0] : kind === 'start' ? 9 : kind === 'exit' ? randInt(13, 16) : randInt(11, 16);
+    const th = vs ? vs[1] : kind === 'start' ? 9 : randInt(9, 13);
+    const cx0 = 1 + (cell.c - minC) * CW, cy0 = 3 + (cell.r - minR) * CH;
+    let tx = cx0 + randInt(2, CW - tw - 2), ty = cy0 + randInt(2, CH - th - 2);
     const prev = rooms[i - 1];
     if (prev) {
       if (cell.r === path[i - 1].r) { // horizontal neighbour: need >= 5 rows overlap
-        const lo = Math.max(cy0 + 2, prev.ty - th + 5), hi = Math.min(cy0 + CELL_H - th - 2, prev.ty + prev.th - 5);
+        const lo = Math.max(cy0 + 2, prev.ty - th + 5), hi = Math.min(cy0 + CH - th - 2, prev.ty + prev.th - 5);
         if (lo <= hi) ty = randInt(lo, hi);
       } else { // vertical neighbour: need >= 5 cols overlap
-        const lo = Math.max(cx0 + 2, prev.tx - tw + 5), hi = Math.min(cx0 + CELL_W - tw - 2, prev.tx + prev.tw - 5);
+        const lo = Math.max(cx0 + 2, prev.tx - tw + 5), hi = Math.min(cx0 + CW - tw - 2, prev.tx + prev.tw - 5);
         if (lo <= hi) tx = randInt(lo, hi);
       }
     }
-    rooms.push({ id: i, kind, tx, ty, tw, th, gates: [], state: kind === 'start' ? 'clear' : 'idle' });
+    rooms.push({ id: i, kind, tx, ty, tw, th, gates: [], state: kind === 'start' ? 'clear' : 'idle', ...(vs || (variant && i === vIdx) ? { variant } : {}) });
   }
   for (const rm of rooms) { carve(rm.tx, rm.ty, rm.tw, rm.th); Object.assign(rm, tileRect(rm.tx, rm.ty, rm.tw, rm.th)); }
 
@@ -488,7 +496,8 @@ function roomConnected(rm) {
   return true;
 }
 
-function decorateRoom(rm, floor) {
+function decorateRoom(rm, floor, plain) {
+  if (rm.variant && !plain) { decorateVariant(rm, floor); return; }
   if (rm.kind === 'start' || rm.tw < 9 || rm.th < 8) return;
   const reserve = roomReserve(rm);
   for (let attempt = 0; attempt < 6; attempt++) {

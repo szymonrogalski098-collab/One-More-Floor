@@ -125,7 +125,7 @@ function resetArrays() {
   while (G.eb.length) ebPool.push(G.eb.pop());
   G.enemies.length = 0; G.newEnemies.length = 0; G.markers.length = 0; G.pickups.length = 0;
   G.rings.length = 0; G.texts.length = 0; G.bolts.length = 0; G.beams.length = 0; G.explosions.length = 0;
-  G.stairs = []; G.stairOn = null; G.traps = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.blocks.length = 0; G.darkK = 1; G.maze = null; G.bridge = null; G.threads = []; G.wells = []; G.polBeam = null; G.pupTrail = []; if (G.run) { G.run.sealed = {}; if (G.stats) computeStats(); } if (G.player) G.player.pol = null; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
+  G.stairs = []; G.stairOn = null; G.traps = []; G.belts = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.blocks.length = 0; G.darkK = 1; G.maze = null; G.bridge = null; G.threads = []; G.wells = []; G.polBeam = null; G.pupTrail = []; if (G.run) { G.run.sealed = {}; if (G.stats) computeStats(); } if (G.player) G.player.pol = null; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
 }
 
 function enterFloor(n, type, restore, layout) {
@@ -219,10 +219,10 @@ function serializeLayout() {
   const active = G.room && G.room.active;
   return {
     cols: g.cols, rows: g.rows, solid: Array.from(solid).join(''),
-    rooms: G.rooms.map((rm) => ({ id: rm.id, kind: rm.kind, tx: rm.tx, ty: rm.ty, tw: rm.tw, th: rm.th, layout: rm.layout,
+    rooms: G.rooms.map((rm) => ({ id: rm.id, kind: rm.kind, tx: rm.tx, ty: rm.ty, tw: rm.tw, th: rm.th, layout: rm.layout, variant: rm.variant,
       state: rm.state === 'active' ? 'idle' : rm.state, waves: rm.waves || [], waveIdx: rm === active ? 0 : rm.waveIdx || 0,
       gates: rm.gates.map((gt) => ({ tiles: gt.tiles, horiz: gt.horiz })) })),
-    halls: G.halls, pillars: G.pillars, traps: G.traps.map((t) => ({ ...t, hitCycle: -1 })),
+    halls: G.halls, pillars: G.pillars, traps: G.traps.map((t) => ({ ...t, hitCycle: -1 })), belts: G.belts || [],
     stairs: G.stairs.map((st) => ({ ...st })), arrival: G.arrival, exitId: G.rooms.indexOf(G.exitRoom), spawn: G.spawn,
     maze: G.maze ? JSON.parse(JSON.stringify(G.maze)) : null, bridge: G.bridge ? JSON.parse(JSON.stringify(G.bridge)) : null, // special boss rooms
   };
@@ -244,10 +244,10 @@ function restoreFloor(fs) {
   if (fs.side) { buildSideElevator(); G.stairs = fs.stairs.map((st) => ({ ...st })); if (fs.safe) G.spawn.x = fs.safe.x; return; }
   if (fs.circle) { buildBossHall(fs.kind); G.stairs = fs.stairs.map((st) => ({ ...st })); if (fs.safe) G.spawn = { x: fs.safe.x, y: fs.safe.y }; return; }
   makeGrid(fs.cols, fs.rows);
-  for (let i = 0; i < fs.solid.length; i++) G.grid.solid[i] = fs.solid.charCodeAt(i) === 49 ? 1 : 0;
+  for (let i = 0; i < fs.solid.length; i++) G.grid.solid[i] = fs.solid.charCodeAt(i) - 48; // 0 open, 1 wall, 2 pit
   G.gridVer = 1;
   G.rooms = fs.rooms.map((r) => ({ ...r, ...tileRect(r.tx, r.ty, r.tw, r.th), gates: r.gates.map((gt) => ({ ...gt, locked: false })) }));
-  G.halls = fs.halls; G.pillars = fs.pillars; G.traps = fs.traps;
+  G.halls = fs.halls; G.pillars = fs.pillars; G.traps = fs.traps; G.belts = (fs.belts || []).map((b) => ({ ...b }));
   G.stairs = fs.stairs.map((st) => ({ ...st })); G.arrival = fs.arrival;
   G.exitRoom = G.rooms[fs.exitId] || G.rooms[G.rooms.length - 1];
   const sp = fs.safe || fs.spawn;
@@ -260,14 +260,14 @@ function restoreFloor(fs) {
 
 // Pre-build the floor behind every staircase so standing on it can show its full map,
 // and climbing it leads to exactly that floor.
-const WORLD_KEYS = ['grid', 'W', 'H', 'circle', 'side', 'maze', 'bridge', 'fields', 'gridVer', 'rooms', 'halls', 'pillars', 'traps', 'stairs', 'exitRoom', 'spawn', 'arrival'];
+const WORLD_KEYS = ['grid', 'W', 'H', 'circle', 'side', 'maze', 'bridge', 'belts', 'fields', 'gridVer', 'rooms', 'halls', 'pillars', 'traps', 'stairs', 'exitRoom', 'spawn', 'arrival'];
 function makePreviews() {
   if (G.training) { G.previews = []; return; }
   const saved = {};
   for (const k of WORLD_KEYS) saved[k] = G[k];
   const next = G.run.floor + 1;
   G.previews = saved.stairs.map((st) => {
-    G.maze = null; G.bridge = null; // the special rooms of this floor must not leak into the next one
+    G.maze = null; G.bridge = null; G.belts = []; G.traps = []; // this floor's special pieces must not leak into the next one
     buildFloorGeometry(st.type, next);
     const lay = serializeLayout();
     lay.type = st.type; lay.floor = next;
@@ -340,13 +340,13 @@ function planFloor(n, type) {
     }
   }
 
-  const shares = rooms.map((r) => (r.kind === 'exit' ? 1.3 : 1));
+  const shares = rooms.map((r) => (r.variant === 'grand' ? 1.9 : r.variant === 'gauntlet' ? 0.8 : r.kind === 'exit' ? 1.3 : 1));
   const total = shares.reduce((a, b) => a + b, 0);
   rooms.forEach((rm, i) => {
     const b = Math.max(2, (budget * shares[i]) / total);
     const list = rollEnemies(b, pool, n);
     const nW = rooms.length === 1 ? (n < 3 ? 2 : 3) : rm.kind === 'exit' && n >= 3 ? 3 : 2;
-    rm.waves = splitWaves(list, Math.min(nW, list.length));
+    rm.waves = splitWaves(list, Math.min(nW + (rm.variant === 'grand' ? 1 : 0), list.length));
     rm.waveIdx = 0;
     if (type === 'combat' && rm.kind === 'exit' && ascMod(3)) rm.waves[rm.waves.length - 1].push({ t: pick(pool.filter((k) => k !== 'bomber')), elite: true });
     if (type === 'elite' && rm.kind === 'exit') {
@@ -370,6 +370,7 @@ function clearRoomSection(rm) {
   const R = G.room;
   rm.state = 'clear';
   R.active = null;
+  if (rm.variant) variantCleared(rm);
   if (rm.gates.length) setGates(rm, false);
   for (const k of G.pickups) k.magnet = true;
   saveSnapshot();
@@ -812,7 +813,7 @@ function step(dt) {
       G.fade = clamp(G.arriveT * 2.2, 0, 1);
       Input.consumeDash();
     } else if (G.state === 'play') updatePlayer(dt);
-    if (G.state === 'play') specialsStep(dt);
+    if (G.state === 'play') { specialsStep(dt); roomsStep(dt); }
     updateTraps(dt);
     if (G.player.alive) { // safe = corridor or an already cleared room (never a room that is or will be fought)
       const here = roomAt(G.player.x, G.player.y, -2);

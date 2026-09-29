@@ -420,7 +420,7 @@ function updateEnemyBullets(dt) {
       if (sp > 0) { b.vx *= ns / sp; b.vy *= ns / sp; }
     }
     b.x += b.vx * dt; b.y += b.vy * dt;
-    if (solidAt(b.x, b.y)) { sparks(b.x, b.y, Math.atan2(-b.vy, -b.vx), 1.2, b.color, 2, 60); killEB(i); continue; }
+    if (solidAt(b.x, b.y)) { if (variantBounce(b, dt)) continue; sparks(b.x, b.y, Math.atan2(-b.vy, -b.vx), 1.2, b.color, 2, 60); killEB(i); continue; }
     if (p.alive) {
       const rr = b.r + PLAYER_HITBOX;
       if (dist2(b.x, b.y, p.x, p.y) < rr * rr) {
@@ -462,7 +462,7 @@ function spawnEnemy(type, x, y, elite, into) {
 }
 
 function addMarker(type, elite, room) {
-  const spot = freeSpot(room ? 110 : 150, ENEMY[type].r * (elite ? 1.3 : 1), room);
+  const spot = freeSpot(room ? 110 : 150, ENEMY[type].r * (elite ? 1.3 : 1), variantSpawnArea(room));
   G.markers.push({ type, elite, x: spot.x, y: spot.y, t: 0, dur: 0.8, roomId: room ? room.id : -1, home: room || null });
 }
 

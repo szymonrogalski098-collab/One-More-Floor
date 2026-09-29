@@ -655,7 +655,7 @@ function specialsOnBossDeath() {
 }
 // the labyrinth is dark: only a few lights
 function darknessLights() {
-  if (!keysActive()) return null;
+  if (!keysActive()) return darkRoomLights();
   const p = G.player, b = G.boss, L = [[p.x, p.y, 110]];
   for (const s of G.maze.seals) L.push([s.x, s.y, s.lit ? 70 : 30]);
   L.push([b.x, b.y, b.alertT > 0 ? 40 : 18]); // its eyes

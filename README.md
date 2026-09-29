@@ -20,6 +20,7 @@ On a computer every screen has its own layout (two-column menu, large side-by-si
 - **Loop:** fight, reward (pick 1 of 3 upgrades), choose a door (Combat / Elite / Rest), next floor. **A boss every 5 floors.**
 - **Floors:** combat and elite floors are small dungeons: a safe start room, fight rooms joined by corridors and an exit room with staircases. Rooms vary in shape (cut corners, L-shapes) and cover (pillars, crates, low walls, columns, rings), and some have spike traps that fire only while the room is being fought. Entering a fight room locks its exits (red energy bars) until every wave is cleared; dormant enemies wait in some corridors. A green chevron next to you points to the next room. The camera follows you when the floor is bigger than the screen, and arrows on the screen edge show enemies out of view.
 - **Shop** (from floor 4) and **Altar** (from floor 6) floors: no enemies, step on the station in the middle. The shop sells 3 upgrades, a Repair Kit (+2 HP) and rerolls for the **shards collected in this run** — whatever you spend is not paid out at the end, so every purchase is a real trade-off. The altar offers an epic (or rare) upgrade paired with a **curse** that lasts the whole run (Frail −1 max HP, Hunted: faster enemies, Barrage: faster bullets, Short Sight −20% range, Sluggish +25% dash cooldown, Greed: fewer shard drops), or you walk away. Curses show as red chips in the HUD and in the pause screen.
+- **Rare rooms:** from floor 4, many combat/elite floors have one room that plays differently, each with its own floor look and named on the stair preview: **Great Hall** (almost twice the size, one more wave, a heart and shards when cleared), **Trap Hall** (no cover, a grid of spike plates firing in a wave that sweeps across), **Long Hall** (long and low, enemies come in from the far end), **Conveyor** (two belts carry you and walkers sideways), **Colonnade** (a forest of pillars; enemy bullets bounce once off walls and pillars), **Dark Room** (only a few lights while the fight is on, from floor 8) and **Chasm** (a pit across the middle: walkers cannot cross, bullets fly over it, you can dash over it; from floor 10).
 - **Stairs:** staircases are cut into the top wall of the exit room (bottom step on the wall line), one per route (Combat / Elite / Rest / Boss). They are always visible but locked until the whole floor is cleared. Stand on a staircase to see the full map of the floor it leads to (it is generated in advance, so what you see is what you get), then walk up it to climb. You arrive by stepping out of a stair nook in the bottom wall.
 - **Save & quit / closing the app** keeps the exact floor: layout, cleared rooms, surviving enemies and your position. A fight that was interrupted restarts with you just outside the room. Boss fights restart from the hall entrance; a boss you already beat stays beaten.
 - **Bosses** each fight in their own hall: the Warden's octagonal stone fort, the Loom's woven frame, the Mirror's crystal hexagon, the Counterweight's elevator shaft, the Polarity's split disc, the Forgemaster's furnace, the Warden of Keys' dark labyrinth, the Collapse's crumbling bridge, the Puppeteer's stage and the Architect's blueprint square. The way out after the fight is cut into the side walls. The shape changes how you move and where bullets bounce, and five of them (20, 25, 35, 40, 45) change the rules of the fight.
@@ -178,6 +179,7 @@ js/entities.js          player, bullets, enemies, damage, pickups
 js/bosses.js            top-down bosses with attack patterns
 js/bosses2.js           floor 50: the Architect
 js/specials.js          special rooms (Polarity, Warden of Keys, Collapse, Puppeteer), sealed upgrades, slows
+js/rooms.js             rare room variants (Great Hall, Trap Hall, Long Hall, Conveyor, Colonnade, Dark Room, Chasm)
 js/elevator.js          The Counterweight: side-view elevator boss
 js/game.js              run & floor flow, rewards, death, records
 js/render.js            Canvas 2D renderer
@@ -214,6 +216,7 @@ npm run test:evolutions # recipes, offer rules, effects
 npm run test:shop       # shop prices/wallet/heal/reroll, altar pacts, curse effects, saves
 npm run test:training   # barrier, counted hits, respawns, immortal bosses, save untouched
 npm run test:checkpoint # unlocks, starting kit, resume mid-kit, shard rules, old-save migration
+npm run test:rooms      # rare room variants: layout, belts, bounces, darkness, pits, saves
 npm run test:newrun     # New Run steps, supplies, wager, shop trade
 npm run test:specials   # Polarity, Warden of Keys, Collapse, Puppeteer, shield-piercing, seals, slows
 npm run test:bosses2    # every boss hall, Puppeteer and Architect patterns, rewards
