@@ -665,23 +665,47 @@ function shopTrade() {
 function shopLeave() { G.shop = null; UI.show(null); afterReward(); }
 
 // ---------- altar: an epic (or rare) upgrade for a permanent curse ----------
+// The altar reads what you like this run (the tags of what you picked, weighted by stacks and rarity)
+// and offers a stronger version of it: your favourite upgrade +2 levels, an epic of your favourite tag,
+// or two levels of a rare from your second tag. The curse never hits what your build relies on.
+const CURSE_HITS = { sluggish: ['dash'], myopia: ['spray', 'crit'], frail: ['tank'], greed: [], hunted: [], barrage: [] };
+function runTastes() {
+  const run = G.run, score = {};
+  for (const id of run.order) { const u = UPG[id]; if (!u || u.evo) continue; score[u.tag] = (score[u.tag] || 0) + run.upgrades[id] * (1 + u.rarity); }
+  return Object.keys(score).filter((t) => t !== 'core').sort((a, b) => score[b] - score[a]).concat(['core']);
+}
+function altarOffers() {
+  const run = G.run, tastes = runTastes(), fav = tastes[0], second = tastes[1] || fav;
+  const can = (u) => (run.upgrades[u.id] || 0) < u.max && Save.isUnlocked(u.id) && (!u.req || G.stats[u.req] > 0) && !u.evo;
+  const offers = [], used = new Set();
+  const add = (u, levels, why) => { if (!u || used.has(u.id)) return; used.add(u.id); offers.push({ id: u.id, levels: Math.min(levels, u.max - (run.upgrades[u.id] || 0)), why }); };
+  // 1) deepen: the upgrade you stacked most (in your favourite tag if you can)
+  const owned = run.order.map((id) => UPG[id]).filter((u) => u && can(u)).sort((a, b) => (b.tag === fav) - (a.tag === fav) || run.upgrades[b.id] - run.upgrades[a.id]);
+  add(owned[0], 2, 'Your favourite, deeper');
+  // 2) an epic of your favourite tag (else a rare of it, twice)
+  const epic = shuffle(UPGRADES.filter((u) => u.rarity === 2 && u.tag === fav && !run.upgrades[u.id] && can(u)))[0];
+  if (epic) add(epic, 1, 'Epic ' + TAGS[fav].name.toLowerCase());
+  else add(shuffle(UPGRADES.filter((u) => u.rarity === 1 && u.tag === fav && can(u)))[0], 2, 'More ' + TAGS[fav].name.toLowerCase());
+  // 3) two levels of a rare from your second tag
+  add(shuffle(UPGRADES.filter((u) => u.rarity === 1 && u.tag === second && can(u) && !used.has(u.id)))[0], 2, 'Your second style');
+  // fill up with any epic / rare you can take
+  for (const u of shuffle(UPGRADES.filter((x) => x.rarity >= 1 && can(x)))) { if (offers.length >= 3) break; add(u, u.rarity === 2 ? 1 : 2, 'Something stronger'); }
+  // curses that do not hit your favourite tags
+  const safe = CURSES.filter((c) => !run.curses.includes(c.id) && !(CURSE_HITS[c.id] || []).some((t) => t === fav || t === second));
+  const pool = shuffle(safe.length >= offers.length ? safe : CURSES.filter((c) => !run.curses.includes(c.id)));
+  return offers.slice(0, 3).map((o, i) => ({ ...o, curse: pool[i % Math.max(1, pool.length)] && pool[i % pool.length].id, fav })).filter((o) => o.curse && o.levels > 0);
+}
 function openAltar() {
   G.state = 'reward';
   G.rewardKind = 'altar';
-  const run = G.run;
-  const avail = UPGRADES.filter((u) => (run.upgrades[u.id] || 0) < u.max && Save.isUnlocked(u.id) && (!u.req || G.stats[u.req] > 0));
-  let pool = avail.filter((u) => u.rarity === 2);
-  if (pool.length < 2) pool = pool.concat(shuffle(avail.filter((u) => u.rarity === 1)));
-  const ups = shuffle(pool.slice()).slice(0, 2);
-  const curses = shuffle(CURSES.filter((c) => !run.curses.includes(c.id))).slice(0, ups.length);
-  G.altar = ups.map((u, i) => ({ id: u.id, curse: curses[i] && curses[i].id })).filter((o) => o.curse);
+  G.altar = altarOffers();
   UI.showAltar(G.altar);
 }
 function altarChoose(i) {
   const o = G.altar && G.altar[i];
   if (o) {
     G.run.curses.push(o.curse);
-    addUpgrade(o.id);
+    for (let k = 0; k < (o.levels || 1); k++) addUpgrade(o.id);
     computeStats();
     sfx('upgrade');
     const p = G.player;

@@ -110,6 +110,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .nr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .nr-modes { grid-template-columns: 1fr; }
 .nr-floors { grid-template-columns: repeat(3, 1fr); }
+.nr-ships { grid-template-columns: 1fr 1fr; }
+.nr-shipcard { min-height: 150px; }
+.nr-shipcv { width: 64px; height: 64px; }
+.nr-wager { grid-template-columns: 1fr; }
 .nr-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
 .nr-row .nr-card { flex: 0 0 min(64%, 220px); }
 .nr-wager .nr-card { flex: 1 1 0; }
@@ -457,6 +461,11 @@ html.pc .btn:active:not(:disabled), html.pc .card:active { transform: scale(0.98
   html.pc .nr-floors { grid-template-columns: repeat(5, 1fr); }
   html.pc .nr-supplies { grid-template-columns: repeat(5, 1fr); }
   html.pc .nr-supplies .nr-card { min-height: 130px; }
+  html.pc .nr-ships { grid-template-columns: repeat(5, 1fr); }
+  html.pc .nr-shipcv { width: 96px; height: 96px; }
+  html.pc .nr-shipcard { min-height: 280px; justify-content: flex-start; padding-top: 22px; }
+  html.pc .nr-wager { grid-template-columns: repeat(3, 1fr); }
+  html.pc .nr-wager .nr-card { min-height: 160px; }
   html.pc .nr-row { overflow: visible; }
   html.pc .nr-row .nr-card { flex: 1 1 0; min-width: 0; }
   html.pc .nr-title { font-size: 22px; } html.pc .nr-sub { font-size: 13px; }

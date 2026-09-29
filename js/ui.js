@@ -97,7 +97,8 @@ const UI = {
       case 'again': { sfx('select'); const S = Save.data; this.nr = { asc: Math.min(S.asc.selected | 0, S.asc.unlocked | 0), cp: S.startSel | 0 || 1, ship: S.ship, supplies: [], wager: 0 }; this.nrStart(); break; } // same setup, no shopping
       case 'nr-back': sfx('select'); this.nrBack(); break;
       case 'nr-pick': sfx('select'); this.nrPick(el.dataset.k, el.dataset.v); break;
-      case 'nr-go': sfx('select'); this.nrStart(); break;
+      case 'nr-go': sfx('select'); this.nrForward(); break;
+      case 'nr-skip': sfx('select'); this.nrSkip(); break;
       case 'continue': sfx('select'); startGame(true); break;
       case 'meta': sfx('select'); this.renderMeta(); this.push('s-meta'); break;
       case 'records': sfx('select'); this.renderRecords(); this.push('s-records'); break;
@@ -277,19 +278,38 @@ const UI = {
       buy: S.shards >= Math.min(...SUPPLIES.map((x) => x.cost), WAGER_STAKES[0]),
     };
   },
-  nrHasLoadout() { const o = this.nrOptions(); return o.ships.length > 1 || o.buy; },
+  // loadout steps, one screen each: ship → supplies → wager (a step you cannot use is skipped)
+  nrLoadoutSteps() {
+    const S = Save.data, o = this.nrOptions(), out = [];
+    if (o.ships.length > 1) out.push('ship');
+    if (S.shards >= Math.min(...SUPPLIES.map((x) => x.cost))) out.push('supplies');
+    if (S.shards >= WAGER_STAKES[0]) out.push('wager');
+    return out;
+  },
+  nrHasLoadout() { return this.nrLoadoutSteps().length > 0; },
+  // the next loadout step after `from` that still makes sense with the shards left, or null (= start)
+  nrAfter(from) {
+    const steps = this.nrLoadoutSteps(), i = from ? steps.indexOf(from) : -1, left = Save.data.shards - this.nrCost();
+    for (const st of steps.slice(i + 1)) {
+      if (st === 'supplies' && left < Math.min(...SUPPLIES.map((x) => x.cost))) continue;
+      if (st === 'wager' && left < WAGER_STAKES[0]) continue;
+      return st;
+    }
+    return null;
+  },
+  nrForward() { const nx = this.nrAfter(this.nr.step); if (nx) this.nrGoto(nx); else this.nrStart(); },
   openNewRun() {
     const S = Save.data, o = this.nrOptions();
     this.nr = { step: 'mode', hist: [], mode: 'normal', asc: 0, cp: 1, ship: S.ships.includes(S.ship) ? S.ship : 'striker', supplies: [], wager: 0 };
     if (!o.asc && !o.cps.length && !this.nrHasLoadout()) { this.nrStart(); return; }
-    if (!o.asc && !o.cps.length) this.nr.step = 'loadout';
+    if (!o.asc && !o.cps.length) this.nr.step = this.nrAfter(null);
     this.push('s-newrun');
     this.renderNewRun();
   },
   nrGoto(step) { this.nr.hist.push(this.nr.step); this.nr.step = step; this.renderNewRun(); },
   nrBack() { if (!this.nr || !this.nr.hist.length) { this.back(); return; } this.nr.step = this.nr.hist.pop(); this.renderNewRun(); },
   // after the start floor is settled: the loadout if there is one, else go
-  nrNext() { if (this.nrHasLoadout()) this.nrGoto('loadout'); else this.nrStart(); },
+  nrNext() { const nx = this.nrAfter(null); if (nx) this.nrGoto(nx); else this.nrStart(); },
   nrPick(k, v) {
     const n = this.nr, S = Save.data;
     if (k === 'mode') {
@@ -302,7 +322,7 @@ const UI = {
       n.asc = +v; n.cp = 1;
       if (checkpointsFor(n.asc).length > 1) this.nrGoto('cp'); else this.nrNext();
     } else if (k === 'cp') { n.cp = +v; this.nrNext(); }
-    else if (k === 'ship') { n.ship = v; this.renderNewRun(); }
+    else if (k === 'ship') { n.ship = v; this.nrForward(); } // tapping a ship picks it and moves on
     else if (k === 'supply') {
       const i = n.supplies.indexOf(v);
       if (i >= 0) n.supplies.splice(i, 1);
@@ -313,6 +333,14 @@ const UI = {
       if (w === n.wager) n.wager = 0; else if (this.nrCost() - n.wager + w <= S.shards) n.wager = w;
       this.renderNewRun();
     }
+  },
+  // NEXT / START below the loadout steps; SKIP drops what was picked on this step
+  nrSkip() {
+    const n = this.nr;
+    if (n.step === 'ship') n.ship = Save.data.ships.includes(Save.data.ship) ? Save.data.ship : 'striker';
+    if (n.step === 'supplies') n.supplies = [];
+    if (n.step === 'wager') n.wager = 0;
+    this.nrForward();
   },
   nrCost() { const n = this.nr; return n.supplies.reduce((a, id) => a + SUPPLY[id].cost, 0) + n.wager; },
   nrStart() {
@@ -356,36 +384,44 @@ const UI = {
         html += this.nrCard('cp', f, String(f), (build ? build.order.length - 1 + ' upgrades from your run' : 'Kit + ' + kit.picks + ' picks') + ' · +' + kit.rerolls + ' rerolls', { color: 'var(--good)', tag: 'FLOOR' });
       }
       html += '</div>';
-    } else if (n.step === 'loadout') {
-      title = 'LOADOUT';
+    } else if (n.step === 'ship' || n.step === 'supplies' || n.step === 'wager') {
       const left = S.shards - this.nrCost();
       hint = 'Shards: <b class="shard-v">' + left + '</b>' + (this.nrCost() ? ' <span class="muted">(−' + this.nrCost() + ')</span>' : '');
-      if (o.ships.length > 1) {
-        html += '<div class="meta-sec">SHIP</div><div class="nr-row">';
-        for (const sh of o.ships) html += this.nrCard('ship', sh.id, sh.name, sh.desc, { on: n.ship === sh.id, color: sh.color });
+      if (n.step === 'ship') {
+        title = 'SHIP'; hint = 'Tap a ship to fly it.';
+        html = '<div class="nr-grid nr-ships">';
+        for (const sh of o.ships) html += `<button class="nr-card nr-shipcard${n.ship === sh.id ? ' on' : ''}" style="--c:${sh.color}" data-action="nr-pick" data-k="ship" data-v="${sh.id}">
+          <canvas class="nr-shipcv" data-ship="${sh.id}" width="192" height="192"></canvas><span class="nr-title">${sh.name}</span><span class="nr-sub">${sh.desc}</span></button>`;
+        html += '</div>';
+      } else if (n.step === 'supplies') {
+        title = 'SUPPLIES'; hint += ' · this run only, up to ' + SUPPLY_MAX;
+        html = '<div class="nr-grid nr-supplies">';
+        for (const x of SUPPLIES) {
+          const on = n.supplies.includes(x.id), dim = !on && (n.supplies.length >= SUPPLY_MAX || x.cost > left);
+          html += this.nrCard('supply', x.id, x.name, x.desc, { on, dim, color: COL.gold, tag: x.cost + ' ◆' });
+        }
+        html += '</div>';
+      } else {
+        title = 'WAGER'; const target = wagerTarget(n.cp, S.best.floor);
+        hint += '<br>Reach floor <b>' + target + '</b> this run and get double back.';
+        html = '<div class="nr-grid nr-wager">';
+        for (const w of WAGER_STAKES) {
+          const on = n.wager === w, dim = !on && w - n.wager > left;
+          html += this.nrCard('wager', w, w + ' ◆', 'win ' + w * 2, { on, dim, color: '#ff4f8b', big: true });
+        }
         html += '</div>';
       }
-      html += '<div class="meta-sec">SUPPLIES · THIS RUN ONLY · UP TO ' + SUPPLY_MAX + '</div><div class="nr-grid nr-supplies">';
-      for (const x of SUPPLIES) {
-        const on = n.supplies.includes(x.id), dim = !on && (n.supplies.length >= SUPPLY_MAX || x.cost > left);
-        html += this.nrCard('supply', x.id, x.name, x.desc, { on, dim, color: COL.gold, tag: x.cost + ' ◆' });
-      }
-      html += '</div>';
-      const target = wagerTarget(n.cp, S.best.floor);
-      html += '<div class="meta-sec">WAGER · REACH FLOOR ' + target + ' AND GET DOUBLE BACK</div><div class="nr-row nr-wager">';
-      for (const w of WAGER_STAKES) {
-        const on = n.wager === w, dim = !on && w - n.wager > left;
-        html += this.nrCard('wager', w, w + ' ◆', 'win ' + w * 2, { on, dim, color: '#ff4f8b' });
-      }
-      html += '</div>';
     }
     $('nr-title').textContent = title;
     $('nr-hint').innerHTML = hint;
     body.innerHTML = html;
     body.scrollTop = 0;
-    const go = $('nr-go');
-    go.classList.toggle('hidden', n.step !== 'loadout');
-    go.textContent = 'START' + (n.cp > 1 ? ' · FLOOR ' + n.cp : '') + (n.asc ? ' · A' + n.asc : '');
+    const go = $('nr-go'), skip = $('nr-skip'), load = ['ship', 'supplies', 'wager'].includes(n.step), last = load && !this.nrAfter(n.step);
+    go.classList.toggle('hidden', !load || n.step === 'ship');
+    skip.classList.toggle('hidden', !load);
+    go.textContent = last ? 'START' + (n.cp > 1 ? ' · FLOOR ' + n.cp : '') + (n.asc ? ' · A' + n.asc : '') : 'NEXT';
+    skip.textContent = n.step === 'ship' ? 'Skip · keep ' + (SHIP[n.ship] || SHIP.striker).name : last ? 'Skip & start' : 'Skip';
+    body.querySelectorAll('.nr-shipcv').forEach((cv) => { const g = cv.getContext('2d'); g.clearRect(0, 0, 192, 192); g.translate(96, 96); g.rotate(-Math.PI / 2); g.scale(5.2, 5.2); Render.drawShip(g, cv.dataset.ship, COL.player); });
   },
 
   toast(title, sub) {
@@ -476,11 +512,13 @@ const UI = {
 
   // ---------- Altar ----------
   showAltar(offers) {
+    const fav = offers[0] && offers[0].fav;
+    $('altar-sub').textContent = fav ? 'It knows you like ' + TAGS[fav].name + '.' : '';
     $('altar-cards').innerHTML = offers.map((o, i) => {
-      const u = UPG[o.id], c = CURSE[o.curse];
+      const u = UPG[o.id], c = CURSE[o.curse], have = G.run.upgrades[u.id] || 0;
       return `<button class="card altar-card r${u.rarity}" data-action="altar-pick" data-i="${i}" style="--tc:${TAGS[u.tag].color}">${upgBadge(u)}
-        <div class="card-body"><div class="card-top"><span class="rar">${RARITY[u.rarity].name}</span><span class="tg">${TAGS[u.tag].name}</span></div>
-        <div class="card-name">${u.name}</div><div class="card-desc">${u.desc}</div>
+        <div class="card-body"><div class="card-top"><span class="rar">${o.why.toUpperCase()}</span><span class="tg">${TAGS[u.tag].name}</span></div>
+        <div class="card-name">${u.name}${o.levels > 1 ? ` <span class="lvl">+${o.levels} levels · ${have} → ${have + o.levels}/${u.max}</span>` : ''}</div><div class="card-desc">${u.desc}</div>
         <div class="curse-line"><b>CURSE · ${c.name}</b> ${c.desc}</div></div></button>`;
     }).join('') || '<div class="hint">The altar is silent.</div>';
     this.show('s-altar', { lock: 450 });

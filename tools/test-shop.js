@@ -56,6 +56,18 @@ const { chromium, devices } = require('playwright');
     OMF.enterFloor(11, 'risk'); run(1); step();
     const o = G.altar[0]; altarChoose(0);
     check('taking a pact adds the upgrade and the curse', !!G.run.upgrades[o.id] && G.run.curses.includes(o.curse));
+    // the altar reads what you like this run
+    OMF.startGame(false); for (const id of ['rapid', 'rapid', 'rapid', 'split', 'swift']) OMF.addUpgrade(id, true);
+    check('tastes: spray is the favourite', runTastes()[0] === 'spray', runTastes());
+    OMF.enterFloor(11, 'risk'); run(1); step();
+    const A = G.altar;
+    check('altar: your most-stacked upgrade, +2 levels, first', A[0].id === 'rapid' && A[0].levels === 2 && A[0].fav === 'spray', A);
+    const epicOk = UPGRADES.some((u) => u.rarity === 2 && u.tag === 'spray' && OMF.Save.isUnlocked(u.id) && !u.req);
+    check('altar: an epic of your favourite tag (or two levels of a spray rare)', epicOk ? A.some((x) => UPG[x.id].rarity === 2 && UPG[x.id].tag === 'spray') : A[1] && UPG[A[1].id].tag === 'spray' && A[1].levels === 2, A.map((x) => x.id));
+    check('altar: no curse hits your favourite tag', A.every((x) => !(CURSE_HITS[x.curse] || []).includes('spray')), A.map((x) => x.curse));
+    check('altar: text says what it read', document.getElementById('altar-sub').textContent.includes('SPRAY'));
+    const r0 = G.run.upgrades.rapid; altarChoose(0);
+    check('altar: taking it adds both levels', G.run.upgrades.rapid === r0 + 2);
     return out;
   });
   await b.close();

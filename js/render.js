@@ -242,6 +242,36 @@ const Render = {
     }
   },
 
+  // Ship hulls (nose along +x, about 24 px across). Each one shows what it does: the Lancer carries a
+  // long cannon, the Scatter a wide fan of muzzles, the Phantom swept blades, the Bulwark a shield plate.
+  drawShip(ctx, ship, fill) {
+    const acc = SHIP[ship] ? SHIP[ship].color : COL.player;
+    const poly = (pts) => { ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.closePath(); };
+    ctx.fillStyle = fill; ctx.lineJoin = 'round';
+    if (ship === 'lancer') {
+      ctx.fillStyle = acc; ctx.fillRect(4, -1.4, 13, 2.8); // the cannon
+      ctx.fillStyle = fill; poly([9, 0, 3, -3.5, -2, -10, -7, -10, -4, -3.5, -9, -3, -9, 3, -4, 3.5, -7, 10, -2, 10, 3, 3.5]); ctx.fill();
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.4; ctx.stroke();
+    } else if (ship === 'scatter') {
+      poly([8, 0, 3, -4, 6, -11, -3, -9, -8, -3, -5, 0, -8, 3, -3, 9, 6, 11, 3, 4]); ctx.fill();
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.fillStyle = acc; for (const y of [-9, 0, 9]) { ctx.beginPath(); ctx.arc(y ? 5 : 8, y, 1.8, 0, TAU); ctx.fill(); } // three muzzles
+    } else if (ship === 'phantom') {
+      poly([13, 0, 1, -4, -3, -12, -6, -4, -11, -6, -8, 0, -11, 6, -6, 4, -3, 12, 1, 4]); ctx.fill();
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.globalAlpha *= 0.45; ctx.beginPath(); ctx.moveTo(-5, -8); ctx.lineTo(-14, -9); ctx.moveTo(-5, 8); ctx.lineTo(-14, 9); ctx.stroke(); ctx.globalAlpha /= 0.45; // blade trails
+    } else if (ship === 'bulwark') {
+      poly([9, 0, 4, -9, -6, -9, -10, 0, -6, 9, 4, 9]); ctx.fill();
+      ctx.strokeStyle = acc; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(-1, 0, 13, -0.85, 0.85); ctx.stroke(); ctx.lineCap = 'butt'; // shield plate
+      ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-6, -9); ctx.lineTo(-3, 0); ctx.lineTo(-6, 9); ctx.stroke();
+    } else {
+      poly([12, 0, -7, -8, -3, 0, -7, 8]); ctx.fill();
+    }
+    ctx.fillStyle = COL.playerCore;
+    ctx.beginPath(); ctx.arc(ship === 'lancer' ? 0 : 1, 0, 2.6, 0, TAU); ctx.fill();
+  },
+
   worldTransform(shx, shy) {
     const d = Q.dpr, s = this.scale;
     const ox = this.offX + this.VW * s / 2 - this.cam.x * s, oy = this.offY + this.VH * s / 2 - this.cam.y * s;
@@ -1395,16 +1425,7 @@ const Render = {
     ctx.translate(p.x, p.y); ctx.rotate(a);
     const ship = G.run ? G.run.ship : 'striker';
     ctx.fillStyle = p.pol != null ? POL_COL[p.pol] : p.dashT > 0 ? '#ffffff' : COL.player; // The Polarity: your colour
-    ctx.beginPath();
-    if (ship === 'lancer') { ctx.moveTo(15, 0); ctx.lineTo(-6, -5); ctx.lineTo(-2, 0); ctx.lineTo(-6, 5); }
-    else if (ship === 'scatter') { ctx.moveTo(10, 0); ctx.lineTo(-6, -11); ctx.lineTo(-2, 0); ctx.lineTo(-6, 11); }
-    else if (ship === 'phantom') { ctx.moveTo(12, 0); ctx.lineTo(-9, -9); ctx.lineTo(-4, -2); ctx.lineTo(-4, 2); ctx.lineTo(-9, 9); }
-    else if (ship === 'bulwark') { ctx.moveTo(11, 0); ctx.lineTo(3, -9); ctx.lineTo(-7, -8); ctx.lineTo(-7, 8); ctx.lineTo(3, 9); }
-    else { ctx.moveTo(12, 0); ctx.lineTo(-7, -8); ctx.lineTo(-3, 0); ctx.lineTo(-7, 8); }
-    ctx.closePath(); ctx.fill();
-    if (ship !== 'striker' && SHIP[ship]) { ctx.strokeStyle = SHIP[ship].color; ctx.lineWidth = 1.6; ctx.stroke(); }
-    ctx.fillStyle = COL.playerCore;
-    ctx.beginPath(); ctx.arc(1, 0, 2.6, 0, TAU); ctx.fill();
+    this.drawShip(ctx, ship, ctx.fillStyle);
     ctx.restore();
     if (p.pol != null && G.boss && G.boss.kind === 'polarity') { // beam charge around you
       const k = (G.boss.charge2 || 0) / polarityNeed(G.boss);
