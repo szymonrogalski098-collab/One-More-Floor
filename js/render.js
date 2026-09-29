@@ -343,9 +343,9 @@ const Render = {
         ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       }
       this.drawStairShape(ctx, L, st.locked ? '#5a5680' : col, st.locked ? 0.5 : 1, true);
-      // type hint: small icon on the top step, full preview when standing on the stairs
+      // type hint: small icon on the first step, full preview when standing on the stairs
       ctx.globalAlpha = st.locked ? 0.35 : on ? 1 : 0.6;
-      ctx.save(); ctx.translate(L.x + L.w / 2, L.y + 11); ctx.rotate(-rot); this.drawRoomIcon(ctx, st.type, 0, 0, st.locked ? '#9c96c9' : col); ctx.restore();
+      ctx.save(); ctx.translate(L.x + L.w / 2, L.y + L.h - 14); ctx.rotate(-rot); this.drawRoomIcon(ctx, st.type, 0, 0, st.locked ? '#9c96c9' : col); ctx.restore();
       ctx.globalAlpha = 1;
       if (st.locked) {
         // energy bar across the bottom step
@@ -357,7 +357,7 @@ const Render = {
         const k = (t * 1.2) % 1;
         ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
         for (let i = 0; i < 2; i++) {
-          const y = L.y + L.h - 8 - ((k + i * 0.5) % 1) * (L.h - 22);
+          const y = L.y + L.h - 30 - ((k + i * 0.5) % 1) * (L.h - 40);
           ctx.globalAlpha = 0.8 * Math.sin(((k + i * 0.5) % 1) * Math.PI);
           ctx.beginPath(); ctx.moveTo(L.x + L.w / 2 - 7, y + 4); ctx.lineTo(L.x + L.w / 2, y - 2); ctx.lineTo(L.x + L.w / 2 + 7, y + 4); ctx.stroke();
         }
@@ -874,8 +874,8 @@ const Render = {
     const steps = Math.max(3, Math.round(r.h / 10));
     ctx.globalAlpha = alpha;
     for (let i = 0; i < steps; i++) {
-      // up-stairs get lighter toward the top, arrival stairs darker toward the bottom
-      const k = up ? 1 - i / steps : i / steps;
+      // lightest at the hall edge, darker as the steps lead away (exit: bottom edge, arrival: top edge)
+      const k = up ? (i + 1) / steps : 1 - i / steps;
       const y = r.y + (i * r.h) / steps, h = r.h / steps;
       ctx.fillStyle = `rgba(${30 + 40 * k | 0},${26 + 34 * k | 0},${62 + 60 * k | 0},1)`;
       ctx.fillRect(r.x, y, r.w, h);

@@ -93,7 +93,11 @@ const UI = {
   action(a, el) {
     Sound.init();
     switch (a) {
-      case 'play': sfx('select'); startGame(false); break;
+      case 'play': sfx('select'); this.openNewRun(); break;
+      case 'again': { sfx('select'); const S = Save.data; this.nr = { asc: Math.min(S.asc.selected | 0, S.asc.unlocked | 0), cp: S.startSel | 0 || 1, ship: S.ship, supplies: [], wager: 0 }; this.nrStart(); break; } // same setup, no shopping
+      case 'nr-back': sfx('select'); this.nrBack(); break;
+      case 'nr-pick': sfx('select'); this.nrPick(el.dataset.k, el.dataset.v); break;
+      case 'nr-go': sfx('select'); this.nrStart(); break;
       case 'continue': sfx('select'); startGame(true); break;
       case 'meta': sfx('select'); this.renderMeta(); this.push('s-meta'); break;
       case 'records': sfx('select'); this.renderRecords(); this.push('s-records'); break;
@@ -106,13 +110,11 @@ const UI = {
       case 'shop-buy': shopBuy(+el.dataset.i); break;
       case 'shop-heal': shopHeal(); break;
       case 'shop-reroll': shopReroll(); break;
+      case 'shop-trade': shopTrade(); break;
       case 'shop-leave': sfx('select'); shopLeave(); break;
       case 'altar-pick': altarChoose(+el.dataset.i); break;
       case 'altar-leave': sfx('select'); altarChoose(-1); break;
       case 'challenges': sfx('select'); this.renderChallenges(); this.push('s-challenges'); break;
-      case 'ship-prev': case 'ship-next': this.cycleShip(a === 'ship-next' ? 1 : -1); break;
-      case 'asc-prev': case 'asc-next': this.cycleAsc(a === 'asc-next' ? 1 : -1); break;
-      case 'start-prev': case 'start-next': this.cycleStart(a === 'start-next' ? 1 : -1); break;
       case 'settings': sfx('select'); this.renderSettings(); this.push('s-settings'); break;
       case 'back': sfx('select'); this.back(); break;
       case 'resume': sfx('select'); resumeGame(); break;
@@ -223,20 +225,6 @@ const UI = {
     c.classList.toggle('hidden', !snap);
     if (snap) c.textContent = 'CONTINUE · FLOOR ' + snap.floor;
     $('m-meta-dot').classList.toggle('hidden', !this.canAffordAny());
-    // ship picker (shows locked ships too, with how to get them)
-    const sh = SHIP[S.ship] || SHIP.striker, owned = S.ships.includes(sh.id);
-    $('pk-ship-name').textContent = sh.name + (owned ? '' : ' · LOCKED');
-    $('pk-ship-name').classList.toggle('locked', !owned);
-    $('pk-ship-name').style.color = owned ? sh.color : '';
-    const ch = CHALLENGES.find((c) => c.reward.ship === sh.id);
-    $('pk-ship-desc').textContent = owned ? sh.desc : 'Unlock: ' + (ch ? ch.name + ' (' + ch.desc.replace(/\.$/, '') + ')' : '') + ' or buy in the Workshop';
-    this.renderStartPicker();
-    // ascension picker
-    const A = S.asc, un = A.unlocked | 0;
-    $('pick-asc').classList.toggle('hidden', un < 1);
-    const sel = Math.min(A.selected | 0, un);
-    $('pk-asc-name').textContent = sel === 0 ? 'OFF' : 'LEVEL ' + sel + ' · +' + sel * 15 + '% SHARDS';
-    $('pk-asc-desc').textContent = sel === 0 ? 'Normal tower. Up to Ascension ' + un + ' unlocked.' : ASCENSION.slice(0, sel).slice(-2).join(' · ') + (sel > 2 ? ' · +' + (sel - 2) + ' more' : '');
     const done = CHALLENGES.filter((c) => S.challenges[c.id]).length;
     $('m-ch-count').textContent = done + '/' + CHALLENGES.length;
   },
@@ -278,36 +266,126 @@ const UI = {
     $('tr-go').disabled = !this.trainReady();
   },
 
-  cycleShip(dir) {
-    const S = Save.data, i = SHIPS.findIndex((x) => x.id === S.ship);
-    S.ship = SHIPS[(i + dir + SHIPS.length) % SHIPS.length].id;
-    Save.save(); sfx('select'); this.renderMenu();
+  // ---------- New run: mode → checkpoint / ascension → ship, supplies & wager ----------
+  // Steps with nothing to choose are skipped; with nothing to choose at all PLAY starts at once.
+  nrOptions() {
+    const S = Save.data;
+    return {
+      asc: S.asc.unlocked | 0,
+      cps: checkpointsFor(0).filter((f) => f > 1),
+      ships: SHIPS.filter((x) => S.ships.includes(x.id)),
+      buy: S.shards >= Math.min(...SUPPLIES.map((x) => x.cost), WAGER_STAKES[0]),
+    };
   },
-  cycleStart(dir) {
-    const S = Save.data, list = checkpointsFor(Math.min(S.asc.selected | 0, S.asc.unlocked | 0));
-    let i = Math.max(0, list.indexOf(S.startSel | 0));
-    i = clamp(i + dir, 0, list.length - 1);
-    S.startSel = list[i];
-    Save.save(); sfx('select'); this.renderMenu();
+  nrHasLoadout() { const o = this.nrOptions(); return o.ships.length > 1 || o.buy; },
+  openNewRun() {
+    const S = Save.data, o = this.nrOptions();
+    this.nr = { step: 'mode', hist: [], mode: 'normal', asc: 0, cp: 1, ship: S.ships.includes(S.ship) ? S.ship : 'striker', supplies: [], wager: 0 };
+    if (!o.asc && !o.cps.length && !this.nrHasLoadout()) { this.nrStart(); return; }
+    if (!o.asc && !o.cps.length) this.nr.step = 'loadout';
+    this.push('s-newrun');
+    this.renderNewRun();
   },
-  renderStartPicker() {
-    const S = Save.data, list = checkpointsFor(Math.min(S.asc.selected | 0, S.asc.unlocked | 0));
-    if (!list.includes(S.startSel | 0)) S.startSel = list.filter((f) => f <= (S.startSel | 0)).pop() || 1;
-    const f = S.startSel | 0;
-    $('pick-start').classList.toggle('hidden', list.length < 2);
-    $('pk-start-name').textContent = f === 1 ? 'FLOOR 1' : 'CHECKPOINT · FLOOR ' + f;
-    $('pk-start-name').style.color = f === 1 ? '' : 'var(--good)';
-    const kit = checkpointKit(f), build = f > 1 && checkpointBuild(Math.min(S.asc.selected | 0, S.asc.unlocked | 0), f);
-    $('pk-start-desc').textContent = f === 1 ? 'From the bottom. Checkpoints: ' + (list.length - 1) + ' unlocked.'
-      : (build ? 'Your build from the run to floor ' + build.reached + ': ' + Math.max(0, build.order.length - 1) + ' of ' + build.order.length + ' upgrades (one lost at random)'
-        : 'Starting kit: ' + checkpointBonus(f).map((id) => UPG[id].name).join(', ') + ' + ' + kit.picks + ' picks')
-        + ' · +' + kit.rerolls + ' rerolls · floors below ' + f + ' pay no shards';
+  nrGoto(step) { this.nr.hist.push(this.nr.step); this.nr.step = step; this.renderNewRun(); },
+  nrBack() { if (!this.nr || !this.nr.hist.length) { this.back(); return; } this.nr.step = this.nr.hist.pop(); this.renderNewRun(); },
+  // after the start floor is settled: the loadout if there is one, else go
+  nrNext() { if (this.nrHasLoadout()) this.nrGoto('loadout'); else this.nrStart(); },
+  nrPick(k, v) {
+    const n = this.nr, S = Save.data;
+    if (k === 'mode') {
+      n.mode = v; n.asc = 0; n.cp = 1;
+      if (v === 'normal') this.nrNext();
+      else if (v === 'cp') this.nrGoto('cp');
+      else if ((S.asc.unlocked | 0) === 1) { n.asc = 1; if (checkpointsFor(1).length > 1) this.nrGoto('cp'); else this.nrNext(); }
+      else this.nrGoto('asc');
+    } else if (k === 'asc') {
+      n.asc = +v; n.cp = 1;
+      if (checkpointsFor(n.asc).length > 1) this.nrGoto('cp'); else this.nrNext();
+    } else if (k === 'cp') { n.cp = +v; this.nrNext(); }
+    else if (k === 'ship') { n.ship = v; this.renderNewRun(); }
+    else if (k === 'supply') {
+      const i = n.supplies.indexOf(v);
+      if (i >= 0) n.supplies.splice(i, 1);
+      else if (n.supplies.length < SUPPLY_MAX && this.nrCost() + SUPPLY[v].cost <= S.shards) n.supplies.push(v);
+      this.renderNewRun();
+    } else if (k === 'wager') {
+      const w = +v;
+      if (w === n.wager) n.wager = 0; else if (this.nrCost() - n.wager + w <= S.shards) n.wager = w;
+      this.renderNewRun();
+    }
   },
-
-  cycleAsc(dir) {
-    const A = Save.data.asc;
-    A.selected = clamp((A.selected | 0) + dir, 0, A.unlocked | 0);
-    Save.save(); sfx('select'); this.renderMenu();
+  nrCost() { const n = this.nr; return n.supplies.reduce((a, id) => a + SUPPLY[id].cost, 0) + n.wager; },
+  nrStart() {
+    const S = Save.data, n = this.nr, cost = this.nrCost();
+    S.asc.selected = n.asc; S.startSel = n.cp;
+    if (S.ships.includes(n.ship)) S.ship = n.ship;
+    S.shards -= cost;
+    G.pendingLoadout = { supplies: n.supplies.slice(), wager: n.wager };
+    Save.save();
+    this.nr = null;
+    startGame(false);
+  },
+  nrCard(k, v, title, sub, extra) {
+    const e = extra || {};
+    return `<button class="nr-card${e.on ? ' on' : ''}${e.dim ? ' dim' : ''}${e.big ? ' big' : ''}" style="--c:${e.color || 'var(--accent)'}" data-action="nr-pick" data-k="${k}" data-v="${v}"${e.dim ? ' disabled' : ''}>
+      ${e.tag ? `<span class="nr-tag">${e.tag}</span>` : ''}<span class="nr-title">${title}</span><span class="nr-sub">${sub}</span></button>`;
+  },
+  renderNewRun() {
+    const n = this.nr, S = Save.data, o = this.nrOptions();
+    const body = $('nr-body');
+    let title = 'NEW RUN', hint = '', html = '';
+    if (n.step === 'mode') {
+      hint = 'Where do you start?';
+      html = '<div class="nr-grid nr-modes">' + this.nrCard('mode', 'normal', 'FLOOR 1', 'The whole tower, from the bottom.', { big: true });
+      if (o.cps.length) html += this.nrCard('mode', 'cp', 'CHECKPOINT', o.cps.length + ' unlocked · highest: floor ' + o.cps[o.cps.length - 1], { big: true, color: 'var(--good)' });
+      if (o.asc) html += this.nrCard('mode', 'asc', 'ASCENSION', 'Harder towers, more shards · up to level ' + o.asc, { big: true, color: '#ff4f8b' });
+      html += '</div>';
+    } else if (n.step === 'asc') {
+      title = 'ASCENSION'; hint = 'Every level adds one rule on top of the ones before.';
+      html = '<div class="nr-grid">';
+      for (let l = o.asc; l >= 1; l--) html += this.nrCard('asc', l, 'LEVEL ' + l, ASCENSION[l - 1] + '<br><small>+' + l * 15 + '% shards · best floor ' + ((S.asc.best || [])[l] | 0) + '</small>', { color: '#ff4f8b', tag: 'A' + l });
+      html += '</div>';
+    } else if (n.step === 'cp') {
+      title = n.asc ? 'ASCENSION ' + n.asc : 'CHECKPOINT'; hint = 'Pick a floor. Floors below it pay no shards.';
+      const list = checkpointsFor(n.asc).slice().reverse();
+      html = '<div class="nr-grid nr-floors">';
+      for (const f of list) {
+        if (f === 1 && n.mode === 'cp') continue;
+        if (f === 1) { html += this.nrCard('cp', 1, 'FLOOR 1', 'From the bottom'); continue; }
+        const kit = checkpointKit(f), build = checkpointBuild(n.asc, f);
+        html += this.nrCard('cp', f, String(f), (build ? build.order.length - 1 + ' upgrades from your run' : 'Kit + ' + kit.picks + ' picks') + ' · +' + kit.rerolls + ' rerolls', { color: 'var(--good)', tag: 'FLOOR' });
+      }
+      html += '</div>';
+    } else if (n.step === 'loadout') {
+      title = 'LOADOUT';
+      const left = S.shards - this.nrCost();
+      hint = 'Shards: <b class="shard-v">' + left + '</b>' + (this.nrCost() ? ' <span class="muted">(−' + this.nrCost() + ')</span>' : '');
+      if (o.ships.length > 1) {
+        html += '<div class="meta-sec">SHIP</div><div class="nr-row">';
+        for (const sh of o.ships) html += this.nrCard('ship', sh.id, sh.name, sh.desc, { on: n.ship === sh.id, color: sh.color });
+        html += '</div>';
+      }
+      html += '<div class="meta-sec">SUPPLIES · THIS RUN ONLY · UP TO ' + SUPPLY_MAX + '</div><div class="nr-grid nr-supplies">';
+      for (const x of SUPPLIES) {
+        const on = n.supplies.includes(x.id), dim = !on && (n.supplies.length >= SUPPLY_MAX || x.cost > left);
+        html += this.nrCard('supply', x.id, x.name, x.desc, { on, dim, color: COL.gold, tag: x.cost + ' ◆' });
+      }
+      html += '</div>';
+      const target = wagerTarget(n.cp, S.best.floor);
+      html += '<div class="meta-sec">WAGER · REACH FLOOR ' + target + ' AND GET DOUBLE BACK</div><div class="nr-row nr-wager">';
+      for (const w of WAGER_STAKES) {
+        const on = n.wager === w, dim = !on && w - n.wager > left;
+        html += this.nrCard('wager', w, w + ' ◆', 'win ' + w * 2, { on, dim, color: '#ff4f8b' });
+      }
+      html += '</div>';
+    }
+    $('nr-title').textContent = title;
+    $('nr-hint').innerHTML = hint;
+    body.innerHTML = html;
+    body.scrollTop = 0;
+    const go = $('nr-go');
+    go.classList.toggle('hidden', n.step !== 'loadout');
+    go.textContent = 'START' + (n.cp > 1 ? ' · FLOOR ' + n.cp : '') + (n.asc ? ' · A' + n.asc : '');
   },
 
   toast(title, sub) {
@@ -388,6 +466,11 @@ const UI = {
       sh.healBought, p.hp >= s.maxHp && !sh.healBought ? 'r0 full' : 'r0');
     $('btn-shop-reroll').innerHTML = 'Reroll · <span class="shard-ico"></span>' + SHOP_REROLL_PRICE;
     $('btn-shop-reroll').disabled = wallet < SHOP_REROLL_PRICE;
+    // banked shards from the menu can be traded in, 10 to 1, once per shop
+    const tr = $('btn-shop-trade'), bank = Save.data.shards;
+    tr.innerHTML = sh.traded ? 'Traded' : 'Trade ' + SHOP_TRADE.cost + ' banked → <span class="shard-ico"></span>' + SHOP_TRADE.gain;
+    tr.disabled = !!sh.traded || bank < SHOP_TRADE.cost;
+    tr.title = 'Banked shards: ' + bank;
     if (this.current !== 's-shop') this.show('s-shop', { lock: 350 });
   },
 
@@ -432,6 +515,8 @@ const UI = {
     const goals = [];
     if (!G.training && !challengeDone('flawless') && run.hurt === 0 && (run.start || 1) === 1 && run.floor < 25) goals.push('Flawless Ascent: no hits so far');
     if (!G.training && !challengeDone('ironwill') && run.floor < 40) goals.push('Iron Will: ' + Math.min(30, run.hurt) + '/30 HP lost');
+    if (run.wager && !run.wager.won) goals.push('Wager ' + run.wager.stake + ': reach floor ' + run.wager.target);
+    if (run.reviveLeft > 0) goals.push('Last Breath ready');
     $('p-goals').textContent = goals.join(' · ');
     const buildHtml = run.order.map((id) => {
       const u = UPG[id];

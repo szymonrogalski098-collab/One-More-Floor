@@ -260,6 +260,21 @@ function shopPrice(u, floor) { return Math.round([14, 24, 40][u.rarity] * (1 + f
 const SHOP_HEAL = { hp: 2, price: 10 };
 const SHOP_REROLL_PRICE = 6;
 
+// ---------- Before a run: supplies (one-run consumables) and the wager, paid with banked shards ----------
+const SUPPLIES = [
+  { id: 'card',   name: 'Starter Card',  icon: 'CRD', cost: 80,  desc: 'Start with a random rare upgrade.' },
+  { id: 'coins',  name: 'Pocket Shards', icon: 'PKT', cost: 60,  desc: '+20 shards to spend in shops (not paid out at the end).' },
+  { id: 'heart',  name: 'Spare Heart',   icon: 'HRT', cost: 100, desc: '+1 max HP for this run.' },
+  { id: 'reroll', name: 'Reroll Pack',   icon: 'RRL', cost: 50,  desc: '+2 rerolls.' },
+  { id: 'revive', name: 'Last Breath',   icon: 'LBR', cost: 150, desc: 'One extra revive with full HP.' },
+];
+const SUPPLY = Object.fromEntries(SUPPLIES.map((x) => [x.id, x]));
+const SUPPLY_MAX = 2;
+const WAGER_STAKES = [100, 250, 500];
+// the wager pays double when you reach a floor near your record (never less than 10 floors of climbing)
+function wagerTarget(start, best) { return Math.max(start + 10, Math.ceil((best * 0.8) / 5) * 5); }
+const SHOP_TRADE = { cost: 100, gain: 10 }; // banked shards -> shop shards, once per shop
+
 // ---------- Curses (the altar trades an epic/rare upgrade for one of these, for the rest of the run) ----------
 const CURSES = [
   { id: 'frail',   name: 'Frail',       icon: 'FRL', desc: '−1 max HP.' },

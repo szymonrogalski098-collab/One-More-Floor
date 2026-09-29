@@ -26,6 +26,7 @@ function computeStats() {
   (SHIP[run.ship] || SHIP.striker).mod(s);
   if (ascMod(8)) s.maxHp -= 1;
   if (cursed('frail')) s.maxHp -= 1;
+  if (G.run && G.run.bonusHp) s.maxHp += G.run.bonusHp; // Spare Heart supply
   if (cursed('myopia')) s.range *= 0.8;
   if (cursed('sluggish')) s.dashCd *= 1.25;
   for (const id in run.upgrades) { if (run.sealed && run.sealed[id]) continue; UPG[id].mod(s, run.upgrades[id]); } // sealed upgrades do nothing
@@ -963,6 +964,14 @@ function hurtPlayer(sx, sy, noDodge, pierce) {
       ring(p.x, p.y, 10, 160, 0.6, COL.player, 5);
       slowmo(0.8, 0.3);
       showBanner('SECOND WIND', 'Not over yet.');
+      sfx('upgrade');
+    } else if (run.reviveLeft > 0) { // Last Breath supply
+      run.reviveLeft--;
+      p.hp = s.maxHp; p.iframes = 2.4;
+      clearEnemyBullets(true);
+      ring(p.x, p.y, 10, 180, 0.6, COL.gold, 5);
+      slowmo(0.8, 0.3);
+      showBanner('LAST BREATH', 'Back on your feet.');
       sfx('upgrade');
     } else playerDie();
   }

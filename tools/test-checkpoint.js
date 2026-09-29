@@ -9,22 +9,22 @@ const { chromium, devices } = require('playwright');
     const out = [], check = (n, c, i) => out.push([c ? 'PASS' : 'FAIL', n, i === undefined ? '' : JSON.stringify(i)]);
     const G = OMF.G, S = OMF.Save.data, run = (s) => { for (let i = 0; i < s * 60; i++) OMF.step(1 / 60); };
     S.checkpoints = {}; S.startSel = 1; S.asc = { unlocked: 0, selected: 0, best: {} }; S.meta.start = 0;
-    OMF.UI.renderMenu();
-    check('no checkpoint picker before any boss', document.getElementById('pick-start').classList.contains('hidden'));
+    check('no checkpoint to choose before any boss', OMF.UI.nrOptions().cps.length === 0);
     // beat the floor-5 boss
     OMF.startGame(false); OMF.enterFloor(5, 'boss'); run(2.5); OMF.killEnemy(G.boss); run(0.5);
     check('beating the floor-5 boss unlocks checkpoint 6', (S.checkpoints[0] | 0) === 6, S.checkpoints);
     // elevator boss unlocks too
     OMF.startGame(false); OMF.enterFloor(20, 'boss'); run(1.3); G.side.t = G.side.dur; run(0.2);
     check('surviving the elevator unlocks checkpoint 21', (S.checkpoints[0] | 0) === 21);
-    G.state = 'menu'; OMF.UI.renderMenu();
-    check('menu shows the START picker', !document.getElementById('pick-start').classList.contains('hidden'));
-    OMF.UI.cycleStart(1); OMF.UI.cycleStart(1);
-    check('picker steps through checkpoints 1 → 6 → 11', S.startSel === 11, S.startSel);
-    check('picker text names the checkpoint', document.getElementById('pk-start-name').textContent.includes('11'));
-    // start from checkpoint 11: 5 kit picks, +2 rerolls
+    G.state = 'menu'; OMF.UI.stack = []; OMF.UI.show('s-menu'); S.shards = 0; S.ships = ['striker'];
+    OMF.UI.action('play');
+    check('PLAY opens the New Run screen with a CHECKPOINT card', OMF.UI.current === 's-newrun' && !!document.querySelector('[data-k="mode"][data-v="cp"]'));
+    OMF.UI.action('nr-pick', document.querySelector('[data-k="mode"][data-v="cp"]'));
+    const floors = [...document.querySelectorAll('[data-k="cp"]')].map((e) => +e.dataset.v);
+    check('checkpoint cards go from the highest floor down, no floor 1', floors.join(',') === '21,16,11,6', floors);
+    // start from checkpoint 11: 5 kit picks, +2 rerolls (nothing to buy: no loadout step)
     const rr0 = S.meta.reroll | 0;
-    OMF.startGame(false);
+    OMF.UI.action('nr-pick', document.querySelector('[data-k="cp"][data-v="11"]'));
     check('run starts on floor 11 with the kit screen', G.run.floor === 11 && G.state === 'reward' && G.rewardKind === 'kit' && document.getElementById('up-title').textContent === 'STARTING KIT');
     check('kit size 5 picks, +2 rerolls', G.run.kitTotal === 5 && G.run.rerolls === rr0 + 2, [G.run.kitTotal, G.run.rerolls]);
     check('no remembered build: Power Core and Ember come on top of the picks', !!G.run.upgrades.power && !!G.run.upgrades.ember, G.run.order);
@@ -48,8 +48,9 @@ const { chromium, devices } = require('playwright');
     G.run.floor = 17; finalizeRun(false);
     const saved = S.cpBuilds[0] && S.cpBuilds[0][11];
     check('build and reached floor are remembered for checkpoint 11', saved && saved.reached === 17 && saved.order.length === 6, saved);
-    S.startSel = 11; OMF.UI.renderMenu();
-    check('menu describes the remembered build', document.getElementById('pk-start-desc').textContent.includes('floor 17'));
+    G.state = 'menu'; OMF.UI.openNewRun(); OMF.UI.nrPick('mode', 'cp');
+    check('the checkpoint card describes the remembered build', document.querySelector('[data-k="cp"][data-v="11"]').textContent.includes('5 upgrades from your run'));
+    OMF.UI.back(); S.startSel = 11;
     OMF.startGame(false);
     const n = G.run.order.reduce((a, id) => a + G.run.upgrades[id], 0);
     check('checkpoint restores the build minus one upgrade, no pick screen', n === 5 && G.state === 'play' && G.run.kitLeft === 0 && !G.run.upgrades.ember, [n, G.state, G.run.order]);
@@ -74,8 +75,8 @@ const { chromium, devices } = require('playwright');
     S.startSel = 1; OMF.startGame(false);
     check('START floor 1 = normal run, no kit', G.run.floor === 1 && G.run.start === 1 && G.state === 'play');
     // per ascension
-    S.asc = { unlocked: 1, selected: 1, best: {} }; S.startSel = 11; OMF.UI.renderMenu();
-    check('checkpoints are per ascension level', S.startSel === 1 && document.getElementById('pick-start').classList.contains('hidden'));
+    S.asc = { unlocked: 1, selected: 1, best: {} }; S.startSel = 11; OMF.startGame(false);
+    check('checkpoints are per ascension level', checkpointsFor(1).length === 1 && G.run.floor === 1 && G.run.asc === 1);
     return out;
   });
   // older saves: checkpoints come from the best floor reached

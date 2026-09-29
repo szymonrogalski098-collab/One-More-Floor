@@ -122,6 +122,7 @@ const { chromium, devices } = require('playwright');
       check('collapse: exits are in the plaza side walls', G.stairs.length >= 1 && G.stairs.every((st) => st.wall && !st.locked));
       { const st = G.stairs[0]; p.x = st.wall < 0 ? st.x + st.w + 30 : st.x - 30; p.y = st.y + st.h / 2; I.vector = () => ({ x: st.wall, y: 0, mag: 1 }); run(3, () => G.run.floor === 40); I.vector = vec0; run(1); }
       check('collapse: walking into a side exit climbs to 41', G.run.floor === 41);
+      check('floor 41 is a normal floor (no bridge, no maze)', !G.bridge && !G.maze, G.room.type);
 
       // ---------- Puppeteer ----------
       OMF.startGame(false); OMF.addUpgrade('aegis', true); OMF.addUpgrade('power', true); OMF.enterFloor(45, 'boss'); run(2.5);
@@ -179,6 +180,13 @@ const { chromium, devices } = require('playwright');
         // save & quit mid-fight, resume: the room is rebuilt and the fight restarts
         OMF.startGame(true); run(2.5);
         check('resume on ' + (f + 1) + ' keeps the ' + key, G.run.floor === f + 1 && !!G[key] && !!G.boss && (key === 'maze' || G.bridge.plates.some((rw) => rw.some((q) => q.h && q.s === 'gone'))));
+        // after the boss the next floor is a normal one, also after save & quit there
+        OMF.killEnemy(G.boss); run(1.5); if (G.state === 'reward') OMF.chooseUpgrade('__skip');
+        OMF.goThroughDoor(G.stairs[0]); run(1.5);
+        check('floor ' + (f + 2) + ' after it has no ' + key, G.run.floor === f + 2 && !G.maze && !G.bridge);
+        OMF.startGame(true); run(0.5);
+        check('resume on ' + (f + 2) + ' has no ' + key, G.run.floor === f + 2 && !G.maze && !G.bridge);
+        { const sn = S.snapshot; if (sn.floorState) { sn.floorState[key] = { junk: 1 }; OMF.startGame(true); run(0.2); check('an old save carrying the ' + key + ' onto ' + (f + 2) + ' loads clean', !G.maze && !G.bridge); } }
       }
       I.vector = vec0; I.consumeDash = cd0;
       return out;

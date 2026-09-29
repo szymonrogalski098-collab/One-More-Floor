@@ -104,16 +104,32 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .dash-pips i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .dash-pips i.off { background: rgba(255, 255, 255, 0.18); }
 
-/* ---------- Menu pickers ---------- */
-.pickers { display: flex; flex-direction: column; gap: 8px; }
-.picker { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 14px; min-height: 64px; }
-.pk-arrow { height: 100%; min-height: 60px; font-size: 30px; color: var(--accent); }
-.pk-arrow:active { background: rgba(255, 255, 255, 0.08); }
-.pk-body { text-align: center; padding: 6px 2px; }
-.pk-k { font-size: 10px; letter-spacing: 0.16em; color: var(--muted); font-weight: 800; }
-.pk-v { font-size: 17px; font-weight: 900; letter-spacing: 0.06em; }
-.pk-d { font-size: 11px; color: #cfc9f5; line-height: 1.3; margin-top: 2px; }
-.pk-v.locked { color: var(--muted); }
+/* ---------- New run ---------- */
+.nr-step { width: 44px; }
+.nr-body { display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px; }
+.nr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nr-modes { grid-template-columns: 1fr; }
+.nr-floors { grid-template-columns: repeat(3, 1fr); }
+.nr-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.nr-row .nr-card { flex: 0 0 min(64%, 220px); }
+.nr-wager .nr-card { flex: 1 1 0; }
+.nr-card {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center;
+  min-height: 84px; padding: 12px 10px; border-radius: 14px; color: var(--text);
+  background: rgba(255, 255, 255, 0.04); border: 1.5px solid color-mix(in srgb, var(--c) 40%, transparent);
+}
+.nr-card.big { min-height: 96px; }
+.nr-card.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--panel-2)); box-shadow: 0 0 18px color-mix(in srgb, var(--c) 35%, transparent); }
+.nr-card.dim { opacity: 0.35; }
+.nr-card:active:not(:disabled) { transform: scale(0.98); }
+.nr-title { font-weight: 900; font-size: 18px; letter-spacing: 0.08em; color: var(--c); }
+.nr-floors .nr-title { font-size: 30px; letter-spacing: 0.02em; }
+.nr-sub { font-size: 11.5px; line-height: 1.35; color: #cfc9f5; }
+.nr-sub small { color: var(--muted); font-size: 10.5px; }
+.nr-tag { font-size: 9.5px; font-weight: 800; letter-spacing: 0.16em; color: var(--muted); }
+#nr-hint b { font-size: 15px; }
+html.pc .nr-card:not(:disabled):hover { transform: scale(1.05); border-color: var(--c); box-shadow: 0 0 22px color-mix(in srgb, var(--c) 40%, transparent); }
+
 .count { margin-left: 6px; font-size: 11px; color: var(--gold); }
 .meta-sec { font-size: 11px; letter-spacing: 0.16em; color: var(--muted); font-weight: 800; margin: 8px 2px 0; }
 .meta-item.done { border-color: rgba(141, 255, 106, 0.45); }
@@ -178,15 +194,14 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   max-height: 100%;
 }
 .panel-wrap.tall { height: 100%; }
-.logo { text-align: center; margin-bottom: 8px; }
-.logo-top { font-weight: 900; font-size: clamp(20px, 7vw, 28px); letter-spacing: 0.42em; color: var(--muted); padding-left: 0.42em; }
-.logo-bot {
-  font-weight: 900; font-size: clamp(56px, 20vw, 88px); letter-spacing: 0.08em; line-height: 0.95;
-  background: linear-gradient(180deg, #ffffff 10%, var(--accent) 60%, #6c5cff);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 0 18px rgba(77, 243, 255, 0.35));
-}
-.tagline { margin-top: 6px; font-weight: 700; letter-spacing: 0.2em; font-size: 12px; color: var(--magenta); text-transform: uppercase; }
+.logo { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 6px 0 10px; }
+/* four rising steps: the one-more-floor motif */
+.logo-steps { display: flex; align-items: flex-end; gap: 5px; height: 26px; }
+.logo-steps i { width: 16px; border-radius: 2px; background: var(--accent); opacity: 0.35; box-shadow: 0 0 10px rgba(77, 243, 255, 0.35); }
+.logo-steps i:nth-child(1) { height: 25%; } .logo-steps i:nth-child(2) { height: 50%; opacity: 0.55; }
+.logo-steps i:nth-child(3) { height: 75%; opacity: 0.75; } .logo-steps i:nth-child(4) { height: 100%; opacity: 1; }
+.logo-name { margin: 0; font-weight: 900; font-size: clamp(20px, 6.8vw, 34px); letter-spacing: 0.12em; color: var(--text); white-space: nowrap; padding-left: 0.12em; }
+.logo-name b { color: var(--accent); font-weight: 900; }
 .menu-stats, .stat-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
 }
@@ -330,9 +345,6 @@ h2 { text-align: center; font-weight: 900; letter-spacing: 0.16em; font-size: 22
 /* ---------- Landscape ---------- */
 @media (orientation: landscape) and (max-height: 520px) {
   .menu-wrap, .panel-wrap { max-width: 720px; gap: 8px; }
-  .logo-bot { font-size: 52px; }
-  .logo-top { font-size: 16px; }
-  .logo { margin-bottom: 0; }
   .cards { flex-direction: row; }
   .card { flex-direction: column; text-align: center; flex: 1; min-height: 0; }
   .card-top { justify-content: center; }
@@ -360,17 +372,11 @@ h2 { text-align: center; font-weight: 900; letter-spacing: 0.16em; font-size: 22
   .dash { width: 72px; height: 72px; bottom: calc(var(--safe-b) + 14px); opacity: 0.9; }
 }
 @media (max-height: 740px) and (orientation: portrait) {
-  .logo-bot { font-size: 52px; }
-  .tagline { display: none; }
-  .pk-d { display: none; }
-  .picker { min-height: 50px; }
-  .pk-arrow { min-height: 48px; }
 }
 @media (max-height: 640px) and (orientation: portrait) {
   .card { min-height: 80px; padding: 10px; }
   .badge { width: 46px; height: 46px; font-size: 13px; }
   .menu-wrap { gap: 9px; }
-  .logo-bot { font-size: 58px; }
 }
 
 .menu-col-a, .menu-col-b { display: contents; }
@@ -420,12 +426,12 @@ html.pc .dash.left { left: auto; right: 18px; }
 html.pc .dash-label { font-size: 11px; }
 
 /* everything clickable grows under the mouse */
-.btn, .icon-btn, .pk-arrow, .buy, .toggle, .seg-btns button, .card, .badge, .tr-tile, .tr-count button { transition: transform 0.14s ease-out, box-shadow 0.14s, border-color 0.14s, background 0.14s, filter 0.14s; }
+.btn, .icon-btn, .buy, .toggle, .seg-btns button, .card, .badge, .tr-tile, .tr-count button, .nr-card { transition: transform 0.14s ease-out, box-shadow 0.14s, border-color 0.14s, background 0.14s, filter 0.14s; }
 html.pc button { cursor: pointer; }
 html.pc button:disabled { cursor: default; }
 html.pc .btn:hover:not(:disabled) { transform: scale(1.05); filter: brightness(1.15); }
 html.pc .btn-primary:hover { box-shadow: 0 0 36px rgba(77, 243, 255, 0.55), inset 0 -3px 0 rgba(0, 0, 0, 0.2); }
-html.pc .icon-btn:hover, html.pc .pk-arrow:hover { transform: scale(1.15); }
+html.pc .icon-btn:hover { transform: scale(1.15); }
 html.pc .buy:hover:not(:disabled) { transform: scale(1.08); }
 html.pc .toggle:hover, html.pc .seg-btns button:hover { transform: scale(1.02); border-color: rgba(160, 150, 255, 0.45); }
 html.pc .card:hover {
@@ -442,13 +448,18 @@ html.pc .btn:active:not(:disabled), html.pc .card:active { transform: scale(0.98
   /* menu: logo and run setup on the left, actions on the right */
   html.pc .menu-wrap { max-width: 980px; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 56px; align-items: center; }
   html.pc .menu-col-a, html.pc .menu-col-b { display: flex; flex-direction: column; gap: 16px; }
-  html.pc .logo-bot { font-size: 112px; }
-  html.pc .logo-top { font-size: 30px; }
-  html.pc .tagline { font-size: 14px; }
   html.pc .menu-stats .v { font-size: 26px; }
-  html.pc .picker { min-height: 76px; }
-  html.pc .pk-v { font-size: 20px; }
-  html.pc .pk-d { font-size: 13px; }
+  html.pc .logo-name { font-size: 54px; }
+  html.pc .logo-steps { height: 40px; } html.pc .logo-steps i { width: 24px; }
+  html.pc #s-newrun .panel-wrap { max-width: 900px; }
+  html.pc .nr-modes { grid-template-columns: repeat(3, 1fr); }
+  html.pc .nr-modes .nr-card { min-height: 200px; }
+  html.pc .nr-floors { grid-template-columns: repeat(5, 1fr); }
+  html.pc .nr-supplies { grid-template-columns: repeat(5, 1fr); }
+  html.pc .nr-supplies .nr-card { min-height: 130px; }
+  html.pc .nr-row { overflow: visible; }
+  html.pc .nr-row .nr-card { flex: 1 1 0; min-width: 0; }
+  html.pc .nr-title { font-size: 22px; } html.pc .nr-sub { font-size: 13px; }
   html.pc .menu-col-b .btn { min-height: 58px; font-size: 16px; }
   html.pc .menu-col-b .btn-primary { min-height: 76px; font-size: 24px; }
 

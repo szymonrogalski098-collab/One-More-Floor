@@ -10,6 +10,7 @@ function newRun(snapshot) {
     ship: Save.data.ships.includes(Save.data.ship) ? Save.data.ship : 'striker',
     asc: Math.min(Save.data.asc.selected | 0, Save.data.asc.unlocked | 0), hurtAtBoss: 0,
     start: 1, kitLeft: 0, kitTotal: 0, cpPending: {}, curses: [],
+    gift: 0, bonusHp: 0, reviveLeft: 0, wager: null, // supplies & wager bought before the run
   };
   G.player = makePlayer();
   computeStats();
@@ -27,6 +28,8 @@ function newRun(snapshot) {
     floor = G.run.start = Save.data.startSel | 0;
     startFromCheckpoint(floor);
   }
+  if (!snapshot) applyLoadout(G.pendingLoadout);
+  G.pendingLoadout = null;
   if (!snapshot && (meta.start | 0) > 0) {
     const commons = UPGRADES.filter((u) => u.rarity === 0 && u.id !== 'vital' && u.id !== 'mender');
     addUpgrade(pick(commons).id, true);
@@ -38,6 +41,31 @@ function newRun(snapshot) {
   enterFloor(floor, type, snapshot && snapshot.floorState);
   Sound.music(true, 'normal');
   if (G.run.kitLeft > 0) openKit();
+}
+
+// Supplies and the wager chosen on the New Run screen (the shards were already paid there).
+function applyLoadout(lo) {
+  if (!lo) return;
+  const run = G.run;
+  for (const id of lo.supplies || []) {
+    if (id === 'card') { const rares = UPGRADES.filter((u) => u.rarity === 1 && !u.lock && !u.req && !u.evo && !run.upgrades[u.id]); if (rares.length) addUpgrade(pick(rares).id, true); }
+    else if (id === 'coins') { run.shards += 20; run.gift += 20; }
+    else if (id === 'heart') run.bonusHp += 1;
+    else if (id === 'reroll') run.rerolls += 2;
+    else if (id === 'revive') run.reviveLeft += 1;
+  }
+  if (lo.wager) run.wager = { stake: lo.wager, target: wagerTarget(run.start || 1, Save.data.best.floor), won: false };
+  run.supplies = (lo.supplies || []).slice();
+  computeStats();
+  G.player.hp = G.stats.maxHp;
+}
+function checkWager() {
+  const w = G.run && G.run.wager;
+  if (!w || w.won || G.run.floor < w.target) return;
+  w.won = true;
+  Save.data.shards += w.stake * 2; Save.save();
+  UI.toast('WAGER WON', '+' + w.stake * 2 + ' shards');
+  sfx('upgrade');
 }
 
 // Checkpoint start. With a remembered build: get it back minus one random non-epic upgrade.
@@ -126,6 +154,7 @@ function enterFloor(n, type, restore, layout) {
   G.hudDirty = true;
   makePreviews();
   checkChallenges('floor');
+  checkWager();
   saveSnapshot();
   if (!Save.data.settings.tutorialDone && n === 1) G.tutorial = 0.01; else G.tutorial = 0;
 }
@@ -173,7 +202,8 @@ function saveSnapshot() {
     v: 2, floor: run.floor, type: G.room.type, hp: G.player.hp, order: expandOrder(),
     run: { kills: run.kills, shards: run.shards + pendingShards(), dmg: run.dmg, time: run.time, bosses: run.bosses, elites: run.elites,
       hurt: run.hurt, dodges: run.dodges, rerolls: run.rerolls, windUsed: run.windUsed, ship: run.ship, asc: run.asc,
-      start: run.start, kitLeft: run.kitLeft, kitTotal: run.kitTotal, cpPending: run.cpPending, curses: run.curses },
+      start: run.start, kitLeft: run.kitLeft, kitTotal: run.kitTotal, cpPending: run.cpPending, curses: run.curses,
+      gift: run.gift, bonusHp: run.bonusHp, reviveLeft: run.reviveLeft, wager: run.wager, supplies: run.supplies },
     floorState: G.room.type === 'boss' && G.room.phase !== 'doors' ? null : serializeFloor(), // a boss fight restarts; a beaten boss stays beaten
   };
   Save.save();
@@ -222,8 +252,10 @@ function restoreFloor(fs) {
   G.exitRoom = G.rooms[fs.exitId] || G.rooms[G.rooms.length - 1];
   const sp = fs.safe || fs.spawn;
   G.spawn = { x: sp.x, y: sp.y };
-  if (fs.maze) restoreMaze(fs.maze);
-  if (fs.bridge) restoreBridge(fs.bridge);
+  // only on their own boss floors (older saves could carry them onto the next floor)
+  const kind = G.run.floor % 5 === 0 ? bossKindFor(G.run.floor) : null;
+  if (fs.maze && kind === 'keys') restoreMaze(fs.maze);
+  if (fs.bridge && kind === 'collapse') restoreBridge(fs.bridge);
 }
 
 // Pre-build the floor behind every staircase so standing on it can show its full map,
@@ -235,6 +267,7 @@ function makePreviews() {
   for (const k of WORLD_KEYS) saved[k] = G[k];
   const next = G.run.floor + 1;
   G.previews = saved.stairs.map((st) => {
+    G.maze = null; G.bridge = null; // the special rooms of this floor must not leak into the next one
     buildFloorGeometry(st.type, next);
     const lay = serializeLayout();
     lay.type = st.type; lay.floor = next;
@@ -592,6 +625,7 @@ function shopPay(price) {
   collectPendingShards();
   if (G.run.shards < price) return false;
   G.run.shards -= price;
+  G.run.gift = Math.max(0, (G.run.gift | 0) - price); // gifted shards are spent first
   G.hudDirty = true;
   return true;
 }
@@ -615,6 +649,16 @@ function shopReroll() {
   const sold = G.shop.items.filter((x) => x.sold).map((x) => x.id);
   G.shop.items = rollChoices('shop').filter((u) => !sold.includes(u.id)).slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false }));
   sfx('select');
+  UI.showShop();
+}
+// trade banked shards for shop shards (once per shop)
+function shopTrade() {
+  const S = Save.data;
+  if (!G.shop || G.shop.traded || S.shards < SHOP_TRADE.cost) return;
+  S.shards -= SHOP_TRADE.cost; Save.save();
+  G.run.shards += SHOP_TRADE.gain; G.run.gift = (G.run.gift | 0) + SHOP_TRADE.gain;
+  G.shop.traded = true;
+  sfx('buy'); G.hudDirty = true;
   UI.showShop();
 }
 function shopLeave() { G.shop = null; UI.show(null); afterReward(); }
@@ -713,7 +757,7 @@ function finalizeRun(abandon) {
   const floorBonus = Math.max(0, climbed) * 2;
   // quitting in the first 3 floors of a run pays nothing (prevents farming quick restarts)
   const noPay = !!abandon && climbed <= 3;
-  const earned = noPay ? 0 : Math.round((run.shards + floorBonus) * salv);
+  const earned = noPay ? 0 : Math.round((Math.max(0, run.shards - (run.gift | 0)) + floorBonus) * salv); // gifted shop shards are not paid out
   const prevBest = S.best.floor;
   const record = run.floor > prevBest;
   S.shards += earned;

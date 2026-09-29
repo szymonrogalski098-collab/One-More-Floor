@@ -57,32 +57,14 @@
     <div class="menu-wrap">
       <div class="menu-col-a">
       <div class="logo">
-        <div class="logo-top">ONE MORE</div>
-        <div class="logo-bot">FLOOR</div>
-        <div class="tagline">Just one more floor.</div>
+        <div class="logo-steps" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <h1 class="logo-name">ONE MORE <b>FLOOR</b></h1>
       </div>
       <div class="menu-stats">
         <div><span class="k">Best</span><span id="m-best" class="v">0</span></div>
         <div><span class="k">Shards</span><span id="m-shards" class="v shard-v">0</span></div>
         <div><span class="k">Runs</span><span id="m-runs" class="v">0</span></div>
       </div>
-      <div class="pickers">
-        <div class="picker" id="pick-ship">
-          <button class="pk-arrow" data-action="ship-prev" aria-label="Previous ship">‹</button>
-          <div class="pk-body"><div class="pk-k">SHIP</div><div class="pk-v" id="pk-ship-name">Striker</div><div class="pk-d" id="pk-ship-desc"></div></div>
-          <button class="pk-arrow" data-action="ship-next" aria-label="Next ship">›</button>
-        </div>
-        <div class="picker hidden" id="pick-asc">
-          <button class="pk-arrow" data-action="asc-prev" aria-label="Lower ascension">‹</button>
-          <div class="pk-body"><div class="pk-k">ASCENSION</div><div class="pk-v" id="pk-asc-name">0</div><div class="pk-d" id="pk-asc-desc"></div></div>
-          <button class="pk-arrow" data-action="asc-next" aria-label="Higher ascension">›</button>
-        </div>
-        <div class="picker hidden" id="pick-start">
-          <button class="pk-arrow" data-action="start-prev" aria-label="Earlier checkpoint">‹</button>
-          <div class="pk-body"><div class="pk-k">START</div><div class="pk-v" id="pk-start-name">FLOOR 1</div><div class="pk-d" id="pk-start-desc"></div></div>
-          <button class="pk-arrow" data-action="start-next" aria-label="Later checkpoint">›</button>
-        </div>
- </div>
       </div>
       <div class="menu-col-b">
       <button id="btn-continue" class="btn btn-secondary hidden" data-action="continue">CONTINUE</button>
@@ -99,6 +81,20 @@
       <p id="m-controls" class="hint">Drag anywhere to move · auto-fire · DASH to dodge</p>
       <p id="install-hint" class="hint small-hint hidden"></p>
       </div>
+    </div>
+  </section>
+
+  <!-- NEW RUN: mode → checkpoint / ascension → ship & supplies -->
+  <section id="s-newrun" class="screen">
+    <div class="panel-wrap tall">
+      <div class="head-row">
+        <button class="icon-btn back" data-action="nr-back" aria-label="Back">‹</button>
+        <h2 id="nr-title">NEW RUN</h2>
+        <div id="nr-step" class="nr-step"></div>
+      </div>
+      <p id="nr-hint" class="sub-h"></p>
+      <div id="nr-body" class="scroll nr-body"></div>
+      <button id="nr-go" class="btn btn-primary hidden" data-action="nr-go">START</button>
     </div>
   </section>
 
@@ -120,6 +116,7 @@
       <div id="shop-cards" class="cards"></div>
       <div class="row">
         <button id="btn-shop-reroll" class="btn btn-ghost small" data-action="shop-reroll">Reroll</button>
+        <button id="btn-shop-trade" class="btn btn-ghost small" data-action="shop-trade">Trade</button>
         <button class="btn btn-secondary small" data-action="shop-leave">Leave</button>
       </div>
     </div>
@@ -169,7 +166,7 @@
       <div class="earned"><span class="shard-ico"></span> +<span id="d-earned">0</span> <span class="muted">shards</span></div>
       <div id="d-next" class="next-goal"></div>
       <div id="d-build" class="chip-row"></div>
-      <button class="btn btn-primary big" data-action="play">ONE MORE RUN</button>
+      <button class="btn btn-primary big" data-action="again">ONE MORE RUN</button>
       <div class="row">
         <button class="btn btn-ghost" data-action="meta">Workshop<span id="d-meta-dot" class="dot hidden"></span></button>
         <button class="btn btn-ghost" data-action="menu">Menu</button>

@@ -108,7 +108,7 @@ async function touchEnd(cdp) { await cdp.send('Input.dispatchTouchEvent', { type
       await page.tap('#s-meta [data-action=back]');
       await page.waitForTimeout(200);
       ok(name + ': back from meta returns to death', await page.evaluate(() => OMF.UI.current === 's-dead'));
-      await page.tap('#s-dead [data-action=play]');
+      await page.tap('#s-dead [data-action=again]');
       await page.waitForTimeout(600);
       ok(name + ': quick restart', await page.evaluate(() => OMF.G.state === 'play' && OMF.G.run.floor === 1));
     }

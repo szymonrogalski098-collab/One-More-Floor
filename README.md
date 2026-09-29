@@ -24,8 +24,12 @@ On a computer every screen has its own layout (two-column menu, large side-by-si
 - **Save & quit / closing the app** keeps the exact floor: layout, cleared rooms, surviving enemies and your position. A fight that was interrupted restarts with you just outside the room. Boss fights restart from the hall entrance; a boss you already beat stays beaten.
 - **Bosses** each fight in their own hall: the Warden's octagonal stone fort, the Loom's woven frame, the Mirror's crystal hexagon, the Counterweight's elevator shaft, the Polarity's split disc, the Forgemaster's furnace, the Warden of Keys' dark labyrinth, the Collapse's crumbling bridge, the Puppeteer's stage and the Architect's blueprint square. The way out after the fight is cut into the side walls. The shape changes how you move and where bullets bounce, and five of them (20, 25, 35, 40, 45) change the rules of the fight.
 - **Ending a run early:** using *End run* within the first 3 floors of a run earns no shards. After that you keep what you collected.
-- **Checkpoints:** beating a boss unlocks starting new runs on the floor after it (6, 11, 16, 21 …), separately for every Ascension level. Pick it with START in the menu. The game remembers the build you carried past every checkpoint (and how far that run got; the build that climbed highest is kept). Starting from a checkpoint gives that **build back minus one random non-epic upgrade**. If no build is remembered yet, you get a **starting kit** instead: Power Core and Ember (plus Rapid Cycle from floor 16 and another Power Core from floor 26) and 1 + 2 per skipped boss upgrade picks with better rarity odds (16 → 7 picks). Either way: +1 reroll per skipped boss and full HP. Floors below the checkpoint pay no shards and do not count for challenges.
+- **Checkpoints:** beating a boss unlocks starting new runs on the floor after it (6, 11, 16, 21 …), separately for every Ascension level. Pick it on the New Run screen. The game remembers the build you carried past every checkpoint (and how far that run got; the build that climbed highest is kept). Starting from a checkpoint gives that **build back minus one random non-epic upgrade**. If no build is remembered yet, you get a **starting kit** instead: Power Core and Ember (plus Rapid Cycle from floor 16 and another Power Core from floor 26) and 1 + 2 per skipped boss upgrade picks with better rarity odds (16 → 7 picks). Either way: +1 reroll per skipped boss and full HP. Floors below the checkpoint pay no shards and do not count for challenges.
 - When you die you earn **shards**, which you spend in the **Workshop** on permanent upgrades and unlocks.
+- **New Run:** PLAY opens a short setup, one step at a time: where to start (Floor 1 / Checkpoint / Ascension), then the checkpoint as cards with the floor number (highest first) or the Ascension level, then the **loadout** (ship, supplies, wager). Steps with nothing to choose are skipped, so a new player just presses PLAY and plays. ONE MORE RUN on the death screen restarts with the same setup and no shopping.
+- **Supplies** (banked shards, this run only, up to 2): Starter Card (random rare upgrade, 80), Pocket Shards (+20 to spend in shops, not paid out, 60), Spare Heart (+1 max HP, 100), Reroll Pack (+2 rerolls, 50), Last Breath (an extra revive with full HP, 150).
+- **Wager:** stake 100/250/500 banked shards on reaching a floor near your record (at least 10 floors of climbing); reach it and get double back.
+- **Shop trade:** once per shop, 100 banked shards buy 10 shards to spend there.
 
 ### Builds
 
@@ -210,6 +214,7 @@ npm run test:evolutions # recipes, offer rules, effects
 npm run test:shop       # shop prices/wallet/heal/reroll, altar pacts, curse effects, saves
 npm run test:training   # barrier, counted hits, respawns, immortal bosses, save untouched
 npm run test:checkpoint # unlocks, starting kit, resume mid-kit, shard rules, old-save migration
+npm run test:newrun     # New Run steps, supplies, wager, shop trade
 npm run test:specials   # Polarity, Warden of Keys, Collapse, Puppeteer, shield-piercing, seals, slows
 npm run test:bosses2    # every boss hall, Puppeteer and Architect patterns, rewards
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Forgemaster
