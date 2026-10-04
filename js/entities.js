@@ -96,8 +96,10 @@ function endDash() {
   const p = G.player, s = G.stats;
   p.vx = p.dashDx * s.move; p.vy = p.dashDy * s.move;
   if (s.nova > 0) {
-    const n = 10 + 6 * (s.nova - 1) + s.novaExtra, off = Math.random() * TAU;
-    for (let i = 0; i < n; i++) spawnPB(p.x, p.y, off + (i * TAU) / n, s.dmg * 0.7 * s.novaD, false, s.bSpeed * 0.8, 0.45);
+    // a ring, not a volley: nova bullets never home, and past 16 bullets each one gets weaker
+    // (more bullets = better coverage, total damage grows only with the square root)
+    const n = 10 + 6 * (s.nova - 1) + s.novaExtra, off = Math.random() * TAU, fall = n > 16 ? Math.sqrt(16 / n) : 1;
+    for (let i = 0; i < n; i++) { const b = spawnPB(p.x, p.y, off + (i * TAU) / n, s.dmg * 0.7 * s.novaD * fall, false, s.bSpeed * 0.8, 0.45); if (b) b.noHome = true; }
     ring(p.x, p.y, 6, 46, 0.25, COL.player, 3);
   }
 }
@@ -238,8 +240,9 @@ function spawnPB(x, y, ang, dmg, crit, speed, lifeMul = 1) {
   b.r = s.bSize * (crit ? 1.3 : 1);
   b.dmg = dmg; b.crit = crit;
   b.life = (s.range / sp) * lifeMul; b.pierce = s.pierce; b.bounce = s.bounce;
-  b.hits.length = 0; b.homeT = 0; b.age = 0;
+  b.hits.length = 0; b.homeT = 0; b.age = 0; b.noHome = false;
   G.pb.push(b);
+  return b;
 }
 
 function killPB(i) { pbPool.push(G.pb[i]); swapRemove(G.pb, i); }
@@ -250,7 +253,7 @@ function updatePlayerBullets(dt) {
     const b = arr[i];
     b.life -= dt; b.age += dt;
     if (b.life <= 0) { killPB(i); continue; }
-    if (s.homing && b.age > 0.06) {
+    if (s.homing && b.age > 0.06 && !b.noHome) {
       b.homeT -= dt;
       if (b.homeT <= 0) {
         b.homeT = 0.08;

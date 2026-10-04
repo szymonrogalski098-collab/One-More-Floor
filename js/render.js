@@ -191,6 +191,10 @@ const Render = {
     const open = (tx, ty) => { const v = G.grid.solid[ty * G.grid.cols + tx]; return v === 0; };
     const each = (fn) => { for (let ty = rm.ty; ty < rm.ty + rm.th; ty++) for (let tx = rm.tx; tx < rm.tx + rm.tw; tx++) if (open(tx, ty)) fn(tx * T, ty * T, tx, ty); };
     g.save();
+    // never paint past the room's open floor (cut corners, walls)
+    g.beginPath();
+    for (let ty = rm.ty; ty < rm.ty + rm.th; ty++) for (let tx = rm.tx; tx < rm.tx + rm.tw; tx++) if (G.grid.solid[ty * G.grid.cols + tx] !== 1) g.rect(tx * T, ty * T, T, T);
+    g.clip();
     if (rm.variant === 'grand') { // big pale flagstones with a gold inlay
       each((x, y, tx, ty) => { g.fillStyle = (((tx >> 1) + (ty >> 1)) & 1) ? '#2e2a45' : '#35304f'; g.fillRect(x, y, T, T); });
       g.strokeStyle = 'rgba(255,212,77,0.35)'; g.lineWidth = 2; g.strokeRect(x0 + 2 * T, y0 + 2 * T, w - 4 * T, h - 4 * T);

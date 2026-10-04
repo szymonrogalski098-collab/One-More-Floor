@@ -45,6 +45,8 @@ Every upgrade has a tag. Card rolls slightly favour tags you already collect, so
 | DASH | mobility | Thruster, Twin Thrusters, Dash Nova, Adrenaline, Nova Shards, Nova Capacitor, Rush, Reflex Amp |
 | ARMOR | survival | Aegis, Blade Halo, Spin Coil, Overdrive Motor, Mender, Leech, Quick Recharge |
 
+**Dash Nova** is a ring, not a volley: its bullets never home (Seeker Chip does not steer them), and past 16 bullets each one gets weaker (total damage grows with the square root of the count), so Nova Shards and Supernova add coverage more than burst.
+
 **Upgrade lines.** Every epic effect has a common and a rare booster. Both are offered only once you already own the effect (they never grant it). The rare is unlocked by the same Workshop blueprint as the epic.
 
 | Effect (epic) | Common booster | Rare booster |

@@ -40,7 +40,7 @@ function variantBigCells(v) { return v === 'grand' || v === 'corridor'; }
 function decorateVariant(rm, floor) {
   const v = rm.variant, reserve = roomReserve(rm);
   const free = (r) => !reserve.some((z) => overlaps(r, z));
-  if (v === 'grand' || v === 'dark') { decorateRoom(rm, floor, true); return; }
+  if (v === 'grand' || v === 'dark') { decorateRoom(rm, floor, true, v === 'grand'); return; }
   if (v === 'gauntlet') {
     // spike plates on a grid; their timing sweeps from one side to the other
     const cyc = TRAP_CYCLE.idle + TRAP_CYCLE.warn + TRAP_CYCLE.active;

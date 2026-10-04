@@ -48,6 +48,15 @@ const { chromium, devices } = require('playwright');
     check('Napalm: volatile explosions ignite', n1.burnT > 0 && n1.burnDps > 0);
     fresh(); const hp0 = G.stats.maxHp; give('aegis', 2); give('vital', 1); G.player.hp = 1; OMF.addUpgrade('e_fortress');
     check('Fortress: +2 max HP and full heal', G.stats.maxHp === hp0 + 3 && G.player.hp === G.stats.maxHp);
+    // Dash Nova balance: a ring, not a homing volley; past 16 bullets each one is weaker
+    fresh(); give('nova', 2); give('novashard', 4); give('seeker', 1); give('e_super', 1); give('capacitor', 3);
+    G.pb.length = 0; G.player.dashT = 0.01; G.player.dashCharges = 0;
+    const s0 = G.stats, n = 10 + 6 * (s0.nova - 1) + s0.novaExtra;
+    OMF.step(1 / 60); // the dash ends this frame: the nova fires
+    const ring = G.pb.filter((b2) => b2.noHome);
+    const per = s0.dmg * 0.7 * s0.novaD;
+    check('nova bullets never home (Seeker Chip does not steer them)', ring.length === n && s0.homing > 0, [ring.length, n]);
+    check('nova total damage grows only with the square root past 16 bullets', Math.abs(ring[0].dmg - per * Math.sqrt(16 / n)) < 1e-6 && ring.reduce((a, b2) => a + b2.dmg, 0) < per * n * 0.75, [ring[0].dmg, per]);
     return out;
   });
   await b.close();

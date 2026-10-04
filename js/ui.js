@@ -504,7 +504,7 @@ const UI = {
     $('btn-shop-reroll').disabled = wallet < SHOP_REROLL_PRICE;
     // banked shards from the menu can be traded in, 10 to 1, once per shop
     const tr = $('btn-shop-trade'), bank = Save.data.shards;
-    tr.innerHTML = sh.traded ? 'Traded' : 'Trade ' + SHOP_TRADE.cost + ' banked → <span class="shard-ico"></span>' + SHOP_TRADE.gain;
+    tr.innerHTML = sh.traded ? 'Traded' : 'Trade <span class="shard-ico"></span>' + SHOP_TRADE.gain + '<small class="btn-note">for ' + SHOP_TRADE.cost + ' banked</small>';
     tr.disabled = !!sh.traded || bank < SHOP_TRADE.cost;
     tr.title = 'Banked shards: ' + bank;
     if (this.current !== 's-shop') this.show('s-shop', { lock: 350 });

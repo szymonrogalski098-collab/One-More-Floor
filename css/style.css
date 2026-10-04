@@ -218,6 +218,8 @@ html.pc .nr-card:not(:disabled):hover { transform: scale(1.05); border-color: va
 .shard-v { color: var(--shard); }
 .row { display: flex; gap: 10px; }
 .row > * { flex: 1; }
+.btn-note { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.7; margin-top: 2px; white-space: nowrap; }
+#btn-shop-trade, #btn-shop-reroll { white-space: nowrap; }
 
 .btn {
   min-height: 52px; border-radius: 14px; padding: 12px 16px;

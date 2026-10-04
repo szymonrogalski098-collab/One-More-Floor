@@ -250,8 +250,8 @@ function hallShape(kind, R) {
   switch (kind) {
     case 'warden': return reg(8, Math.PI / 8, 1.05);            // octagonal fort
     case 'loom': return box(0.96, 0.84);                         // weaving frame
-    case 'mirror': return reg(6, 0, 1.1);                        // crystal hexagon
-    case 'forge': return [[-1.08, -0.78], [1.08, -0.78], [0.62, 0.9], [-0.62, 0.9]].map(([x, y]) => [x * R, y * R]); // furnace (wide top, narrow hearth)
+    case 'mirror': return [[-0.55, -0.95], [0.55, -0.95], [1.05, -0.22], [1.05, 0.22], [0.55, 0.95], [-0.55, 0.95], [-1.05, 0.22], [-1.05, -0.22]].map(([x, y]) => [x * R, y * R]); // cut crystal (flat sides for the stairs)
+    case 'forge': return [[-1.0, -0.78], [1.0, -0.78], [1.0, 0.22], [0.62, 0.9], [-0.62, 0.9], [-1.0, 0.22]].map(([x, y]) => [x * R, y * R]); // furnace (straight walls, narrowing hearth)
     case 'puppeteer': return box(1.0, 0.72);                     // theatre stage (wide, shallow)
     case 'architect': return box(0.9, 0.9);                      // blueprint square
     default: return null;                                         // circle (polarity)
@@ -496,14 +496,14 @@ function roomConnected(rm) {
   return true;
 }
 
-function decorateRoom(rm, floor, plain) {
+function decorateRoom(rm, floor, plain, noShape) {
   if (rm.variant && !plain) { decorateVariant(rm, floor); return; }
   if (rm.kind === 'start' || rm.tw < 9 || rm.th < 8) return;
   const reserve = roomReserve(rm);
   for (let attempt = 0; attempt < 6; attempt++) {
     const placed = [], shape = [];
     // 1) room shape: cut corners (chamfer / L / plus)
-    const shapeRoll = Math.random();
+    const shapeRoll = noShape ? 1 : Math.random(); // the Great Hall keeps its full rectangle
     const cw = Math.max(2, Math.floor(rm.tw * 0.3)), ch = Math.max(2, Math.floor(rm.th * 0.3));
     if (shapeRoll < 0.25) for (const [cx, cy] of [[0, 0], [rm.tw - 2, 0], [0, rm.th - 2], [rm.tw - 2, rm.th - 2]]) shape.push([cx, cy, 2, 2]);
     else if (shapeRoll < 0.45) { const c = pick([[0, 0], [rm.tw - cw, 0], [0, rm.th - ch], [rm.tw - cw, rm.th - ch]]); shape.push([c[0], c[1], cw, ch]); }
@@ -564,7 +564,7 @@ function placeStairs(types) {
     // boss halls: the way out is cut into the side walls (left / right), away from the boss at the top
     const c = G.circle, walls = types.length === 1 ? [1] : [-1, 1];
     types.forEach((type, i) => {
-      const wall = walls[i], y = c.y + 10, edge = c.x + wall * hallRayT(c.x, y, wall, 0, 0);
+      const wall = walls[i], y = c.y, edge = c.x + wall * hallRayT(c.x, y, wall, 0, 0); // every hall has a straight wall here
       G.stairs.push({ type, x: wall < 0 ? edge - 58 : edge - 4, y: y - 28, w: 62, h: 56, locked: true, circle: true, wall });
     });
     return;
