@@ -48,7 +48,7 @@ function startElevator(floor) {
   showBanner(G.boss.name, def.sub, 'boss');
   UI.bossBar(G.boss);
   sfx('roar'); addShake(0.4);
-  Sound.music(true, 'boss');
+  Sound.music(true, 'elevator');
 }
 
 // ---------- simulation (replaces the top-down step while G.side is set) ----------
@@ -261,7 +261,7 @@ function finishElevator() {
   floatText(p.x, p.y - 26, '+' + total, COL.shard, 14, 1.4);
   ring(p.x, p.y, 6, 80, 0.5, COL.player, 3);
   if (G.stats.regen > 0) healPlayer(G.stats.regen);
-  Sound.music(true, 'normal');
+  Sound.music(true, floorTheme('combat', G.run.floor));
   checkChallenges('boss', { kind: 'elevator', noHit });
   unlockCheckpoint(run.floor + 1);
 }

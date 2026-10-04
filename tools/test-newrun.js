@@ -77,12 +77,12 @@ const { chromium, devices } = require('playwright');
       // shop trade: banked shards → shop shards, once per shop
       menu(); S.shards = 250; S.ships = ['striker']; S.checkpoints = {}; S.asc = { unlocked: 0, selected: 0, best: {} };
       S.shards = 0; UI.action('play'); S.shards = 250;
-      OMF.enterFloor(4, 'shop'); openShop();
+      OMF.enterFloor(4, 'shop');
       const w0 = G.run.shards;
-      UI.action('shop-trade');
+      shopTrade();
       check('trade: 100 banked → 10 in the shop', S.shards === 150 && G.run.shards === w0 + 10);
-      UI.action('shop-trade');
-      check('only one trade per shop', S.shards === 150 && document.getElementById('btn-shop-trade').disabled);
+      shopTrade();
+      check('only one trade per shop', S.shards === 150 && G.stall.items.find((x) => x.type === 'trade').sold);
       G.run.shards = 30; G.run.gift = 10; shopPay(14);
       check('gifted shards are spent first', G.run.gift === 0 && G.run.shards === 16);
       return out;

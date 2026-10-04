@@ -308,7 +308,7 @@ const Render = {
     this.drawTraps(ctx);
     this.drawBarrier(ctx);
     this.drawStairs(ctx);
-    this.drawShrine(ctx);
+    this.drawShrine(ctx); this.drawStall(ctx);
     this.drawMarkers(ctx);
     this.drawTelegraphs(ctx);
     this.drawHazards(ctx);
@@ -1022,6 +1022,77 @@ const Render = {
       ctx.moveTo(x - 10, y + 6); ctx.lineTo(x - 10, y - 5); ctx.lineTo(x - 5, y); ctx.lineTo(x, y - 8); ctx.lineTo(x + 5, y); ctx.lineTo(x + 10, y - 5); ctx.lineTo(x + 10, y + 6); ctx.closePath(); ctx.fill();
     }
     ctx.lineCap = 'butt';
+  },
+
+  // ---------- shop booth & altar circle (stalls.js) ----------
+  drawStall(ctx) {
+    const S = G.stall;
+    if (!S) return;
+    const t = G.time;
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    { const rm = G.exitRoom; ctx.fillStyle = S.kind === 'shop' ? 'rgba(60,35,10,0.22)' : 'rgba(30,4,18,0.45)'; ctx.fillRect(rm.x, rm.y, rm.w, rm.h); } // warm shop, blood-dark altar
+    if (S.kind === 'shop') {
+      const rm = G.exitRoom;
+      // a rug under the goods and the merchant's booth in the corner
+      ctx.fillStyle = 'rgba(120,60,40,0.28)'; ctx.fillRect(rm.x + rm.w * 0.1, rm.y + rm.h * 0.33, rm.w * 0.8, rm.h * 0.4);
+      ctx.strokeStyle = 'rgba(255,212,77,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(rm.x + rm.w * 0.1 + 4, rm.y + rm.h * 0.33 + 4, rm.w * 0.8 - 8, rm.h * 0.4 - 8);
+      const b = S.booth;
+      ctx.fillStyle = '#4a2f1c'; ctx.fillRect(b.x - 18, b.y + 12, 64, 16); ctx.fillStyle = '#7a4b2a'; ctx.fillRect(b.x - 18, b.y + 12, 64, 4); // counter
+      ctx.fillStyle = '#2a2140'; ctx.beginPath(); ctx.moveTo(b.x + 6, b.y - 10); ctx.lineTo(b.x - 6, b.y + 14); ctx.lineTo(b.x + 18, b.y + 14); ctx.closePath(); ctx.fill(); // cloak
+      ctx.beginPath(); ctx.arc(b.x + 6, b.y - 10, 7, 0, TAU); ctx.fill();
+      ctx.fillStyle = COL.gold; ctx.globalAlpha = 0.6 + Math.sin(t * 2) * 0.3; ctx.fillRect(b.x + 2, b.y - 11, 2, 2); ctx.fillRect(b.x + 8, b.y - 11, 2, 2); ctx.globalAlpha = 1; // eyes
+      ctx.font = '800 9px system-ui, sans-serif'; ctx.fillStyle = COL.gold; ctx.fillText('SHOP', b.x + 14, b.y + 38);
+      for (const it of S.items) {
+        const on = G.stallOn === it, sold = it.sold, bob = Math.sin(t * 2.5 + it.x * 0.05) * 2;
+        let col = '#cfc9f5', icon = '', price = it.price;
+        if (it.type === 'up') { col = TAGS[UPG[it.id].tag].color; icon = UPG[it.id].icon; }
+        else if (it.type === 'heal') { col = TAGS.tank.color; icon = '+HP'; }
+        else if (it.type === 'reroll') { col = '#ffffff'; icon = '↻'; }
+        else if (it.type === 'trade') { col = COL.shard; icon = '⇄'; price = null; }
+        // pedestal
+        ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(it.x - 15, it.y + 4, 30, 8);
+        ctx.fillStyle = '#2b2546'; ctx.fillRect(it.x - 13, it.y - 2, 26, 12); ctx.fillStyle = '#3b3460'; ctx.fillRect(it.x - 13, it.y - 2, 26, 3);
+        // the item floats above it
+        ctx.globalAlpha = sold ? 0.3 : 1;
+        if (!sold) { ctx.globalCompositeOperation = 'lighter'; this.drawGlow(ctx, it.x, it.y - 14 + bob, on ? 34 : 24, col, on ? 0.7 : 0.4); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
+        ctx.fillStyle = 'rgba(12,10,28,0.9)'; ctx.strokeStyle = col; ctx.lineWidth = on ? 2.5 : 1.5;
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(it.x - 15, it.y - 30 + bob, 30, 24, 6) : ctx.rect(it.x - 15, it.y - 30 + bob, 30, 24); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = col; ctx.font = '900 ' + (icon.length > 2 ? 9 : 13) + 'px system-ui, sans-serif'; ctx.fillText(icon, it.x, it.y - 18 + bob);
+        ctx.globalAlpha = 1;
+        ctx.font = '800 9px system-ui, sans-serif';
+        ctx.fillStyle = sold ? '#8dff6a' : COL.shard;
+        ctx.fillText(sold ? (it.type === 'trade' ? 'TRADED' : 'SOLD') : price != null ? '◆' + price : 'TRADE', it.x, it.y + 20);
+      }
+    } else {
+      const c = S.center, R = S.R;
+      // ritual circle with runes, candles and a bleeding altar in the middle
+      ctx.strokeStyle = S.done ? 'rgba(120,60,80,0.4)' : 'rgba(255,79,139,0.5)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, R + 16, (R + 16) * 0.85, 0, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, R - 22, (R - 22) * 0.85, 0, 0, TAU); ctx.stroke();
+      for (let i = 0; i < 18; i++) { const a = (i * TAU) / 18 + t * 0.05, rr = R - 3; ctx.save(); ctx.translate(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr * 0.85); ctx.rotate(a); ctx.fillStyle = 'rgba(255,79,139,' + (S.done ? 0.15 : 0.35) + ')'; ctx.fillRect(-1, -5, 2, 10); ctx.fillRect(-4, -1, 8, 2); ctx.restore(); }
+      for (let i = 0; i < 6; i++) { // candles
+        const a = (i * TAU) / 6 + Math.PI / 6, x = c.x + Math.cos(a) * (R + 30), y = c.y + Math.sin(a) * (R + 30) * 0.85;
+        ctx.fillStyle = '#d8cbb0'; ctx.fillRect(x - 2, y - 6, 4, 10);
+        if (!S.done) { ctx.fillStyle = '#ffb13d'; ctx.beginPath(); ctx.ellipse(x, y - 9 + Math.sin(t * 9 + i) * 0.8, 2, 3.5, 0, 0, TAU); ctx.fill(); }
+      }
+      ctx.fillStyle = '#1e1622'; ctx.fillRect(c.x - 16, c.y - 10, 32, 22); ctx.fillStyle = '#3a2a3e'; ctx.fillRect(c.x - 16, c.y - 10, 32, 4); // altar block
+      if (!S.done) { ctx.globalCompositeOperation = 'lighter'; this.drawGlow(ctx, c.x, c.y - 12, 40, '#ff4f8b', 0.5 + Math.sin(t * 3) * 0.2); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.fillStyle = '#ff4f6b'; ctx.beginPath(); ctx.ellipse(c.x, c.y - 16 + Math.sin(t * 6) * 1, 5, 8, 0, 0, TAU); ctx.fill(); }
+      // the pact stones: what you give (red) above what you get
+      for (const it of S.items) {
+        const on = G.stallOn === it, broken = S.done && !it.taken, u = UPG[it.id];
+        ctx.globalAlpha = broken ? 0.3 : 1;
+        ctx.fillStyle = '#241b29'; ctx.strokeStyle = it.taken ? COL.gold : on ? '#ff4f8b' : '#5a4a5e'; ctx.lineWidth = on ? 2.5 : 1.5;
+        ctx.beginPath(); ctx.moveTo(it.x - 17, it.y + 16); ctx.lineTo(it.x - 17, it.y - 18); ctx.quadraticCurveTo(it.x, it.y - 32, it.x + 17, it.y - 18); ctx.lineTo(it.x + 17, it.y + 16); ctx.closePath(); ctx.fill(); ctx.stroke();
+        if (broken) { ctx.strokeStyle = '#120c14'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(it.x - 8, it.y - 20); ctx.lineTo(it.x + 2, it.y - 4); ctx.lineTo(it.x - 4, it.y + 6); ctx.lineTo(it.x + 6, it.y + 16); ctx.stroke(); }
+        ctx.font = '900 8px system-ui, sans-serif';
+        ctx.fillStyle = '#ff4f6b'; ctx.fillText(it.curse ? CURSE[it.curse].icon : UPG[it.lose].icon, it.x, it.y - 13);
+        ctx.fillStyle = '#9c96c9'; ctx.fillText('▼', it.x, it.y - 3);
+        ctx.fillStyle = TAGS[u.tag].color; ctx.fillText(u.icon + (it.levels > 1 ? '+' + it.levels : ''), it.x, it.y + 7);
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
   },
 
   drawShrine(ctx) {

@@ -37,7 +37,7 @@ function startTraining(cfg) {
   else enterTrainingArena();
   G.tutorial = 0;
   G.fade = 1; G.fadeDir = -1;
-  Sound.music(true, cfg.boss ? 'boss' : 'normal');
+  Sound.music(true, cfg.boss ? bossTheme(cfg.boss) : 'z1');
 }
 
 // One room split by a barrier: enemies above, you below.

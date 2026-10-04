@@ -29,7 +29,7 @@ function spawnBoss(floor) {
   UI.bossBar(b);
   sfx('roar');
   addShake(0.4);
-  Sound.music(true, 'boss');
+  Sound.music(true, bossTheme(kind));
   return b;
 }
 
@@ -534,5 +534,5 @@ function onBossDeath(b) {
   dropPickup(b.x, b.y, 'heart', 1);
   dropPickup(b.x, b.y, 'heart', 1);
   UI.bossBar(null);
-  Sound.music(true, 'normal');
+  Sound.music(true, floorTheme('combat', G.run.floor));
 }

@@ -95,6 +95,7 @@ const UI = {
     switch (a) {
       case 'play': sfx('select'); this.openNewRun(); break;
       case 'again': { sfx('select'); const S = Save.data; this.nr = { asc: Math.min(S.asc.selected | 0, S.asc.unlocked | 0), cp: S.startSel | 0 || 1, ship: S.ship, supplies: [], wager: 0 }; this.nrStart(); break; } // same setup, no shopping
+      case 'stall-use': stallUse(); break;
       case 'nr-back': sfx('select'); this.nrBack(); break;
       case 'nr-pick': sfx('select'); this.nrPick(el.dataset.k, el.dataset.v); break;
       case 'nr-go': sfx('select'); this.nrForward(); break;
@@ -108,13 +109,6 @@ const UI = {
       case 'train-opt': { const c = Save.data.trainCfg; c[el.dataset.k] = !c[el.dataset.k]; Save.save(); sfx('select'); this.renderTraining(); break; }
       case 'train-go': if (this.trainReady()) { sfx('select'); startTraining(JSON.parse(JSON.stringify(Save.data.trainCfg))); } break;
       case 'train-exit': sfx('select'); exitTraining(); break;
-      case 'shop-buy': shopBuy(+el.dataset.i); break;
-      case 'shop-heal': shopHeal(); break;
-      case 'shop-reroll': shopReroll(); break;
-      case 'shop-trade': shopTrade(); break;
-      case 'shop-leave': sfx('select'); shopLeave(); break;
-      case 'altar-pick': altarChoose(+el.dataset.i); break;
-      case 'altar-leave': sfx('select'); altarChoose(-1); break;
       case 'challenges': sfx('select'); this.renderChallenges(); this.push('s-challenges'); break;
       case 'settings': sfx('select'); this.renderSettings(); this.push('s-settings'); break;
       case 'back': sfx('select'); this.back(); break;
@@ -486,42 +480,40 @@ const UI = {
   },
 
   // ---------- Shop ----------
-  showShop() {
-    const sh = G.shop, run = G.run, wallet = shopWallet(), p = G.player, s = G.stats;
-    $('shop-wallet').textContent = wallet;
-    const card = (attrs, badge, top, name, desc, price, sold, cls) => `<button class="card shop-card ${cls}" ${attrs}${sold || price > wallet || cls.includes('full') ? ' disabled' : ''}>${badge}
-      <div class="card-body"><div class="card-top">${top}</div><div class="card-name">${name}</div><div class="card-desc">${desc}</div></div>
-      <div class="price${sold ? ' sold' : ''}">${sold ? 'SOLD' : '<span class="shard-ico"></span>' + price}</div></button>`;
-    $('shop-cards').innerHTML = sh.items.map((it, i) => {
-      const u = UPG[it.id], lvl = (run.upgrades[u.id] || 0) + (it.sold ? 0 : 1);
-      return card(`data-action="shop-buy" data-i="${i}" style="--tc:${TAGS[u.tag].color}"`, upgBadge(u),
-        `<span class="rar">${RARITY[u.rarity].name}</span><span class="tg">${TAGS[u.tag].name}</span>`,
-        u.name + (u.max > 1 ? `<span class="lvl">lvl ${lvl}/${u.max}</span>` : ''), u.desc, it.price, it.sold, 'r' + u.rarity);
-    }).join('') + card(`data-action="shop-heal" style="--tc:${TAGS.tank.color}"`, `<div class="badge" style="--tc:${TAGS.tank.color}">+HP</div>`,
-      `<span class="tg">${TAGS.tank.name}</span>`, 'Repair Kit', 'Heal ' + SHOP_HEAL.hp + ' HP (' + p.hp + '/' + s.maxHp + ').', SHOP_HEAL.price,
-      sh.healBought, p.hp >= s.maxHp && !sh.healBought ? 'r0 full' : 'r0');
-    $('btn-shop-reroll').innerHTML = 'Reroll · <span class="shard-ico"></span>' + SHOP_REROLL_PRICE;
-    $('btn-shop-reroll').disabled = wallet < SHOP_REROLL_PRICE;
-    // banked shards from the menu can be traded in, 10 to 1, once per shop
-    const tr = $('btn-shop-trade'), bank = Save.data.shards;
-    tr.innerHTML = sh.traded ? 'Traded' : 'Trade <span class="shard-ico"></span>' + SHOP_TRADE.gain + '<small class="btn-note">for ' + SHOP_TRADE.cost + ' banked</small>';
-    tr.disabled = !!sh.traded || bank < SHOP_TRADE.cost;
-    tr.title = 'Banked shards: ' + bank;
-    if (this.current !== 's-shop') this.show('s-shop', { lock: 350 });
-  },
-
-  // ---------- Altar ----------
-  showAltar(offers) {
-    const fav = offers[0] && offers[0].fav;
-    $('altar-sub').textContent = fav ? 'It knows you like ' + TAGS[fav].name + '.' : '';
-    $('altar-cards').innerHTML = offers.map((o, i) => {
-      const u = UPG[o.id], c = CURSE[o.curse], have = G.run.upgrades[u.id] || 0;
-      return `<button class="card altar-card r${u.rarity}" data-action="altar-pick" data-i="${i}" style="--tc:${TAGS[u.tag].color}">${upgBadge(u)}
-        <div class="card-body"><div class="card-top"><span class="rar">${o.why.toUpperCase()}</span><span class="tg">${TAGS[u.tag].name}</span></div>
-        <div class="card-name">${u.name}${o.levels > 1 ? ` <span class="lvl">+${o.levels} levels · ${have} → ${have + o.levels}/${u.max}</span>` : ''}</div><div class="card-desc">${u.desc}</div>
-        <div class="curse-line"><b>CURSE · ${c.name}</b> ${c.desc}</div></div></button>`;
-    }).join('') || '<div class="hint">The altar is silent.</div>';
-    this.show('s-altar', { lock: 450 });
+  // ---------- shop & altar: the info panel of the pedestal / stone you stand on ----------
+  stallInfo(it) {
+    const el = $('stall-info');
+    if (!el) return;
+    if (!it || !G.stall) { el.classList.add('hidden'); return; }
+    const S = G.stall, wallet = shopWallet(), btn = $('stall-btn');
+    let title = '', sub = '', label = '', ok = true, col = ROOM.shop.color;
+    if (it.type === 'up') {
+      const u = UPG[it.id], lvl = (G.run.upgrades[u.id] || 0) + (it.sold ? 0 : 1);
+      col = TAGS[u.tag].color; title = u.name + (u.max > 1 ? ' · lvl ' + lvl + '/' + u.max : '');
+      sub = RARITY[u.rarity].name + ' ' + TAGS[u.tag].name + ' — ' + u.desc;
+      label = it.sold ? 'SOLD' : 'BUY · ◆' + it.price; ok = !it.sold && wallet >= it.price;
+    } else if (it.type === 'heal') {
+      col = TAGS.tank.color; title = 'Repair Kit'; sub = 'Heal ' + SHOP_HEAL.hp + ' HP (' + G.player.hp + '/' + G.stats.maxHp + ').';
+      label = it.sold ? 'SOLD' : 'BUY · ◆' + SHOP_HEAL.price; ok = !it.sold && wallet >= SHOP_HEAL.price && G.player.hp < G.stats.maxHp;
+    } else if (it.type === 'reroll') {
+      title = 'Reroll'; sub = 'New upgrades on the pedestals that are not sold yet.';
+      label = 'REROLL · ◆' + SHOP_REROLL_PRICE; ok = wallet >= SHOP_REROLL_PRICE;
+    } else if (it.type === 'trade') {
+      title = 'Trade box'; sub = 'Put ' + SHOP_TRADE.cost + ' of your banked shards in (you have ' + Save.data.shards + '), take ◆' + SHOP_TRADE.gain + ' to spend here. Once per shop.';
+      label = it.sold ? 'TRADED' : 'TRADE'; ok = !it.sold && Save.data.shards >= SHOP_TRADE.cost;
+    } else if (it.type === 'pact') {
+      const u = UPG[it.id], have = G.run.upgrades[u.id] || 0;
+      col = '#ff4f8b'; title = 'PACT · ' + it.why;
+      const give = it.curse ? 'Curse “' + CURSE[it.curse].name + '”: ' + CURSE[it.curse].desc : 'Your ' + UPG[it.lose].name + ((G.run.upgrades[it.lose] || 0) > 1 ? ' (all ' + G.run.upgrades[it.lose] + ' levels)' : '');
+      sub = '<b class="pact-give">SACRIFICE</b> ' + give + '<br><b class="pact-get">RECEIVE</b> ' + u.name + (it.levels > 1 ? ' +' + it.levels + ' levels (' + have + ' → ' + (have + it.levels) + ')' : '') + ' — ' + u.desc;
+      label = S.done ? (it.taken ? 'SEALED' : 'BROKEN') : 'ACCEPT THE PACT'; ok = !S.done;
+    }
+    el.querySelector('.st-title').textContent = title;
+    el.querySelector('.st-sub').innerHTML = sub;
+    el.querySelector('.st-wallet').innerHTML = S.kind === 'shop' ? '<span class="shard-ico"></span>' + wallet + ' this run' : '';
+    btn.textContent = label; btn.disabled = !ok;
+    el.style.setProperty('--sc', col);
+    el.classList.remove('hidden');
   },
 
   showRest() {

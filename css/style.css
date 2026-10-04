@@ -161,6 +161,16 @@ html.pc .nr-card:not(:disabled):hover { transform: scale(1.05); border-color: va
 .si-map { display: block; width: 100%; height: 190px; margin-top: 8px; border-radius: 10px; background: #07060f; }
 @media (max-height: 640px) { .si-map { height: 140px; } }
 @media (orientation: landscape) and (max-height: 520px) { .stair-info { bottom: auto; top: 50px; width: min(42vw, 360px); } .si-map { height: 150px; } }
+.stall-info { z-index: 6; }
+.st-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.st-row .st-wallet { flex: 1; display: inline-flex; align-items: center; gap: 5px; font-weight: 800; color: var(--shard); font-size: 14px; line-height: 1; }
+.st-row .st-wallet .shard-ico { width: 11px; height: 14px; margin: 0; vertical-align: middle; }
+.st-row .st-wallet:empty { display: none; }
+.st-row .st-wallet:empty + .btn { flex: 1; }
+.st-row .btn { flex: 0 0 auto; min-height: 44px; padding: 0 18px; font-size: 14px; background: var(--sc); color: #0b0918; box-shadow: none; }
+.st-row .btn:disabled { opacity: 0.4; }
+.pact-give { color: #ff4f6b; letter-spacing: 0.08em; font-size: 11px; }
+.pact-get { color: #8dff6a; letter-spacing: 0.08em; font-size: 11px; }
 .si-sub { font-size: 13px; color: #d6d0ff; margin-top: 3px; line-height: 1.35; }
 .si-hint { font-size: 11px; color: var(--muted); margin-top: 6px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; }
 

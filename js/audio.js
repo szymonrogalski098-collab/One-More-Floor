@@ -112,39 +112,94 @@ const Sound = (() => {
     if (f) f();
   }
 
-  // ---------- Music: lookahead step sequencer ----------
-  const MUS = { on: false, step: 0, next: 0, timer: 0, mode: 'normal' };
-  const PROG = [[55, 65.4, 82.4], [43.65, 55, 65.4], [49, 61.7, 73.4], [41.2, 49, 61.7]]; // Am F G Em-ish (Hz roots)
-  const LEAD = [440, 523, 587, 659, 784, 659, 587, 523];
-
-  function schedStep(t) {
-    const bpmStep = MUS.mode === 'boss' ? 0.115 : 0.14;
-    const bar = Math.floor(MUS.step / 16) % PROG.length;
-    const s = MUS.step % 16;
-    const chord = PROG[bar];
-    // bass (8ths)
-    if (s % 2 === 0) {
-      const f = chord[0] * (s % 8 === 6 ? 2 : 1);
-      schedTone('triangle', f, t, bpmStep * 1.6, 0.32);
+  // ---------- Music: themes on a lookahead step sequencer ----------
+  // Every zone (10 floors), the calm rooms and every boss has its own theme: key, chords, tempo, metre,
+  // instruments and drum patterns. A melody is generated from a seed each time a theme starts, so it
+  // never plays exactly the same. Drums follow the intensity (a fight is on or not).
+  const MUS = { on: false, step: 0, next: 0, timer: 0, theme: 'z1', song: null, mel: null, intensity: 0.4 };
+  const Q = { m: [0, 3, 7], M: [0, 4, 7], s: [0, 5, 7], d: [0, 3, 6], m7: [0, 3, 7, 10], M7: [0, 4, 7, 11], d7: [0, 4, 7, 10] };
+  const SCALES = { minor: [0, 2, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10], phryg: [0, 1, 3, 5, 7, 8, 10], major: [0, 2, 4, 5, 7, 9, 11], harm: [0, 2, 3, 5, 7, 8, 11], penta: [0, 3, 5, 7, 10] };
+  // prog: [midi root, quality] per bar; bass/kick/snare/hat: one char per step ('x' hit, 'o' octave up, '.' rest)
+  const SONGS = {
+    z1:   { step: 0.14,  key: 57, scale: 'minor',  prog: [[45, 'm'], [41, 'M'], [48, 'M'], [43, 'M']], bass: 'x.x.x.o.x.x.x.o.', arp: 'square',   arpPat: 'xx.xx.xxx.xx.xx.', kick: 'x.......x.......', snare: '....x.......x...', hat: '.x.x.x.x.x.x.x.x', lead: 'sine' },
+    z2:   { step: 0.13,  key: 50, scale: 'dorian', prog: [[38, 'm7'], [43, 'M'], [38, 'm7'], [36, 'M']], bass: 'x..x..x.x..x..o.', arp: 'triangle', arpPat: 'x.x.xx.x.x.xx.x.', kick: 'x..x....x..x....', snare: '....x.......x..x', hat: 'x.xxx.xxx.xxx.xx', lead: 'square' },
+    z3:   { step: 0.125, key: 52, scale: 'minor',  prog: [[40, 'm'], [36, 'M'], [43, 'M'], [38, 'M']], bass: 'x.o.x.o.x.o.x.o.', arp: 'triangle', arpPat: 'xxxxxxxxxxxxxxxx', kick: 'x.......x.x.....', snare: '....x.......x...', hat: '..x...x...x...x.', lead: 'sine', high: true },
+    z4:   { step: 0.12,  key: 49, scale: 'phryg',  prog: [[37, 'm'], [38, 'M'], [37, 'm'], [35, 'M']], bass: 'x...x..xx...x..x', arp: 'square',   arpPat: 'x...x...x.x.x...', kick: 'x...x...x...x...', snare: '......x.......x.', hat: '.xx..xx..xx..xx.', lead: 'sawtooth' },
+    z5:   { step: 0.11,  key: 54, scale: 'harm',   prog: [[42, 'm'], [38, 'M'], [45, 'M'], [40, 'd7']], bass: 'xoxoxoxoxoxoxoxo', arp: 'square',   arpPat: 'xxxxxxxxxxxxxxxx', kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'xxxxxxxxxxxxxxxx', lead: 'sawtooth', high: true },
+    rest: { step: 0.2,   key: 53, scale: 'major',  prog: [[41, 'M7'], [45, 'm7'], [38, 'm7'], [36, 'M']], bass: 'x.......x.......', arp: 'sine',     arpPat: 'x..x..x..x..x...', pad: true, lead: 'sine', calm: true },
+    shop: { step: 0.15,  key: 60, scale: 'major',  prog: [[48, 'M'], [45, 'm'], [41, 'M'], [43, 'd7']], bass: 'x.x.x.x.x.x.x.x.', walk: true, arp: 'triangle', arpPat: '.x.x.x.x.x.x.x.x', hat: '..x...x...x...x.', lead: 'triangle', calm: true },
+    altar:{ step: 0.22,  key: 50, scale: 'phryg',  prog: [[38, 'm'], [39, 'M'], [38, 'm'], [37, 'd']], bass: 'x...............', arp: 'sine',     arpPat: 'x.......x.......', pad: true, drone: true, lead: 'sine', calm: true, bell: true },
+    boss: { step: 0.105, key: 57, scale: 'harm',   prog: [[45, 'm'], [41, 'M'], [38, 'm'], [40, 'd7']], bass: 'xoxoxoxoxoxoxoxo', arp: 'square',   arpPat: 'xxxxxxxxxxxxxxxx', kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'xxxxxxxxxxxxxxxx', lead: 'sawtooth', boss: true },
+    polarity: { step: 0.11, key: 60, scale: 'minor', prog: [[48, 'm'], [44, 'M'], [51, 'M'], [46, 'M']], bass: 'x.o.x.o.x.o.x.o.', arp: 'square', arpPat: 'x.x.x.x.x.x.x.x.', arp2: 'sine', kick: 'x...x...x...x...', snare: '....x.......x...', hat: '.x.x.x.x.x.x.x.x', lead: 'square', boss: true },
+    keys:  { step: 0.16, key: 47, scale: 'phryg', prog: [[35, 'm'], [36, 'M'], [35, 'm'], [34, 'd']], bass: 'x..x............', kick: 'x..x............', hat: '........x.......', lead: 'sine', bell: true, boss: true, drone: true },
+    collapse: { step: 0.1, key: 55, scale: 'minor', prog: [[43, 'm'], [39, 'M'], [41, 'M'], [38, 'm']], bass: 'xxoxxxoxxxoxxxox', arp: 'sawtooth', arpPat: 'x.x.x.x.x.x.x.x.', kick: 'x...x...x...x...', snare: '....x.......x.x.', hat: 'xxxxxxxxxxxxxxxx', lead: 'sawtooth', boss: true },
+    puppeteer: { step: 0.13, key: 52, scale: 'harm', bar: 12, prog: [[40, 'm'], [47, 'd7'], [40, 'm'], [45, 'm']], bass: 'x.....x.....', arp: 'triangle', arpPat: '..x.x...x.x.', kick: 'x...........', snare: '....x...x...', hat: '..x.x...x.x.', lead: 'triangle', boss: true, bell: true },
+    elevator: { step: 0.12, key: 50, scale: 'dorian', prog: [[38, 'm'], [38, 'm'], [46, 'M'], [48, 'M']], bass: 'x.x.x.x.x.x.x.x.', arp: 'square', arpPat: 'x..x..x..x..x..x', kick: 'x.......x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', click: true, lead: 'square', boss: true },
+    architect: { step: 0.1, key: 57, scale: 'minor', prog: [[45, 'm'], [41, 'M'], [48, 'M'], [43, 'M']], bass: 'xoxoxoxoxoxoxoxo', arp: 'sawtooth', arpPat: 'xxxxxxxxxxxxxxxx', kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'xxxxxxxxxxxxxxxx', lead: 'sawtooth', boss: true, high: true, pad: true },
+  };
+  // the classic bosses get their own takes on the battle themes
+  const shift = (song, d, extra) => ({ ...song, key: song.key + d, prog: song.prog.map(([r, q]) => [r + d, q]), ...extra });
+  SONGS.warden = shift(SONGS.boss, -2);
+  SONGS.loom = shift(SONGS.z2, 2, { step: 0.1, boss: true, kick: 'x...x...x...x...', hat: 'xxxxxxxxxxxxxxxx' });
+  SONGS.mirror = shift(SONGS.z3, 3, { step: 0.105, boss: true, kick: 'x...x...x...x...', bell: true });
+  SONGS.forge = shift(SONGS.boss, -5, { lead: 'square', step: 0.11, bass: 'xxoxxxoxxxoxxxox' });
+  const mtof = (n) => 440 * Math.pow(2, (n - 69) / 12);
+  // a short melody (two bars) built from the theme's scale, regenerated whenever the theme starts
+  function makeMelody(song) {
+    const sc = SCALES[song.scale], bar = song.bar || 16, out = [];
+    let deg = 0;
+    for (let i = 0; i < bar * 2; i += 2) {
+      if (Math.random() < (song.calm ? 0.45 : 0.3)) { out.push(null); continue; }
+      deg = Math.max(-2, Math.min(9, deg + [-2, -1, -1, 0, 1, 1, 2, 3][(Math.random() * 8) | 0]));
+      const o = Math.floor(deg / sc.length), k = ((deg % sc.length) + sc.length) % sc.length;
+      out.push(song.key + 12 * o + sc[k] + (song.high ? 12 : 0));
     }
-    // arp (16ths, sparse)
-    if (MUS.mode === 'boss' || s % 4 !== 3) {
-      const f = chord[(s + bar) % 3] * 4;
-      schedTone('square', f, t, bpmStep * 0.7, MUS.mode === 'boss' ? 0.06 : 0.04);
-    }
-    // hat
-    if (s % 2 === 1) schedNoise(t, 0.03, MUS.mode === 'boss' ? 0.07 : 0.045);
-    if (s % 8 === 4 && MUS.mode === 'boss') schedNoise(t, 0.12, 0.12, 'lowpass', 400);
-    // lead line every other bar
-    if (bar % 2 === 1 && s % 4 === 0) schedTone('sine', LEAD[(s / 4 + bar) % LEAD.length] * (MUS.mode === 'boss' ? 1 : 0.5), t, bpmStep * 3, 0.05);
-    MUS.step++;
-    return bpmStep;
+    return out;
   }
-  function schedTone(type, f, t, dur, vol) {
+  function schedStep(t) {
+    const S = MUS.song, bar = S.bar || 16, st = S.step;
+    const barN = Math.floor(MUS.step / bar), s = MUS.step % bar, [root, q] = S.prog[barN % S.prog.length];
+    const chord = Q[q], I = MUS.intensity, at = (pat) => pat && pat[s % pat.length];
+    // bass (and a walking line in the shop)
+    const bp = at(S.bass);
+    if (bp === 'x' || bp === 'o') {
+      const n = S.walk ? root + [0, 4, 7, 9, 12, 9, 7, 4][(s >> 1) % 8] : root + (bp === 'o' ? 12 : 0);
+      schedTone('triangle', mtof(n), t, st * (S.calm ? 3 : 1.6), S.boss ? 0.34 : 0.3);
+    }
+    // pad / drone on the bar
+    if (s === 0 && S.pad) for (const iv of chord) schedTone('sine', mtof(root + 24 + iv), t, st * bar * 0.95, 0.035, 0.4);
+    if (s === 0 && S.drone) schedTone('sawtooth', mtof(root), t, st * bar, 0.02, 0.6);
+    // arpeggio
+    if (S.arp && at(S.arpPat) === 'x') {
+      const n = root + 24 + chord[(s + barN) % chord.length] + (S.high ? 12 : 0);
+      schedTone(S.arp2 && barN % 2 ? S.arp2 : S.arp, mtof(n), t, st * 0.8, S.calm ? 0.03 : S.boss ? 0.05 : 0.04);
+    }
+    // drums follow the intensity
+    if (I > 0.55 && at(S.kick) === 'x') schedKick(t, S.boss ? 0.5 : 0.38);
+    if (I > 0.55 && at(S.snare) === 'x') schedNoise(t, 0.12, S.boss ? 0.12 : 0.09, 'bandpass', 1800);
+    if (I > 0.2 && at(S.hat) === 'x') schedNoise(t, 0.03, (S.calm ? 0.025 : 0.045) * (0.6 + I * 0.4));
+    if (S.click && s % 4 === 2) schedNoise(t, 0.02, 0.08, 'lowpass', 900);
+    // melody: two bars on, two bars off; a bell sound in the eerie themes
+    const ph = barN % 4;
+    if (ph >= 2 && s % 2 === 0) {
+      const n = MUS.mel[((ph - 2) * bar + s) / 2 | 0];
+      if (n != null) schedTone(S.bell ? 'sine' : S.lead, mtof(n + (S.bell ? 12 : 0)), t, st * (S.bell ? 6 : 2.2), S.bell ? 0.06 : 0.045, S.bell ? 0.8 : 0);
+    }
+    if (barN % 8 === 7 && s === bar - 1) MUS.mel = makeMelody(S); // a new phrase every 8 bars
+    MUS.step++;
+    return st;
+  }
+  function schedKick(t, vol) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(g); g.connect(musBus); o.start(t); o.stop(t + 0.18);
+  }
+  function schedTone(type, f, t, dur, vol, attack = 0.01) {
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = type; o.frequency.value = f;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(vol, t + Math.min(attack, dur * 0.5));
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(musBus);
     o.start(t); o.stop(t + dur + 0.02);
@@ -162,8 +217,9 @@ const Sound = (() => {
     if (MUS.next < ctx.currentTime) MUS.next = ctx.currentTime + 0.05;
     while (MUS.next < ctx.currentTime + 0.25) MUS.next += schedStep(MUS.next);
   }
+  // music(on, theme): theme is a SONGS key; unknown boss kinds use the generic boss theme
   function music(on, mode) {
-    if (mode) MUS.mode = mode;
+    if (mode) setTheme(mode);
     if (on === MUS.on) return;
     MUS.on = on;
     if (on) {
@@ -171,10 +227,17 @@ const Sound = (() => {
     } else if (MUS.timer) { clearInterval(MUS.timer); MUS.timer = 0; }
   }
 
+  function setTheme(name) {
+    const key = SONGS[name] ? name : name === 'normal' ? MUS.theme : 'boss';
+    if (MUS.song && key === MUS.theme) return;
+    MUS.theme = key; MUS.song = SONGS[key]; MUS.mel = makeMelody(MUS.song); MUS.step = 0;
+  }
+  function intensity(x) { MUS.intensity = x; }
+  setTheme('z1');
   function suspend() { if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {}); }
   function resume() { if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {}); }
 
-  return { init, play, applySettings, music, suspend, resume, get ready() { return !!ctx; }, get state() { return ctx ? ctx.state : 'none'; } };
+  return { init, play, applySettings, music, intensity, get theme() { return MUS.theme; }, suspend, resume, get ready() { return !!ctx; }, get state() { return ctx ? ctx.state : 'none'; } };
 })();
 
 function sfx(name) { Sound.play(name); }

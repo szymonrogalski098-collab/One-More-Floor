@@ -39,7 +39,6 @@ function newRun(snapshot) {
   G.player.dashCharges = G.stats.dashCharges;
   Input.reset();
   enterFloor(floor, type, snapshot && snapshot.floorState);
-  Sound.music(true, 'normal');
   if (G.run.kitLeft > 0) openKit();
 }
 
@@ -125,7 +124,7 @@ function resetArrays() {
   while (G.eb.length) ebPool.push(G.eb.pop());
   G.enemies.length = 0; G.newEnemies.length = 0; G.markers.length = 0; G.pickups.length = 0;
   G.rings.length = 0; G.texts.length = 0; G.bolts.length = 0; G.beams.length = 0; G.explosions.length = 0;
-  G.stairs = []; G.stairOn = null; G.traps = []; G.belts = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.blocks.length = 0; G.darkK = 1; G.maze = null; G.bridge = null; G.threads = []; G.wells = []; G.polBeam = null; G.pupTrail = []; if (G.run) { G.run.sealed = {}; if (G.stats) computeStats(); } if (G.player) G.player.pol = null; G.shrine = null; G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
+  G.stairs = []; G.stairOn = null; G.traps = []; G.belts = []; G.shells.length = 0; G.pools.length = 0; G.waves.length = 0; G.blocks.length = 0; G.darkK = 1; G.maze = null; G.bridge = null; G.threads = []; G.wells = []; G.polBeam = null; G.pupTrail = []; if (G.run) { G.run.sealed = {}; if (G.stats) computeStats(); } if (G.player) G.player.pol = null; G.shrine = null; G.stall = null; G.stallOn = null; G.shop = null; G.altar = null; if (typeof UI !== 'undefined' && UI.stallInfo) UI.stallInfo(null); G.boss = null; G.arriveT = 0; G.climb = null; G.safePos = null; G.guideEnemy = null; G.guideFar = false;
 }
 
 function enterFloor(n, type, restore, layout) {
@@ -141,7 +140,9 @@ function enterFloor(n, type, restore, layout) {
   G.room = { type, phase: 'intro', t: 0, active: null, waveT: 0, queue: [], queueT: 0, rewardShown: false,
     waveThresh: Math.max(2, Math.floor(G.scale.maxAlive / 4)) };
   if (!restore && (type === 'combat' || type === 'elite')) planFloor(n, type);
-  if (isCalm(type)) { const ex = G.exitRoom; G.shrine = { kind: type, x: ex.x + ex.w / 2, y: ex.y + ex.h * 0.5, used: false, t: 0 }; }
+  if (type === 'rest') { const ex = G.exitRoom; G.shrine = { kind: type, x: ex.x + ex.w / 2, y: ex.y + ex.h * 0.5, used: false, t: 0 }; }
+  if (!restore && type === 'shop') openShop();   // shop and altar stand in the room (stalls.js)
+  if (!restore && type === 'risk') openAltar();
   if (restore) { applyRestoreState(restore); p.vx = p.vy = 0; }
   Render.buildFloor();
   Render.snapCamera();
@@ -152,12 +153,22 @@ function enterFloor(n, type, restore, layout) {
   else showBanner('FLOOR ' + n, 'Something is coming…', 'boss');
   G.state = 'play';
   G.hudDirty = true;
+  if (!G.training) Sound.music(true, floorTheme(type, n));
   makePreviews();
   checkChallenges('floor');
   checkWager();
   saveSnapshot();
   if (!Save.data.settings.tutorialDone && n === 1) G.tutorial = 0.01; else G.tutorial = 0;
 }
+
+// music for a floor: calm rooms have their own themes, fights one theme per zone of 10 floors
+function floorTheme(type, floor) {
+  if (type === 'rest') return 'rest';
+  if (type === 'shop') return 'shop';
+  if (type === 'risk') return 'altar';
+  return 'z' + (((Math.ceil(Math.max(1, floor) / 10) - 1) % 5) + 1);
+}
+function bossTheme(kind) { return kind; } // audio.js falls back to the generic boss theme
 
 function buildFloorGeometry(type, floor) {
   const next = nextDoorTypes(floor + 1);
@@ -235,7 +246,7 @@ function serializeFloor() {
     ...serializeLayout(),
     enemies: G.enemies.filter((e) => !e.dead && e.type !== 'boss' && e.type !== 'fake' && !(active && e.roomId === active.id))
       .map((e) => ({ t: e.type, x: e.x, y: e.y, elite: e.elite, sleep: e.sleep, hp: e.hp / e.maxHp, roomId: e.roomId })),
-    phase: R.phase === 'clear' ? 'fight' : R.phase, shrineUsed: !!(G.shrine && G.shrine.used),
+    phase: R.phase === 'clear' ? 'fight' : R.phase, shrineUsed: !!(G.shrine && G.shrine.used), stall: G.stall ? JSON.parse(JSON.stringify(G.stall)) : null,
     safe, zoneSeed: 0,
   };
 }
@@ -282,6 +293,11 @@ function applyRestoreState(fs) {
     en.sleep = e.sleep; en.hp = Math.max(1, en.maxHp * e.hp); en.roomId = e.roomId; en.spawnIn = 0;
   }
   if (G.shrine && fs.shrineUsed) G.shrine.used = true;
+  // the stall comes back exactly as it was (no rerolling the shop by quitting); older saves get a fresh one
+  if (G.room.type === 'shop' || G.room.type === 'risk') {
+    if (fs.stall) { G.stall = fs.stall; if (G.stall.kind === 'shop') G.shop = G.stall; else G.altar = G.stall.items; }
+    else if (G.room.type === 'shop') openShop(); else openAltar();
+  }
   if (fs.phase === 'doors') { G.room.restorePhase = 'doors'; if (G.bridge) specialsOnBossDeath(); }
   else if (fs.phase === 'rest') G.room.restorePhase = 'rest';
   G.restored = true;
@@ -411,13 +427,14 @@ function aliveIn(rm) {
 
 function updateRoom(dt) {
   const R = G.room;
+  Sound.intensity(G.boss || R.active ? 1 : isCalm(R.type) ? 0 : 0.35); // drums only while fighting
   if (G.training) { updateTraining(dt); if (R.type !== 'boss') return; }
   R.t += dt;
   if (R.phase === 'intro') {
     if (R.t > 0.75) {
       if (R.restorePhase === 'doors') { R.phase = 'doors'; unlockStairs(); }
       else if (R.type === 'boss') { R.phase = 'fight'; spawnBoss(G.run.floor); }
-      else if (isCalm(R.type)) R.phase = G.shrine && G.shrine.used ? 'doors' : 'rest';
+      else if (isCalm(R.type)) R.phase = R.type !== 'rest' || (G.shrine && G.shrine.used) ? 'doors' : 'rest'; // shop/altar: stairs open at once
       else R.phase = 'fight';
       if (isCalm(R.type) && R.phase === 'doors') unlockStairs();
     }
@@ -465,12 +482,11 @@ function updateRoom(dt) {
     if (!s.used && dist2(s.x, s.y, p.x, p.y) < 26 * 26) {
       s.used = true;
       sfx('select');
-      if (s.kind === 'shop') openShop();
-      else if (s.kind === 'risk') openAltar();
-      else openRestChoice();
+      openRestChoice();
     }
     return;
   }
+  updateStall();
   updateStairs();
 }
 
@@ -613,13 +629,7 @@ function openRestChoice() {
   UI.showRest();
 }
 
-// ---------- shop ----------
-function openShop() {
-  G.state = 'reward';
-  G.rewardKind = 'shop';
-  G.shop = { items: rollChoices('shop').slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false })), healBought: false };
-  UI.showShop();
-}
+// ---------- shop (the stall itself is in stalls.js) ----------
 // the shards on the floor count too (they are magnetised to you in calm rooms anyway)
 function shopWallet() { return G.run.shards + pendingShards(); }
 function shopPay(price) {
@@ -631,40 +641,7 @@ function shopPay(price) {
   return true;
 }
 function collectPendingShards() { for (const k of G.pickups) if (k.type === 'shard') G.run.shards += k.value; G.pickups = G.pickups.filter((k) => k.type !== 'shard'); }
-function shopBuy(i) {
-  const it = G.shop.items[i];
-  if (!it || it.sold || !shopPay(it.price)) return;
-  it.sold = true;
-  addUpgrade(it.id);
-  sfx('buy');
-  UI.showShop();
-}
-function shopHeal() {
-  if (G.shop.healBought || G.player.hp >= G.stats.maxHp || !shopPay(SHOP_HEAL.price)) return;
-  G.shop.healBought = true;
-  healPlayer(SHOP_HEAL.hp);
-  UI.showShop();
-}
-function shopReroll() {
-  if (!shopPay(SHOP_REROLL_PRICE)) return;
-  const sold = G.shop.items.filter((x) => x.sold).map((x) => x.id);
-  G.shop.items = rollChoices('shop').filter((u) => !sold.includes(u.id)).slice(0, 3).map((u) => ({ id: u.id, price: shopPrice(u, G.run.floor), sold: false }));
-  sfx('select');
-  UI.showShop();
-}
-// trade banked shards for shop shards (once per shop)
-function shopTrade() {
-  const S = Save.data;
-  if (!G.shop || G.shop.traded || S.shards < SHOP_TRADE.cost) return;
-  S.shards -= SHOP_TRADE.cost; Save.save();
-  G.run.shards += SHOP_TRADE.gain; G.run.gift = (G.run.gift | 0) + SHOP_TRADE.gain;
-  G.shop.traded = true;
-  sfx('buy'); G.hudDirty = true;
-  UI.showShop();
-}
-function shopLeave() { G.shop = null; UI.show(null); afterReward(); }
-
-// ---------- altar: an epic (or rare) upgrade for a permanent curse ----------
+// ---------- altar (the pacts are in stalls.js) ----------
 // The altar reads what you like this run (the tags of what you picked, weighted by stacks and rarity)
 // and offers a stronger version of it: your favourite upgrade +2 levels, an epic of your favourite tag,
 // or two levels of a rare from your second tag. The curse never hits what your build relies on.
@@ -695,28 +672,6 @@ function altarOffers() {
   const pool = shuffle(safe.length >= offers.length ? safe : CURSES.filter((c) => !run.curses.includes(c.id)));
   return offers.slice(0, 3).map((o, i) => ({ ...o, curse: pool[i % Math.max(1, pool.length)] && pool[i % pool.length].id, fav })).filter((o) => o.curse && o.levels > 0);
 }
-function openAltar() {
-  G.state = 'reward';
-  G.rewardKind = 'altar';
-  G.altar = altarOffers();
-  UI.showAltar(G.altar);
-}
-function altarChoose(i) {
-  const o = G.altar && G.altar[i];
-  if (o) {
-    G.run.curses.push(o.curse);
-    for (let k = 0; k < (o.levels || 1); k++) addUpgrade(o.id);
-    computeStats();
-    sfx('upgrade');
-    const p = G.player;
-    ring(p.x, p.y, 6, 70, 0.5, '#ff4f8b', 3);
-    floatText(p.x, p.y - 44, CURSE[o.curse].name.toUpperCase(), '#ff4f8b', 13, 1.6);
-  }
-  G.altar = null;
-  UI.show(null);
-  afterReward();
-}
-
 function afterReward() {
   G.state = 'play';
   Input.reset();

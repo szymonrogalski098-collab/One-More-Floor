@@ -62,9 +62,9 @@ async function simulate(page, opts) {
     let steps = 0;
     try {
       while (steps < o.maxSteps) {
-        if (G.state === 'reward' && G.rewardKind === 'shop') { const k = G.shop.items.findIndex((x) => x.price <= shopWallet()); if (k >= 0) shopBuy(k); shopLeave(); }
-        else if (G.state === 'reward' && G.rewardKind === 'altar') altarChoose(Math.random() < 0.5 ? 0 : -1);
-        else if (G.state === 'reward') {
+        if (G.stall && G.stall.kind === 'shop' && !G.stall.botDone) { G.stall.botDone = true; const k = shopUps().findIndex((x) => x.price <= shopWallet()); if (k >= 0) shopBuy(k); }
+        if (G.stall && G.stall.kind === 'altar' && !G.stall.botDone) { G.stall.botDone = true; if (Math.random() < 0.5) altarChoose(0); }
+        if (G.state === 'reward') {
           const cards = [...document.querySelectorAll('#up-cards .card')];
           const id = cards.length ? cards[(Math.random() * cards.length) | 0].dataset.id : null;
           OMF.UI.show(null); OMF.chooseUpgrade(id);
