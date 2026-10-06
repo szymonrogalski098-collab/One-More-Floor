@@ -49,6 +49,7 @@ const Input = {
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
       if (!this.keys[k] && (k === ' ' || k === 'shift' || k === 'k' || k === 'l')) this.dashQueued = true;
       if (k === 'escape' || k === 'p') { if (typeof onPauseKey === 'function') onPauseKey(); }
+      if ((k === 'e' || k === 'enter') && !this.keys[k] && typeof G !== 'undefined' && G.stallOn && typeof stallUse === 'function') stallUse(); // shop / altar
       this.keys[k] = true;
     });
     window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });

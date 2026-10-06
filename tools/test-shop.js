@@ -21,6 +21,7 @@ const { chromium, devices } = require('playwright');
     G.player.x = it.x; G.player.y = it.y; run(0.1);
     check('standing on a pedestal shows it with a BUY button', !document.getElementById('stall-info').classList.contains('hidden') && document.getElementById('stall-btn').textContent.startsWith('BUY'));
     check('wallet counts shards still on the floor', shopWallet() === 50, shopWallet());
+    { const btn = document.getElementById('stall-btn'), rc = btn.getBoundingClientRect(), top = document.elementFromPoint(rc.left + rc.width / 2, rc.top + rc.height / 2); check('the BUY button is on top and takes the tap (not the game canvas)', top === btn && getComputedStyle(document.getElementById('stall-info')).pointerEvents === 'auto'); }
     OMF.UI.action('stall-use');
     check('BUY takes the price and gives the upgrade', G.run.shards === 50 - it.price && !!G.run.upgrades[it.id] && it.sold);
     const sh = G.run.shards; shopBuy(i);
@@ -57,7 +58,7 @@ const { chromium, devices } = require('playwright');
     // taking a pact
     OMF.enterFloor(11, 'risk'); run(1);
     const o = G.altar[0]; G.player.x = o.x; G.player.y = o.y; run(0.1);
-    check('a pact stone shows SACRIFICE and RECEIVE', document.getElementById('stall-info').textContent.includes('SACRIFICE') && document.getElementById('stall-btn').textContent === 'ACCEPT THE PACT');
+    check('a pact stone shows SACRIFICE and RECEIVE', document.getElementById('stall-info').textContent.includes('SACRIFICE') && document.getElementById('stall-btn').textContent.startsWith('ACCEPT THE PACT'));
     OMF.UI.action('stall-use');
     check('taking a pact adds the upgrade and the curse', !!G.run.upgrades[o.id] && G.run.curses.includes(o.curse));
     const other = G.altar[1]; const c0 = G.run.curses.length; altarChoose(1);

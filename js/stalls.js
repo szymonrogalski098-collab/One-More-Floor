@@ -1,7 +1,7 @@
 'use strict';
 // Shop and altar live in the room (no overlay screen). The stairs are open from the start: step onto a
 // pedestal to see what it is and buy it, or just walk past to the next floor.
-//  Shop:  a merchant's booth, three upgrades on pedestals, a repair kit, a reroll bell and the trade box.
+//  Shop:  three upgrades on pedestals, a repair kit, a reroll bell and the trade box on a rug.
 //  Altar: a ritual circle; each stone shows a pact "sacrifice → receive". Accepting one breaks the others.
 
 function stallSpots(n, fy) {
@@ -15,15 +15,16 @@ function shopItemsFor(list) {
 
 // ---------- shop ----------
 function openShop() {
-  const ups = shopItemsFor(rollChoices('shop')), spots = stallSpots(3, 0.42), util = stallSpots(3, 0.64);
+  // portrait: two rows of three; a wide (landscape) room: one row of six
+  const rm0 = G.exitRoom, wide = rm0.w > rm0.h * 1.3, row = stallSpots(6, 0.52);
+  const ups = shopItemsFor(rollChoices('shop')), spots = wide ? row.slice(0, 3) : stallSpots(3, 0.42), util = wide ? row.slice(3) : stallSpots(3, 0.64);
   ups.forEach((it, i) => Object.assign(it, spots[i]));
   const items = ups.concat([
     { type: 'heal', ...util[0], price: SHOP_HEAL.price, sold: false },
     { type: 'reroll', ...util[1], price: SHOP_REROLL_PRICE },
     { type: 'trade', ...util[2], sold: false },
   ]);
-  const rm = G.exitRoom;
-  G.stall = { kind: 'shop', items, booth: { x: rm.x + 26, y: rm.y + 18 }, done: false };
+  G.stall = { kind: 'shop', items, wide, done: false };
   G.shop = G.stall; // older code paths (tests, trade flag) read G.shop
 }
 function shopUps() { return G.stall ? G.stall.items.filter((x) => x.type === 'up') : []; }

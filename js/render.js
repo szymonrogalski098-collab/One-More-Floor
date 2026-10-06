@@ -1024,7 +1024,7 @@ const Render = {
     ctx.lineCap = 'butt';
   },
 
-  // ---------- shop booth & altar circle (stalls.js) ----------
+  // ---------- shop pedestals & altar circle (stalls.js) ----------
   drawStall(ctx) {
     const S = G.stall;
     if (!S) return;
@@ -1034,15 +1034,10 @@ const Render = {
     { const rm = G.exitRoom; ctx.fillStyle = S.kind === 'shop' ? 'rgba(60,35,10,0.22)' : 'rgba(30,4,18,0.45)'; ctx.fillRect(rm.x, rm.y, rm.w, rm.h); } // warm shop, blood-dark altar
     if (S.kind === 'shop') {
       const rm = G.exitRoom;
-      // a rug under the goods and the merchant's booth in the corner
-      ctx.fillStyle = 'rgba(120,60,40,0.28)'; ctx.fillRect(rm.x + rm.w * 0.1, rm.y + rm.h * 0.33, rm.w * 0.8, rm.h * 0.4);
-      ctx.strokeStyle = 'rgba(255,212,77,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(rm.x + rm.w * 0.1 + 4, rm.y + rm.h * 0.33 + 4, rm.w * 0.8 - 8, rm.h * 0.4 - 8);
-      const b = S.booth;
-      ctx.fillStyle = '#4a2f1c'; ctx.fillRect(b.x - 18, b.y + 12, 64, 16); ctx.fillStyle = '#7a4b2a'; ctx.fillRect(b.x - 18, b.y + 12, 64, 4); // counter
-      ctx.fillStyle = '#2a2140'; ctx.beginPath(); ctx.moveTo(b.x + 6, b.y - 10); ctx.lineTo(b.x - 6, b.y + 14); ctx.lineTo(b.x + 18, b.y + 14); ctx.closePath(); ctx.fill(); // cloak
-      ctx.beginPath(); ctx.arc(b.x + 6, b.y - 10, 7, 0, TAU); ctx.fill();
-      ctx.fillStyle = COL.gold; ctx.globalAlpha = 0.6 + Math.sin(t * 2) * 0.3; ctx.fillRect(b.x + 2, b.y - 11, 2, 2); ctx.fillRect(b.x + 8, b.y - 11, 2, 2); ctx.globalAlpha = 1; // eyes
-      ctx.font = '800 9px system-ui, sans-serif'; ctx.fillStyle = COL.gold; ctx.fillText('SHOP', b.x + 14, b.y + 38);
+      // a rug under the goods
+      const ry = S.wide ? 0.38 : 0.33, rh = S.wide ? 0.3 : 0.4, rx = S.wide ? 0.06 : 0.1;
+      ctx.fillStyle = 'rgba(120,60,40,0.28)'; ctx.fillRect(rm.x + rm.w * rx, rm.y + rm.h * ry, rm.w * (1 - 2 * rx), rm.h * rh);
+      ctx.strokeStyle = 'rgba(255,212,77,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(rm.x + rm.w * rx + 4, rm.y + rm.h * ry + 4, rm.w * (1 - 2 * rx) - 8, rm.h * rh - 8);
       for (const it of S.items) {
         const on = G.stallOn === it, sold = it.sold, bob = Math.sin(t * 2.5 + it.x * 0.05) * 2;
         let col = '#cfc9f5', icon = '', price = it.price;

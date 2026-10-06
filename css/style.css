@@ -161,7 +161,7 @@ html.pc .nr-card:not(:disabled):hover { transform: scale(1.05); border-color: va
 .si-map { display: block; width: 100%; height: 190px; margin-top: 8px; border-radius: 10px; background: #07060f; }
 @media (max-height: 640px) { .si-map { height: 140px; } }
 @media (orientation: landscape) and (max-height: 520px) { .stair-info { bottom: auto; top: 50px; width: min(42vw, 360px); } .si-map { height: 150px; } }
-.stall-info { z-index: 6; }
+.stall-info { z-index: 6; pointer-events: auto; } /* its button must take the click (not the canvas: that would dash) */
 .st-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .st-row .st-wallet { flex: 1; display: inline-flex; align-items: center; gap: 5px; font-weight: 800; color: var(--shard); font-size: 14px; line-height: 1; }
 .st-row .st-wallet .shard-ico { width: 11px; height: 14px; margin: 0; vertical-align: middle; }

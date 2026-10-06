@@ -511,7 +511,7 @@ const UI = {
     el.querySelector('.st-title').textContent = title;
     el.querySelector('.st-sub').innerHTML = sub;
     el.querySelector('.st-wallet').innerHTML = S.kind === 'shop' ? '<span class="shard-ico"></span>' + wallet + ' this run' : '';
-    btn.textContent = label; btn.disabled = !ok;
+    btn.textContent = label + (ok && Input.pc ? '  [E]' : ''); btn.disabled = !ok;
     el.style.setProperty('--sc', col);
     el.classList.remove('hidden');
   },
