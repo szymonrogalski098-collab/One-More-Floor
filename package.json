@@ -1,8 +1,8 @@
 {
   "name": "one-more-floor",
-  "version": "2.7.1",
+  "version": "2.8.0",
   "private": true,
-  "description": "Mobile-first roguelike PWA. No build step, no backend.",
+  "description": "Mobile-first roguelike PWA. No build step; online PvP via Supabase.",
   "scripts": {
     "serve": "node tools/serve.js 8080 /One-More-Floor/",
     "audit": "node tools/audit.js",
@@ -24,6 +24,7 @@
     "test:specials": "node tools/test-specials.js",
     "test:newrun": "node tools/test-newrun.js",
     "test:rooms": "node tools/test-rooms.js",
+    "test:pvp": "node tools/test-pvp.js",
     "perf": "node tools/perf.js",
     "icons": "node tools/make-icons.js"
   },

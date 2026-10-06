@@ -533,3 +533,40 @@ html.pc .btn:active:not(:disabled), html.pc .card:active { transform: scale(0.98
   html.pc .curse-line { font-size: 15px; margin-top: 14px; }
 }
 html.pc .shop-card:disabled:hover { transform: none; box-shadow: none; }
+
+/* ---------- multiplayer ---------- */
+.mp-body { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
+.mp-field { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: var(--muted); }
+.mp-field input, .mp-joinrow input { flex: 1; min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.05); color: var(--text); font: 800 16px system-ui, sans-serif; padding: 0 12px; letter-spacing: 0.06em; }
+.mp-joinrow input { text-transform: uppercase; letter-spacing: 0.3em; text-align: center; }
+.mp-ships { display: flex; flex-wrap: wrap; gap: 6px; }
+.mp-ship { padding: 8px 12px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, var(--c) 40%, transparent); color: var(--c); font-weight: 800; background: rgba(255,255,255,0.04); }
+.mp-ship.on { background: color-mix(in srgb, var(--c) 18%, transparent); border-color: var(--c); }
+.mp-search { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; font-weight: 800; }
+.mp-spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(77,243,255,0.2); border-top-color: var(--accent); animation: mpspin 0.9s linear infinite; }
+@keyframes mpspin { to { transform: rotate(360deg); } }
+.mp-me { font-size: 13px; font-weight: 700; color: #d6d0ff; }
+.mp-rank { display: flex; flex-direction: column; gap: 4px; }
+.mp-rrow { display: grid; grid-template-columns: 28px 1fr auto auto; gap: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); font-size: 13px; }
+.mp-rrow.me { outline: 1px solid var(--accent); }
+.lb-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lb-team { border-radius: 14px; padding: 10px; border: 1.5px solid; min-height: 160px; }
+.lb-team[data-team="0"] { border-color: #4df3ff; } .lb-team[data-team="1"] { border-color: #ff4f6b; }
+.lb-h { font-weight: 900; letter-spacing: 0.2em; font-size: 12px; margin-bottom: 8px; }
+.lb-team[data-team="0"] .lb-h { color: #4df3ff; } .lb-team[data-team="1"] .lb-h { color: #ff4f6b; }
+.lb-list { display: flex; flex-direction: column; gap: 6px; }
+.lb-p { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text); font-size: 13px; text-align: left; }
+.lb-p.me { outline: 1px solid var(--accent); }
+.lb-p span { font-size: 11px; font-weight: 700; }
+.mr-table { display: flex; flex-direction: column; gap: 4px; }
+.mr-row { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; padding: 8px 12px; border-left: 3px solid var(--c); border-radius: 8px; background: rgba(255,255,255,0.04); }
+.mr-row.me { outline: 1px solid var(--accent); }
+.pvp-bar { position: fixed; top: calc(var(--safe-t) + 58px); left: 50%; transform: translateX(-50%); z-index: 6; display: flex; gap: 14px; align-items: center; padding: 6px 14px; border-radius: 12px; background: rgba(8,6,20,0.8); border: 1px solid var(--line); font-weight: 900; letter-spacing: 0.1em; font-size: 12px; pointer-events: none; }
+.pb-a { color: #4df3ff; } .pb-b { color: #ff4f6b; } .pb-mid { color: var(--text); font-size: 11px; }
+.pvp-bar b { font-size: 18px; }
+.pvp-bar, .pvp-bar span { white-space: nowrap; }
+.pvp-feed { position: fixed; top: calc(var(--safe-t) + 96px); right: calc(var(--safe-r) + 10px); z-index: 6; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; pointer-events: none; font-size: 11px; font-weight: 800; }
+.pvp-feed div { padding: 3px 8px; border-radius: 8px; background: rgba(8,6,20,0.75); }
+html.pvp #hud .hp, html.pvp #hud .hud-mid, html.pvp #hud .hud-right { visibility: hidden; }
+html.pvp .pvp-bar { top: calc(var(--safe-t) + 10px); }
+html.pvp .pvp-feed { top: calc(var(--safe-t) + 56px); }

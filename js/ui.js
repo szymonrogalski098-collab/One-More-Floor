@@ -96,6 +96,18 @@ const UI = {
       case 'play': sfx('select'); this.openNewRun(); break;
       case 'again': { sfx('select'); const S = Save.data; this.nr = { asc: Math.min(S.asc.selected | 0, S.asc.unlocked | 0), cp: S.startSel | 0 || 1, ship: S.ship, supplies: [], wager: 0 }; this.nrStart(); break; } // same setup, no shopping
       case 'stall-use': stallUse(); break;
+      case 'mp': sfx('select'); this.openMp(); break;
+      case 'mp-back': sfx('select'); mpLeaveAll(); this.back(); break;
+      case 'mp-ship': { const S = Save.data; if (S.ships.includes(el.dataset.k)) { S.ship = el.dataset.k; Save.save(); } sfx('select'); this.renderMp(); break; }
+      case 'mp-quick': sfx('select'); this.mpSaveName(); mpQuick(+el.dataset.k); break;
+      case 'mp-cancel': sfx('select'); mpLeaveAll(); this.renderMp(); break;
+      case 'mp-create': sfx('select'); this.mpSaveName(); mpCreate(); break;
+      case 'mp-join': sfx('select'); this.mpSaveName(); mpJoin($('mp-code').value); break;
+      case 'mp-move': sfx('select'); mpMove(el.dataset.k); break;
+      case 'mp-start': sfx('select'); mpHostStart(); break;
+      case 'mp-leave': sfx('select'); mpLeave(); break;
+      case 'mp-resume': sfx('select'); this.show(null); break;
+      case 'mp-again': sfx('select'); if (MP.mode === 'quick') { const n = MP.size; mpLeave(); this.openMp(); mpQuick(n); } else { if (MP.ch) MP.ch.send('lobby', {}); mpBackToLobby(); } break;
       case 'nr-back': sfx('select'); this.nrBack(); break;
       case 'nr-pick': sfx('select'); this.nrPick(el.dataset.k, el.dataset.v); break;
       case 'nr-go': sfx('select'); this.nrForward(); break;
@@ -124,7 +136,7 @@ const UI = {
 
   // ---------- HUD ----------
   showHud(on) {
-    if (!on) this.stairInfo(null);
+    if (!on) { this.stairInfo(null); $('pvp-bar').classList.add('hidden'); }
     $('hud').classList.toggle('hidden', !on);
     $('btn-dash').classList.toggle('hidden', !on);
     $('btn-dash').classList.toggle('left', !!Save.data.settings.lefty);
@@ -416,6 +428,70 @@ const UI = {
     go.textContent = last ? 'START' + (n.cp > 1 ? ' · FLOOR ' + n.cp : '') + (n.asc ? ' · A' + n.asc : '') : 'NEXT';
     skip.textContent = n.step === 'ship' ? 'Skip · keep ' + (SHIP[n.ship] || SHIP.striker).name : last ? 'Skip & start' : 'Skip';
     body.querySelectorAll('.nr-shipcv').forEach((cv) => { const g = cv.getContext('2d'); g.clearRect(0, 0, 192, 192); g.translate(96, 96); g.rotate(-Math.PI / 2); g.scale(5.2, 5.2); Render.drawShip(g, cv.dataset.ship, COL.player); });
+  },
+
+  // ---------- multiplayer ----------
+  openMp() {
+    this.push('s-mp');
+    $('mp-name').value = Save.data.mpName || '';
+    this.renderMp();
+    Net.leaderboard().then((list) => this.renderRank(list)).catch((e) => { $('mp-rank').innerHTML = '<div class="hint">Ranking unavailable (' + e.message + ').</div>'; });
+    Net.myStats().then((me) => { $('mp-me').textContent = me ? 'You: ' + me.rating + ' rating · ' + me.wins + 'W ' + me.losses + 'L · ' + me.kills + ' kills' : 'No matches yet.'; }).catch(() => {});
+  },
+  mpSaveName() { const v = $('mp-name').value.trim().slice(0, 14); Save.data.mpName = v; Save.save(); },
+  renderMp() {
+    if (this.current !== 's-mp' && this.current !== 's-lobby') { if (MP.q) { /* searching from another screen */ } }
+    const S = Save.data;
+    $('mp-ships').innerHTML = SHIPS.filter((x) => S.ships.includes(x.id)).map((x) => `<button class="mp-ship${mpShip() === x.id ? ' on' : ''}" style="--c:${x.color}" data-action="mp-ship" data-k="${x.id}">${x.name}</button>`).join('');
+    const searching = !!MP.q;
+    $('mp-search').classList.toggle('hidden', !searching);
+    $('mp-modes').classList.toggle('hidden', searching);
+    if (searching) $('mp-search-t').textContent = MP.status + (MP.qlist ? ' · ' + MP.qlist.length + '/' + MP.size * 2 + ' in queue' : '');
+    $('mp-status').textContent = searching ? '' : MP.status || '';
+  },
+  renderRank(list) {
+    $('mp-rank').innerHTML = list.length ? list.map((r, i) => `<div class="mp-rrow${r.id === Net.id ? ' me' : ''}"><span>${i + 1}.</span><b>${String(r.name || 'Pilot').replace(/[<>&]/g, '')}</b><span>${r.rating}</span><span>${r.wins}W ${r.losses}L</span></div>`).join('') : '<div class="hint">Nobody yet. Be the first.</div>';
+  },
+  openLobby() { if (this.current !== 's-lobby') { this.stack = ['s-menu']; this.show('s-lobby'); } this.renderLobby(); },
+  renderLobby() {
+    if (this.current !== 's-lobby') return;
+    const host = mpIsHost(), quick = MP.mode === 'quick';
+    $('lb-title').textContent = quick ? 'MATCH FOUND' : 'ROOM ' + MP.code;
+    $('lb-hint').textContent = quick ? 'Starting as soon as everybody is in…' : host ? 'Share the code ' + MP.code + '. Tap a player to move them to the other team.' : 'Waiting for the host to start. Code: ' + MP.code;
+    for (const t of [0, 1]) {
+      $('lb-t' + t).innerHTML = MP.list.filter((p) => (MP.teams[p.id] | 0) === t && MP.teams[p.id] != null).map((p) => {
+        const sh = SHIP[p.ship] || SHIP.striker;
+        return `<button class="lb-p${p.id === Net.id ? ' me' : ''}" ${host && !quick ? `data-action="mp-move" data-k="${p.id}"` : 'disabled'}><b>${String(p.name).replace(/[<>&]/g, '')}${p.id === mpHost() ? ' ★' : ''}</b><span style="color:${sh.color}">${sh.name}</span></button>`;
+      }).join('') || '<div class="hint">empty</div>';
+    }
+    const st = $('lb-start');
+    st.classList.toggle('hidden', !host || quick);
+    st.disabled = !mpCanStart();
+    st.textContent = mpCanStart() ? 'START' : 'Both teams need a player';
+  },
+  pvpHud() {
+    const M = G.pvp; if (!M) return;
+    $('pvp-bar').classList.remove('hidden');
+    $('pb-s0').textContent = M.score[0]; $('pb-s1').textContent = M.score[1];
+    const left = Math.max(0, Math.ceil(PVP.roundTime - M.roundT));
+    $('pb-mid').textContent = M.phase === 'countdown' ? 'ROUND ' + M.round + ' · ' + Math.max(1, Math.ceil(PVP.countdown - M.t)) : M.phase === 'fight' ? 'ROUND ' + M.round + ' · ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + (M.storm ? ' · STORM' : '') : 'ROUND ' + M.round;
+  },
+  pvpFeed(text) {
+    const el = $('pvp-feed'), d = document.createElement('div');
+    d.textContent = text; el.prepend(d);
+    while (el.children.length > 4) el.lastChild.remove();
+    setTimeout(() => d.remove(), 4000);
+  },
+  pvpMenu() { this.show('s-pvpmenu'); },
+  showPvpResult(r) {
+    $('pvp-bar').classList.add('hidden');
+    $('mr-title').textContent = r.won ? 'VICTORY' : 'DEFEAT';
+    $('mr-title').style.color = r.won ? 'var(--good)' : '#ff4f6b';
+    $('mr-score').textContent = TEAM_NAME[0] + ' ' + r.score[0] + ' : ' + r.score[1] + ' ' + TEAM_NAME[1] + (r.ranked ? ' · ranked' : ' · friendly');
+    $('mr-table').innerHTML = r.players.sort((a, b) => a.team - b.team || b.kills - a.kills).map((p) => `<div class="mr-row${p.id === Net.id ? ' me' : ''}" style="--c:${TEAM_COL[p.team]}"><b>${String(p.name).replace(/[<>&]/g, '')}</b><span>${p.kills} K</span><span>${p.deaths} D</span></div>`).join('');
+    $('mr-rating').textContent = r.reportError ? 'Result not saved (' + r.reportError + ')' : r.rating != null ? 'Rating: ' + r.rating : '';
+    $('mr-again').textContent = MP.mode === 'quick' ? 'PLAY AGAIN' : 'BACK TO THE ROOM';
+    this.show('s-mpresult');
   },
 
   toast(title, sub) {

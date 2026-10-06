@@ -242,6 +242,7 @@ function spawnPB(x, y, ang, dmg, crit, speed, lifeMul = 1) {
   b.life = (s.range / sp) * lifeMul; b.pierce = s.pierce; b.bounce = s.bounce;
   b.hits.length = 0; b.homeT = 0; b.age = 0; b.noHome = false;
   G.pb.push(b);
+  if (G.pvp) pvpShot(b, ang, sp); // the others see this bullet
   return b;
 }
 
@@ -392,6 +393,7 @@ function fireEB(x, y, ang, speed, o) {
   b.delay = (o && o.delay) || 0; b.dvx = (o && o.dvx) || 0; b.dvy = (o && o.dvy) || 0;
   b.accel = (o && o.accel) || 0; b.maxSp = (o && o.maxSp) || 400;
   b.pol = o && o.pol != null ? o.pol : -1;
+  b.fake = !!(o && o.fake); // PvP: another player's bullet, only shown (its owner decides hits)
   G.eb.push(b);
   return b;
 }
@@ -424,6 +426,7 @@ function updateEnemyBullets(dt) {
     }
     b.x += b.vx * dt; b.y += b.vy * dt;
     if (solidAt(b.x, b.y)) { if (variantBounce(b, dt)) continue; sparks(b.x, b.y, Math.atan2(-b.vy, -b.vx), 1.2, b.color, 2, 60); killEB(i); continue; }
+    if (b.fake) { if (p.alive && dist2(b.x, b.y, p.x, p.y) < (b.r + PLAYER_HITBOX) ** 2 && p.dashIfr <= 0) killEB(i); continue; }
     if (p.alive) {
       const rr = b.r + PLAYER_HITBOX;
       if (dist2(b.x, b.y, p.x, p.y) < rr * rr) {
@@ -825,7 +828,7 @@ function updateEnemies(dt) {
       const nx = clamp(e.x, act.x + e.r, act.x + act.w - e.r), ny = clamp(e.y, act.y + e.r, act.y + act.h - e.r);
       if (nx !== e.x || ny !== e.y) { e.x = nx; e.y = ny; e.wallHit = true; }
     }
-    if (p.alive && !e.air && e.spawnIn <= 0) {
+    if (p.alive && !e.air && e.spawnIn <= 0 && e.type !== 'pvp') {
       const rr = e.r + PLAYER_HITBOX;
       if (dist2(e.x, e.y, p.x, p.y) < rr * rr) hurtPlayer(e.x, e.y);
     }
@@ -852,6 +855,7 @@ function updateEnemies(dt) {
 
 function damageEnemy(e, dmg, crit, kx, ky, quiet) {
   if (e.dead || e.untarget) return;
+  if (e.type === 'pvp') { pvpHitProxy(e, dmg, crit); return; } // another player: they apply it
   if (e.invuln) { if (!quiet) sparks(e.x, e.y, 0, TAU, '#ffffff', 2, 60); return; }
   if (e.kind === 'polarity' && !G._polBeam) { if (!quiet) sparks(e.x, e.y, 0, TAU, '#ffffff', 2, 60); return; } // only charged beams hurt it
   if (G.stats && G.stats.frostDmg && e.slowT > 0) dmg *= 1 + G.stats.frostDmg; // Absolute Zero

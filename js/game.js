@@ -781,6 +781,7 @@ function abandonRun() {
 // ---------- main simulation step ----------
 function step(dt) {
   G.time += dt;
+  if (G.pvp) { pvpStep(dt); updateFx(dt); return; } // online arena (pvp.js)
   if (G.state === 'climb') { updateClimb(dt); updatePickups(dt); updateFx(dt); return; }
   if (G.side) { stepSide(dt); updateFx(dt); return; } // elevator boss: side view
   if (G.state === 'play' || G.state === 'dying') {

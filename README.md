@@ -162,7 +162,22 @@ The `.nojekyll` file disables Jekyll processing.
 After the first launch all files are cached, so the game works **offline**.
 
 ### Releasing an update
-With every release bump `CACHE_VERSION` in `sw.js` (and `APP_VERSION` in `js/main.js`). The old cache is deleted and the new version loads on the next launch.
+With every release bump `CACHE_VERSION` in `sw.js`, `APP_VERSION` in `js/main.js` and `version` in `package.json`. The old cache is deleted and the new version loads on the next launch.
+
+## Multiplayer (Arena PvP)
+
+Team arena, first to 3 rounds (75 s each, a storm closes in from 35 s). Every pilot flies their own ship plus 3 random upgrades rolled per match.
+
+- **Quick play** 1v1 / 2v2 / 3v3: ranked (Elo), teams balanced by rating.
+- **Friendly room**: create a room, share the 4-letter code; the host moves players between teams (1v1 works too) and starts.
+- **Ranking**: rating, wins/losses, kills/deaths.
+
+Backend: Supabase (anonymous sign-in, Realtime broadcast + presence, one table and one RPC for the ranking). Only the URL and the publishable key live in `js/net.js`. One-time setup in the Supabase dashboard:
+1. **Authentication → Sign In / Providers → Allow anonymous sign-ins**: on.
+2. **SQL Editor**: run `tools/supabase.sql` (table `pvp_players` + function `pvp_report`).
+3. **Realtime → Settings**: allow public channels (the "private channels only" option off).
+
+Each client owns its ship and reports its own hits, so the netcode is not cheat-proof. `?net=local` replaces Supabase with a BroadcastChannel between tabs of one browser (tests, offline development).
 
 ## Structure
 
@@ -188,6 +203,8 @@ js/elevator.js          The Counterweight: side-view elevator boss
 js/game.js              run & floor flow, rewards, death, records
 js/render.js            Canvas 2D renderer
 js/ui.js                DOM screens
+js/net.js               Supabase: anonymous auth, ranking REST, Realtime socket (or local tabs)
+js/pvp.js               Arena PvP: matchmaking, rooms, rounds, storm, netcode
 js/main.js              loop (fixed 60 Hz step), lifecycle, SW registration
 tools/                  dev server, Playwright audits and tests, icon generator
 ```
@@ -225,6 +242,7 @@ npm run test:newrun     # New Run steps, supplies, wager, shop trade
 npm run test:specials   # Polarity, Warden of Keys, Collapse, Puppeteer, shield-piercing, seals, slows
 npm run test:bosses2    # every boss hall, Puppeteer and Architect patterns, rewards
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Forgemaster
+npm run test:pvp        # two tabs over ?net=local: room code, teams, rounds, match end, ranking, quick play
 npm run perf            # frame cost with 4x CPU throttling
 ```
 

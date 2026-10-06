@@ -316,6 +316,7 @@ const Render = {
     this.drawShells(ctx);
     this.drawPickups(ctx);
     this.drawEnemies(ctx);
+    if (G.pvp) this.drawPvp(ctx);
     this.drawPlayer(ctx);
     this.drawGuide(ctx);
     this.drawPlayerBullets(ctx);
@@ -1024,6 +1025,33 @@ const Render = {
     ctx.lineCap = 'butt';
   },
 
+  // ---------- online arena: the other ships, names, HP bars and the storm ----------
+  drawPvp(ctx) {
+    const M = G.pvp, t = G.time;
+    if (M.storm) {
+      ctx.save(); ctx.fillStyle = 'rgba(160,40,90,0.22)';
+      ctx.beginPath(); ctx.rect(0, 0, G.W, G.H); ctx.arc(M.storm.x, M.storm.y, M.storm.r, 0, TAU, true); ctx.fill('evenodd');
+      ctx.strokeStyle = '#ff4f8b'; ctx.lineWidth = 3; ctx.globalAlpha = 0.6 + Math.sin(t * 6) * 0.2; ctx.beginPath(); ctx.arc(M.storm.x, M.storm.y, M.storm.r, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = '800 9px system-ui, sans-serif';
+    for (const id in M.players) {
+      const pl = M.players[id], mine = id === Net.id, p = G.player;
+      if (mine ? !p.alive : !pl.alive) continue;
+      const x = mine ? p.x : pl.proxy ? pl.proxy.x : pl.x, y = mine ? p.y : pl.proxy ? pl.proxy.y : pl.y, col = TEAM_COL[pl.team];
+      ctx.globalAlpha = 0.5; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 13, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+      if (!mine) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(pl.a || 0);
+        this.drawShip(ctx, pl.ship, pl.dash ? '#ffffff' : pl.proxy && pl.proxy.flash > 0 ? '#ffffff' : col);
+        ctx.restore();
+      }
+      const hp = mine ? M.hp / M.maxHp : pl.hp;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - 14, y - 22, 28, 4);
+      ctx.fillStyle = hp > 0.35 ? col : '#ff4f6b'; ctx.fillRect(x - 14, y - 22, 28 * Math.max(0, hp), 4);
+      ctx.fillStyle = mine ? '#ffffff' : col; ctx.fillText(mine ? 'YOU' : pl.name, x, y - 24);
+    }
+  },
+
   // ---------- shop pedestals & altar circle (stalls.js) ----------
   drawStall(ctx) {
     const S = G.stall;
@@ -1212,7 +1240,7 @@ const Render = {
     if (Q.glow) {
       ctx.globalCompositeOperation = 'lighter';
       for (const e of es) {
-        if (e.dead) continue;
+        if (e.dead || e.type === 'pvp') continue;
         const a = e.type === 'boss' ? (e.alpha == null ? 1 : e.alpha) : 1;
         this.drawGlow(ctx, e.x, e.y, e.r * (e.type === 'boss' ? 3 : 2.4), e.elite ? COL.gold : e.color, (e.charge > 0 ? 0.55 + e.charge * 0.45 : 0.4) * a);
       }
@@ -1220,7 +1248,7 @@ const Render = {
       ctx.globalAlpha = 1;
     }
     for (const e of es) {
-      if (e.dead) continue;
+      if (e.dead || e.type === 'pvp') continue; // other players are drawn by drawPvp
       const white = e.flash > 0;
       const fill = white ? '#ffffff' : e.color;
       let sc = 1;
