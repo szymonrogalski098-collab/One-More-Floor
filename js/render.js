@@ -366,7 +366,7 @@ const Render = {
   // Chevron next to the player pointing along the path to the next room / doors.
   drawGuide(ctx) {
     const p = G.player;
-    if (!p || !p.alive || G.state !== 'play') return;
+    if (!p || !p.alive || G.state !== 'play' || G.pvp) return; // PvP: no guide arrow
     const tg = guideTarget();
     if (!tg) { this.guideA = null; return; }
     const w = guidePoint(p.x, p.y, tg.x, tg.y);
@@ -1034,6 +1034,8 @@ const Render = {
       ctx.strokeStyle = '#ff4f8b'; ctx.lineWidth = 3; ctx.globalAlpha = 0.6 + Math.sin(t * 6) * 0.2; ctx.beginPath(); ctx.arc(M.storm.x, M.storm.y, M.storm.r, 0, TAU); ctx.stroke();
       ctx.restore();
     }
+    // bot bullets (the host simulates them; the others see them as remote shots)
+    for (const b of M.bb) { ctx.fillStyle = TEAM_COL[b.team]; ctx.beginPath(); ctx.arc(b.x, b.y, b.r + 1, 0, TAU); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.45, 0, TAU); ctx.fill(); }
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = '800 9px system-ui, sans-serif';
     for (const id in M.players) {
       const pl = M.players[id], mine = id === Net.id, p = G.player;

@@ -166,18 +166,27 @@ With every release bump `CACHE_VERSION` in `sw.js`, `APP_VERSION` in `js/main.js
 
 ## Multiplayer (Arena PvP)
 
-Team arena, first to 3 rounds (75 s each, a storm closes in from 35 s). Every pilot flies their own ship plus 3 random upgrades rolled per match.
+Team arena, first to 3 rounds (75 s each, a storm closes in from 35 s). One team spawns at the bottom, the other at the top of a point-symmetric arena. Every pilot flies their own ship plus 3 random upgrades rolled per match (Workshop upgrades do not count).
 
-- **Quick play** 1v1 / 2v2 / 3v3: ranked (Elo), teams balanced by rating.
-- **Friendly room**: create a room, share the 4-letter code; the host moves players between teams (1v1 works too) and starts.
-- **Ranking**: rating, wins/losses, kills/deaths.
+The Multiplayer screen shows your ship, the game mode card and PLAY:
+- **Casual** 1v1 / 2v2 / 3v3: no rating; bots fill the empty seats after 10 s.
+- **Ranked** 1v1 / 2v2 / 3v3: players only, Google account, Elo rating. A result counts only when both teams report the same winner (or 5 minutes later if only one side reported and nobody disagreed).
+- **Friendly room**: a 4-letter code; the host moves players between teams and adds or removes bots.
+- **Friends** (Google account): add by pilot name or QR code (a link with `?friend=<id>`), see who is online, invite to a room. Invites show up anywhere except inside a match; accepting during a run keeps the run (Continue).
 
-Backend: Supabase (anonymous sign-in, Realtime broadcast + presence, one table and one RPC for the ranking). Only the URL and the publishable key live in `js/net.js`. One-time setup in the Supabase dashboard:
-1. **Authentication → Sign In / Providers → Allow anonymous sign-ins**: on.
-2. **SQL Editor**: run `tools/supabase.sql` (table `pvp_players` + function `pvp_report`).
-3. **Realtime → Settings**: allow public channels (the "private channels only" option off).
+Netcode: each client owns its ship and sends its state ~10x/s with its shots and hits. The host (the earliest player still answering) runs the rounds, simulates the bots and broadcasts the match state every second, so a player whose phone slept or lost the network catches up (a player silent for 5 s is out of that round, back in the next one). A client that cannot reach the server never acts as host.
 
-Each client owns its ship and reports its own hits, so the netcode is not cheat-proof. `?net=local` replaces Supabase with a BroadcastChannel between tabs of one browser (tests, offline development).
+Anti-cheat (every client checks the others): a hit needs a damage the ship can do, a fire rate it can reach, range and line of sight (bouncing bullets excepted); movement needs a plausible speed. The host keeps its own HP ledger from the public hits and declares dead whoever ignores lethal damage; repeat offenders are removed from the match and flagged in the database. It is still client-side: a determined cheater can fool parts of it.
+
+### Supabase setup (once)
+Only the project URL and the publishable key live in `js/net.js`.
+1. **Authentication → Sign In / Providers → Allow anonymous sign-ins**: on (casual play without an account).
+2. **Google sign-in**: in Google Cloud Console create an OAuth client (Web application) with the redirect URI `https://<project>.supabase.co/auth/v1/callback`; in Supabase **Authentication → Sign In / Providers → Google** paste its Client ID and Client Secret.
+3. **Authentication → URL Configuration**: Site URL = the game address (e.g. `https://<user>.github.io/<repo>/`), and add the same address under Redirect URLs.
+4. **SQL Editor**: run `tools/supabase.sql` (profiles, friends, ranked matches and their functions; safe to run again).
+5. **Realtime → Settings**: allow public channels.
+
+`?net=local` replaces Supabase with a BroadcastChannel between tabs and a localStorage database (tests, offline development).
 
 ## Structure
 
@@ -203,8 +212,10 @@ js/elevator.js          The Counterweight: side-view elevator boss
 js/game.js              run & floor flow, rewards, death, records
 js/render.js            Canvas 2D renderer
 js/ui.js                DOM screens
-js/net.js               Supabase: anonymous auth, ranking REST, Realtime socket (or local tabs)
-js/pvp.js               Arena PvP: matchmaking, rooms, rounds, storm, netcode
+js/net.js               Supabase: auth (anonymous / Google), RPCs, Realtime socket (or local tabs + localStorage)
+js/social.js            Google profile, friends, online presence, invites, QR codes
+js/pvp.js               Arena PvP: matchmaking, rooms, bots, rounds, storm, netcode, anti-cheat
+js/lib/qrcode.js        QR code generator (Kazuhiko Arase, MIT)
 js/main.js              loop (fixed 60 Hz step), lifecycle, SW registration
 tools/                  dev server, Playwright audits and tests, icon generator
 ```
@@ -242,7 +253,7 @@ npm run test:newrun     # New Run steps, supplies, wager, shop trade
 npm run test:specials   # Polarity, Warden of Keys, Collapse, Puppeteer, shield-piercing, seals, slows
 npm run test:bosses2    # every boss hall, Puppeteer and Architect patterns, rewards
 npm run test:bosses     # Counterweight (side view, no dash dodge, survive to win), Forgemaster
-npm run test:pvp        # two tabs over ?net=local: room code, teams, rounds, match end, ranking, quick play
+npm run test:pvp        # two tabs over ?net=local: rooms, bots, spawns, rounds, reconnect, anti-cheat, casual, ranked, friends, invites
 npm run perf            # frame cost with 4x CPU throttling
 ```
 

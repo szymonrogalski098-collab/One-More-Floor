@@ -1,7 +1,7 @@
 'use strict';
 // Boot, main loop (fixed 60 Hz simulation + variable render), app lifecycle, PWA registration.
 
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.9.0';
 const STEP = 1 / 60;
 
 const Loop = { last: 0, acc: 0, frameAvg: 1 / 60, slowFor: 0, hudT: 0, raf: 0 };
@@ -25,7 +25,7 @@ function startGame(resume) {
 }
 
 function pauseGame() {
-  if (G.pvp) { UI.pvpMenu(); return; } // online: the match goes on, you can only leave
+  if (G.pvp) { if (!document.hidden) UI.pvpMenu(); return; } // online: the match goes on, you can only leave
   if (G.state !== 'play') return;
   saveSnapshot(); // app may be killed while in the background: keep the exact spot
   G.state = 'paused';
@@ -47,7 +47,7 @@ function resumeGame() {
 function onPauseKey() {
   if (G.state === 'play') pauseGame();
   else if (G.state === 'paused' && UI.current === 's-pause') resumeGame();
-  else if (UI.stack.length && ['s-meta', 's-records', 's-settings', 's-challenges', 's-confirm', 's-training'].includes(UI.current)) UI.back(); // Esc closes sub-screens
+  else if (UI.stack.length && ['s-meta', 's-records', 's-settings', 's-challenges', 's-confirm', 's-training', 's-mpmodes', 's-mprank', 's-friends'].includes(UI.current)) UI.back(); // Esc closes sub-screens
 }
 
 function saveAndQuit() {
@@ -123,14 +123,22 @@ function boot() {
   Save.load();
   applyQualitySetting();
   UI.init();
+  Social.init();
   UI.onControlsChanged();
   Render.init($('cv'));
   Input.init($('cv'), $('btn-dash'));
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 150));
+  let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { pauseGame(); Sound.suspend(); }
-    else Sound.resume();
+    if (document.hidden) { hiddenAt = performance.now(); pauseGame(); Sound.suspend(); }
+    else {
+      Sound.resume();
+      const away = performance.now() - hiddenAt;
+      Net.wake(away); // the socket may have died while the phone slept
+      pvpWake(away); // a match went on without us: catch up with the host
+      Loop.last = performance.now();
+    }
   });
   window.addEventListener('pagehide', () => Save.save());
   // unlock audio on first interaction anywhere

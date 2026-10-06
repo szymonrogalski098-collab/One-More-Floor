@@ -6,7 +6,7 @@ const PLAYER_HITBOX = 5.5; // forgiving: smaller than the drawn body
 
 // ================= Stats =================
 function computeStats() {
-  const meta = Save.data.meta;
+  const meta = G.run && G.run.pvp ? {} : Save.data.meta; // PvP: everybody equal, Workshop upgrades do not count
   const s = {
     dmgMul: 1 + 0.05 * (meta.core | 0), rofMul: 1,
     baseDmg: 10, baseRof: 3.1,

@@ -50,6 +50,11 @@
   <div id="stall-info" class="stair-info stall-info hidden"><div class="st-title si-title"></div><div class="st-sub si-sub"></div><div class="st-row"><span class="st-wallet"></span><button id="stall-btn" class="btn btn-primary small" data-action="stall-use">BUY</button></div></div>
   <div id="stair-info" class="stair-info hidden"><div class="si-title"></div><canvas id="si-map" class="si-map"></canvas><div class="si-sub"></div><div class="si-hint"></div></div>
 
+  <div id="invite" class="invite hidden" role="alert">
+    <div class="inv-t"><b id="inv-name"></b><span id="inv-sub">invites you to play</span></div>
+    <button class="btn btn-primary small" data-action="inv-yes">Join</button>
+    <button class="btn btn-ghost small" data-action="inv-no" aria-label="Decline">✕</button>
+  </div>
   <div id="toast" class="toast"><div class="t-title"></div><div class="t-sub"></div></div>
 
   <div id="banner" class="banner"><div class="b-title"></div><div class="b-sub"></div></div>
@@ -87,30 +92,81 @@
     </div>
   </section>
 
-  <!-- MULTIPLAYER -->
+  <!-- MULTIPLAYER: pick a mode, press PLAY -->
   <section id="s-mp" class="screen">
-    <div class="panel-wrap tall">
+    <div class="panel-wrap tall mp-wrap">
       <div class="head-row">
         <button class="icon-btn back" data-action="mp-back" aria-label="Back">‹</button>
         <h2>MULTIPLAYER</h2>
+        <button class="icon-btn mp-fbtn" data-action="friends" aria-label="Friends"><span class="fr-ico"></span><b id="mp-fbadge" class="mp-badge hidden"></b></button>
+      </div>
+      <div id="mp-profile" class="mp-profile"></div>
+      <div class="mp-stage">
+        <div class="mp-shipview">
+          <button class="icon-btn" data-action="mp-ship" data-k="-1" aria-label="Previous ship">‹</button>
+          <canvas id="mp-shipcv" width="192" height="192"></canvas>
+          <button class="icon-btn" data-action="mp-ship" data-k="1" aria-label="Next ship">›</button>
+        </div>
+        <div id="mp-shipname" class="mp-shipname"></div>
+      </div>
+      <div id="mp-search" class="mp-search hidden"><div class="mp-spin"></div><div id="mp-search-t"></div><button class="btn btn-ghost small" data-action="mp-cancel">Cancel</button></div>
+      <p id="mp-status" class="hint"></p>
+      <div class="mp-foot">
+        <button id="mp-modecard" class="mp-modecard" data-action="mp-modes"></button>
+        <button id="mp-play" class="btn btn-primary big mp-play" data-action="mp-play">PLAY</button>
+      </div>
+      <button class="btn btn-ghost small" data-action="mp-rank">Ranking</button>
+    </div>
+  </section>
+
+  <!-- GAME MODE PICKER -->
+  <section id="s-mpmodes" class="screen">
+    <div class="panel-wrap tall">
+      <div class="head-row">
+        <button class="icon-btn back" data-action="back" aria-label="Back">‹</button>
+        <h2>GAME MODE</h2>
         <div></div>
       </div>
-      <div class="scroll mp-body">
-        <label class="mp-field"><span>NAME</span><input id="mp-name" maxlength="14" autocomplete="off" spellcheck="false"></label>
-        <div class="meta-sec">SHIP · 3 RANDOM UPGRADES EACH MATCH</div>
-        <div id="mp-ships" class="mp-ships"></div>
-        <div id="mp-search" class="mp-search hidden"><div class="mp-spin"></div><div id="mp-search-t"></div><button class="btn btn-ghost small" data-action="mp-cancel">Cancel</button></div>
-        <div id="mp-modes">
-          <div class="meta-sec">QUICK PLAY · RANKED</div>
-          <div class="row"><button class="btn btn-primary" data-action="mp-quick" data-k="1">1v1</button><button class="btn btn-primary" data-action="mp-quick" data-k="2">2v2</button><button class="btn btn-primary" data-action="mp-quick" data-k="3">3v3</button></div>
-          <div class="meta-sec">PLAY WITH FRIENDS</div>
-          <button class="btn btn-secondary" data-action="mp-create">Create a room</button>
-          <div class="row mp-joinrow"><input id="mp-code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false"><button class="btn btn-ghost" data-action="mp-join">Join</button></div>
+      <div class="scroll mp-modes">
+        <div id="mp-modelist" class="mp-modelist"></div>
+        <div class="mp-joinbox">
+          <div class="meta-sec">GOT A ROOM CODE?</div>
+          <div class="row mp-joinrow"><input id="mp-code" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false"><button class="btn btn-ghost" data-action="mp-join">Join</button></div>
         </div>
-        <p id="mp-status" class="hint"></p>
-        <div class="meta-sec">RANKING</div>
-        <div id="mp-me" class="mp-me"></div>
-        <div id="mp-rank" class="mp-rank"><div class="hint">Loading…</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RANKING -->
+  <section id="s-mprank" class="screen">
+    <div class="panel-wrap tall">
+      <div class="head-row">
+        <button class="icon-btn back" data-action="back" aria-label="Back">‹</button>
+        <h2>RANKING</h2>
+        <div></div>
+      </div>
+      <div id="mp-me" class="mp-me"></div>
+      <div id="mp-rank" class="scroll mp-rank"><div class="hint">Loading…</div></div>
+    </div>
+  </section>
+
+  <!-- FRIENDS -->
+  <section id="s-friends" class="screen">
+    <div class="panel-wrap tall">
+      <div class="head-row">
+        <button class="icon-btn back" data-action="fr-back" aria-label="Back">‹</button>
+        <h2>FRIENDS</h2>
+        <div></div>
+      </div>
+      <div class="scroll fr-body">
+        <div id="fr-signin" class="fr-sec"></div>
+        <div id="fr-main" class="fr-main">
+          <div class="row mp-joinrow"><input id="fr-name" maxlength="14" placeholder="Pilot name" autocomplete="off" spellcheck="false"><button class="btn btn-ghost" data-action="fr-add">Add</button></div>
+          <div class="row"><button class="btn btn-ghost small" data-action="fr-qr">My QR code</button><button id="fr-scanbtn" class="btn btn-ghost small" data-action="fr-scan">Scan a code</button></div>
+          <div id="fr-qrbox" class="fr-qrbox hidden"><canvas id="fr-qr" width="240" height="240"></canvas><div class="hint">Your friend scans it with any phone camera.</div></div>
+          <div id="fr-scanbox" class="fr-qrbox hidden"><video id="fr-video" playsinline muted></video><button class="btn btn-ghost small" data-action="fr-scanstop">Stop</button></div>
+          <div id="fr-list" class="fr-list"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -124,8 +180,12 @@
         <div></div>
       </div>
       <p id="lb-hint" class="sub-h"></p>
-      <div class="lb-teams"><div class="lb-team" data-team="0"><div class="lb-h">BLUE</div><div id="lb-t0" class="lb-list"></div></div><div class="lb-team" data-team="1"><div class="lb-h">RED</div><div id="lb-t1" class="lb-list"></div></div></div>
+      <div class="lb-teams">
+        <div class="lb-team" data-team="0"><div class="lb-h">BLUE</div><div id="lb-t0" class="lb-list"></div><button id="lb-bot0" class="lb-bot" data-action="mp-bot" data-k="0">+ Bot</button></div>
+        <div class="lb-team" data-team="1"><div class="lb-h">RED</div><div id="lb-t1" class="lb-list"></div><button id="lb-bot1" class="lb-bot" data-action="mp-bot" data-k="1">+ Bot</button></div>
+      </div>
       <div class="scroll"></div>
+      <button id="lb-invite" class="btn btn-secondary small" data-action="friends">Invite friends</button>
       <button id="lb-start" class="btn btn-primary" data-action="mp-start">START</button>
       <button class="btn btn-ghost small" data-action="mp-leave">Leave the room</button>
     </div>
@@ -341,7 +401,9 @@
   <script src="js/game.js"></script>
   <script src="js/render.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/lib/qrcode.js"></script>
   <script src="js/net.js"></script>
+  <script src="js/social.js"></script>
   <script src="js/pvp.js"></script>
   <script src="js/main.js"></script>
 </body>

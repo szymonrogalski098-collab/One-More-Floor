@@ -97,17 +97,48 @@ const UI = {
       case 'again': { sfx('select'); const S = Save.data; this.nr = { asc: Math.min(S.asc.selected | 0, S.asc.unlocked | 0), cp: S.startSel | 0 || 1, ship: S.ship, supplies: [], wager: 0 }; this.nrStart(); break; } // same setup, no shopping
       case 'stall-use': stallUse(); break;
       case 'mp': sfx('select'); this.openMp(); break;
-      case 'mp-back': sfx('select'); mpLeaveAll(); this.back(); break;
-      case 'mp-ship': { const S = Save.data; if (S.ships.includes(el.dataset.k)) { S.ship = el.dataset.k; Save.save(); } sfx('select'); this.renderMp(); break; }
-      case 'mp-quick': sfx('select'); this.mpSaveName(); mpQuick(+el.dataset.k); break;
+      case 'mp-back': sfx('select'); this.mpSaveName(); mpLeaveAll(); this.back(); break;
+      case 'mp-ship': { const S = Save.data, own = SHIPS.filter((x) => S.ships.includes(x.id)), i = own.findIndex((x) => x.id === mpShip()); S.ship = own[(i + +el.dataset.k + own.length) % own.length].id; Save.save(); sfx('select'); this.renderMp(); break; }
+      case 'mp-modes': sfx('select'); this.push('s-mpmodes'); this.renderModes(); break;
+      case 'mp-mode': {
+        const [k, n] = el.dataset.k.split(':');
+        if (k === 'ranked' && !Social.me) { sfx('hurt'); this.toast('RANKED', 'Sign in with Google and pick a pilot name first'); break; }
+        Save.data.mpMode = { k, n: +n || 1 }; Save.save(); sfx('select'); this.back(); this.renderMp(); break;
+      }
+      case 'mp-play': { sfx('select'); this.mpSaveName(); const m = this.mpMode(); if (m.k === 'room') mpCreate(); else mpQueue(m.k, m.n); break; }
       case 'mp-cancel': sfx('select'); mpLeaveAll(); this.renderMp(); break;
-      case 'mp-create': sfx('select'); this.mpSaveName(); mpCreate(); break;
-      case 'mp-join': sfx('select'); this.mpSaveName(); mpJoin($('mp-code').value); break;
+      case 'mp-join': { sfx('select'); this.mpSaveName(); const c = $('mp-code').value; if (this.current === 's-mpmodes') this.back(); mpJoin(c); break; }
+      case 'mp-rank': sfx('select'); this.openRank(); break;
+      case 'mp-login': sfx('select'); this.mpSaveName(); Social.login(); break;
+      case 'mp-logout': sfx('select'); mpLeaveAll(); Social.logout(); break;
+      case 'mp-setname': case 'fr-setname': {
+        const inp = $(a === 'mp-setname' ? 'mp-nick' : 'fr-nick'), err = $(a === 'mp-setname' ? 'mp-nickerr' : 'fr-nickerr');
+        Social.setName(inp.value).then((e) => { if (e) { sfx('hurt'); if (err) err.textContent = e; } else sfx('select'); });
+        break;
+      }
+      case 'friends': sfx('select'); this.push('s-friends'); this.renderFriends(); Social.loadFriends(); break;
+      case 'fr-back': sfx('select'); this.frScanStop(); $('fr-qrbox').classList.add('hidden'); this.back(); this.renderMp(); break;
+      case 'fr-add': { const v = $('fr-name').value.trim(); if (!v) break; sfx('select'); Social.add({ name: v }).then((e) => { if (!e) $('fr-name').value = ''; }); break; }
+      case 'fr-qr': { sfx('select'); const box = $('fr-qrbox'); box.classList.toggle('hidden'); if (!box.classList.contains('hidden')) Social.drawQR($('fr-qr'), Social.friendLink()); break; }
+      case 'fr-scan':
+        sfx('select');
+        if (!Social.canScan()) { this.toast('SCAN', 'Open your phone camera and point it at the code'); break; }
+        $('fr-scanbox').classList.remove('hidden');
+        Social.scan($('fr-video'), (id, err) => { $('fr-scanbox').classList.add('hidden'); this._scanStop = null; if (id) Social.add({ id }); else if (err) this.toast('SCAN', err); }).then((stop) => { this._scanStop = stop; });
+        break;
+      case 'fr-scanstop': sfx('select'); this.frScanStop(); break;
+      case 'fr-inv': sfx('select'); Social.inviteFriend(el.dataset.k); break;
+      case 'fr-yes': sfx('select'); Social.respond(el.dataset.k, true); break;
+      case 'fr-no': sfx('select'); Social.respond(el.dataset.k, false); break;
+      case 'fr-del': sfx('select'); if (el.dataset.sure) Social.remove(el.dataset.k); else { el.dataset.sure = '1'; el.textContent = 'Remove?'; } break;
+      case 'inv-yes': sfx('select'); Social.acceptInvite(); break;
+      case 'inv-no': sfx('select'); Social.declineInvite(); break;
+      case 'mp-bot': sfx('select'); mpAddBot(+el.dataset.k); break;
       case 'mp-move': sfx('select'); mpMove(el.dataset.k); break;
       case 'mp-start': sfx('select'); mpHostStart(); break;
       case 'mp-leave': sfx('select'); mpLeave(); break;
       case 'mp-resume': sfx('select'); this.show(null); break;
-      case 'mp-again': sfx('select'); if (MP.mode === 'quick') { const n = MP.size; mpLeave(); this.openMp(); mpQuick(n); } else { if (MP.ch) MP.ch.send('lobby', {}); mpBackToLobby(); } break;
+      case 'mp-again': sfx('select'); if (MP.mode !== 'room') { const k = MP.mode, n = MP.size; mpLeave(); this.openMp(); mpQueue(k, n); } else { if (MP.ch) MP.ch.send('lobby', { from: Net.id }); mpBackToLobby(); } break;
       case 'nr-back': sfx('select'); this.nrBack(); break;
       case 'nr-pick': sfx('select'); this.nrPick(el.dataset.k, el.dataset.v); break;
       case 'nr-go': sfx('select'); this.nrForward(); break;
@@ -431,50 +462,129 @@ const UI = {
   },
 
   // ---------- multiplayer ----------
+  mpMode() { const m = Save.data.mpMode || { k: 'casual', n: 1 }; return m.k === 'ranked' && !Social.me ? { k: 'casual', n: m.n } : m; },
   openMp() {
-    this.push('s-mp');
-    $('mp-name').value = Save.data.mpName || '';
+    if (this.current !== 's-mp') { if (this.current === 's-menu' || !this.current) this.stack = ['s-menu']; this.show('s-mp'); }
+    this._pf = null;
     this.renderMp();
-    Net.leaderboard().then((list) => this.renderRank(list)).catch((e) => { $('mp-rank').innerHTML = '<div class="hint">Ranking unavailable (' + e.message + ').</div>'; });
-    Net.myStats().then((me) => { $('mp-me').textContent = me ? 'You: ' + me.rating + ' rating · ' + me.wins + 'W ' + me.losses + 'L · ' + me.kills + ' kills' : 'No matches yet.'; }).catch(() => {});
+    if (Net.google) Social.refresh();
   },
-  mpSaveName() { const v = $('mp-name').value.trim().slice(0, 14); Save.data.mpName = v; Save.save(); },
+  mpSaveName() { const i = $('mp-name'); if (!i) return; const v = i.value.trim().slice(0, 14); if (v !== (Save.data.mpName || '')) { Save.data.mpName = v; Save.save(); } },
+  renderProfile() {
+    const me = Social.me, sig = [Net.google, me && me.name, me && me.rating, Social.needName].join('|');
+    if (this._pf === sig) return;
+    this._pf = sig;
+    const esc = (x) => String(x).replace(/[<>&"]/g, '');
+    $('mp-profile').innerHTML = me
+      ? `<div class="mp-pf"><b>${esc(me.name)}</b><span class="mp-rating">★ ${me.rating}</span></div><button class="btn btn-ghost small" data-action="mp-logout">Sign out</button>`
+      : Net.google
+        ? `<div class="mp-pfcol"><div class="row mp-joinrow"><input id="mp-nick" maxlength="14" placeholder="Pick a pilot name" autocomplete="off" spellcheck="false"><button class="btn btn-primary small" data-action="mp-setname">Save</button></div><div id="mp-nickerr" class="hint">3-14 letters, digits or _ · your friends find you by it</div></div>`
+        : `<div class="mp-pfcol"><label class="mp-field"><span>NAME</span><input id="mp-name" maxlength="14" autocomplete="off" spellcheck="false" value="${esc(Save.data.mpName || '')}"></label><button class="btn btn-google small" data-action="mp-login"><i class="g-ico"></i>Sign in with Google</button><div class="hint small-hint">For Ranked and friends · casual play works without</div></div>`;
+  },
   renderMp() {
-    if (this.current !== 's-mp' && this.current !== 's-lobby') { if (MP.q) { /* searching from another screen */ } }
-    const S = Save.data;
-    $('mp-ships').innerHTML = SHIPS.filter((x) => S.ships.includes(x.id)).map((x) => `<button class="mp-ship${mpShip() === x.id ? ' on' : ''}" style="--c:${x.color}" data-action="mp-ship" data-k="${x.id}">${x.name}</button>`).join('');
-    const searching = !!MP.q;
+    if (!$('mp-profile')) return;
+    this.renderProfile();
+    const sh = SHIP[mpShip()] || SHIP.striker, cv = $('mp-shipcv');
+    if (cv && cv.dataset.ship !== sh.id) { cv.dataset.ship = sh.id; const g = cv.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 192, 192); g.translate(96, 96); g.rotate(-Math.PI / 2); g.scale(5.2, 5.2); Render.drawShip(g, sh.id, sh.color || COL.player); }
+    $('mp-shipname').innerHTML = `<b style="color:${sh.color}">${sh.name}</b><span>+ 3 random upgrades each match</span>`;
+    const m = this.mpMode(), md = MP_MODES[m.k], card = $('mp-modecard');
+    card.style.setProperty('--c', md.col);
+    card.innerHTML = `<span class="mc-k">GAME MODE ›</span><b>${md.name}${m.k === 'room' ? '' : ' · ' + m.n + 'v' + m.n}</b><span>${md.sub}</span>`;
+    const searching = !!(MP.q || (MP.going && !MP.ch));
     $('mp-search').classList.toggle('hidden', !searching);
-    $('mp-modes').classList.toggle('hidden', searching);
-    if (searching) $('mp-search-t').textContent = MP.status + (MP.qlist ? ' · ' + MP.qlist.length + '/' + MP.size * 2 + ' in queue' : '');
+    $('mp-play').classList.toggle('hidden', searching);
+    card.disabled = searching;
+    if (searching) {
+      const sec = Math.floor((Date.now() - (MP.qT || Date.now())) / 1000), need = MP.size * 2;
+      let t = MP.status === 'Connecting…' ? 'Connecting…' : 'Searching ' + MP_MODES[MP.mode].name.toLowerCase() + ' ' + MP.size + 'v' + MP.size + ' · ' + sec + ' s';
+      if (MP.qlist) t += ' · ' + MP.qlist.length + '/' + need + ' pilots';
+      if (MP.mode === 'casual' && MP.qlist && MP.qlist.length < need) t += sec < PVP.botWait ? ' · bots in ' + (PVP.botWait - sec) + ' s' : ' · adding bots…';
+      $('mp-search-t').textContent = t;
+    }
     $('mp-status').textContent = searching ? '' : MP.status || '';
+    const req = Social.requests(), on = Social.onlineCount(), badge = $('mp-fbadge');
+    badge.classList.toggle('hidden', !req && !on);
+    badge.classList.toggle('req', !!req);
+    badge.textContent = req || on;
+  },
+  renderModes() {
+    const cur = this.mpMode(), list = [];
+    for (const k of ['casual', 'ranked']) {
+      const md = MP_MODES[k], locked = k === 'ranked' && !Social.me;
+      list.push(`<div class="mp-mcard${locked ? ' locked' : ''}" style="--c:${md.col}"><b>${md.name}</b><span>${md.sub}</span>${locked ? '<em>Sign in with Google to play ranked</em>' : ''}<div class="mp-sizes">${[1, 2, 3].map((n) => `<button class="${cur.k === k && cur.n === n ? 'on' : ''}" data-action="mp-mode" data-k="${k}:${n}">${n}v${n}</button>`).join('')}</div></div>`);
+    }
+    const rm = MP_MODES.room;
+    list.push(`<button class="mp-mcard${cur.k === 'room' ? ' on' : ''}" style="--c:${rm.col}" data-action="mp-mode" data-k="room:0"><b>${rm.name}</b><span>${rm.sub}</span></button>`);
+    $('mp-modelist').innerHTML = list.join('');
+  },
+  openRank() {
+    this.push('s-mprank');
+    $('mp-rank').innerHTML = '<div class="hint">Loading…</div>';
+    const me = Social.me;
+    $('mp-me').textContent = me ? me.name + ' · ★ ' + me.rating + ' · ' + me.wins + 'W ' + me.losses + 'L · ' + me.kills + ' kills' : 'Sign in with Google and play Ranked to get on the board.';
+    Net.leaderboard().then((list) => this.renderRank(list)).catch((e) => { $('mp-rank').innerHTML = '<div class="hint">Ranking unavailable (' + e.message + ').</div>'; });
   },
   renderRank(list) {
-    $('mp-rank').innerHTML = list.length ? list.map((r, i) => `<div class="mp-rrow${r.id === Net.id ? ' me' : ''}"><span>${i + 1}.</span><b>${String(r.name || 'Pilot').replace(/[<>&]/g, '')}</b><span>${r.rating}</span><span>${r.wins}W ${r.losses}L</span></div>`).join('') : '<div class="hint">Nobody yet. Be the first.</div>';
+    $('mp-rank').innerHTML = list.length ? list.map((r, i) => `<div class="mp-rrow${r.id === Net.id ? ' me' : ''}"><span>${i + 1}.</span><b>${String(r.name || 'Pilot').replace(/[<>&]/g, '')}</b><span>★ ${r.rating}</span><span>${r.wins}W ${r.losses}L</span></div>`).join('') : '<div class="hint">Nobody yet. Be the first.</div>';
   },
+  renderFriends() {
+    if (this.current !== 's-friends') { if (this.current === 's-mp') this.renderMp(); return; }
+    const esc = (x) => String(x).replace(/[<>&"]/g, ''), me = Social.me;
+    const sig = [Net.google, !!me, Social.needName].join('|');
+    if (this._fs !== sig) {
+      this._fs = sig;
+      $('fr-signin').innerHTML = me ? '' : Net.google
+        ? `<p class="sub-h">Pick your pilot name: friends find you by it.</p><div class="row mp-joinrow"><input id="fr-nick" maxlength="14" placeholder="Pilot name" autocomplete="off" spellcheck="false"><button class="btn btn-primary small" data-action="fr-setname">Save</button></div><div id="fr-nickerr" class="hint">3-14 letters, digits or _</div>`
+        : `<p class="sub-h">Friends need a Google account: they stay with you on every device.</p><button class="btn btn-google" data-action="mp-login"><i class="g-ico"></i>Sign in with Google</button>`;
+    }
+    $('fr-main').classList.toggle('hidden', !me);
+    $('fr-scanbtn').classList.toggle('dim', !Social.canScan());
+    if (!me) return;
+    const rows = [], inc = Social.friends.filter((f) => f.status === 'pending' && f.incoming), out = Social.friends.filter((f) => f.status === 'pending' && !f.incoming);
+    const acc = Social.accepted().sort((a, b) => (Social.online.has(b.id) - Social.online.has(a.id)) || a.name.localeCompare(b.name));
+    if (inc.length) rows.push('<div class="meta-sec">REQUESTS</div>' + inc.map((f) => `<div class="fr-row"><b>${esc(f.name)}</b><span class="fr-st">★ ${f.rating}</span><button class="btn btn-primary small" data-action="fr-yes" data-k="${f.id}">Accept</button><button class="btn btn-ghost small" data-action="fr-no" data-k="${f.id}">✕</button></div>`).join(''));
+    rows.push('<div class="meta-sec">FRIENDS</div>' + (acc.length ? acc.map((f) => {
+      const o = Social.online.get(f.id), st = o ? (o.busy ? 'in a match' : 'online') : 'offline';
+      return `<div class="fr-row ${o ? (o.busy ? 'busy' : 'on') : ''}"><i class="fr-dot"></i><b>${esc(f.name)}</b><span class="fr-st">${st} · ★ ${f.rating}</span>${o && !o.busy ? `<button class="btn btn-primary small" data-action="fr-inv" data-k="${f.id}">Invite</button>` : ''}<button class="btn btn-ghost small" data-action="fr-del" data-k="${f.id}">✕</button></div>`;
+    }).join('') : '<div class="hint">No friends yet: add one by name or QR code.</div>'));
+    if (out.length) rows.push('<div class="meta-sec">SENT</div>' + out.map((f) => `<div class="fr-row"><b>${esc(f.name)}</b><span class="fr-st">waiting</span><button class="btn btn-ghost small" data-action="fr-del" data-k="${f.id}">✕</button></div>`).join(''));
+    $('fr-list').innerHTML = rows.join('');
+  },
+  frScanStop() { if (this._scanStop) { this._scanStop(); this._scanStop = null; } $('fr-scanbox').classList.add('hidden'); },
+  showInvite(m) {
+    $('inv-name').textContent = String(m.name || 'A friend').slice(0, 16);
+    $('inv-sub').textContent = 'invites you to play · room ' + m.code;
+    $('invite').classList.remove('hidden');
+    sfx('select');
+    clearTimeout(this._invT); this._invT = setTimeout(() => { if (Social.invite === m) Social.declineInvite(); }, 30000);
+  },
+  hideInvite() { const el = $('invite'); if (el) el.classList.add('hidden'); clearTimeout(this._invT); },
   openLobby() { if (this.current !== 's-lobby') { this.stack = ['s-menu']; this.show('s-lobby'); } this.renderLobby(); },
   renderLobby() {
     if (this.current !== 's-lobby') return;
-    const host = mpIsHost(), quick = MP.mode === 'quick';
-    $('lb-title').textContent = quick ? 'MATCH FOUND' : 'ROOM ' + MP.code;
-    $('lb-hint').textContent = quick ? 'Starting as soon as everybody is in…' : host ? 'Share the code ' + MP.code + '. Tap a player to move them to the other team.' : 'Waiting for the host to start. Code: ' + MP.code;
+    const host = mpIsHost(), room = MP.mode === 'room', esc = (x) => String(x).replace(/[<>&]/g, '');
+    $('lb-title').textContent = room ? 'ROOM ' + MP.code : 'MATCH FOUND';
+    $('lb-hint').textContent = !room ? 'Starting as soon as everybody is in…' : host ? 'Share the code ' + MP.code + '. Tap a player to switch teams, a bot to remove it.' : 'Waiting for the host to start. Code: ' + MP.code;
     for (const t of [0, 1]) {
-      $('lb-t' + t).innerHTML = MP.list.filter((p) => (MP.teams[p.id] | 0) === t && MP.teams[p.id] != null).map((p) => {
+      const ppl = MP.list.filter((p) => MP.teams[p.id] === t).map((p) => ({ ...p, bot: false })).concat(MP.bots.filter((b) => b.team === t));
+      $('lb-t' + t).innerHTML = ppl.map((p) => {
         const sh = SHIP[p.ship] || SHIP.striker;
-        return `<button class="lb-p${p.id === Net.id ? ' me' : ''}" ${host && !quick ? `data-action="mp-move" data-k="${p.id}"` : 'disabled'}><b>${String(p.name).replace(/[<>&]/g, '')}${p.id === mpHost() ? ' ★' : ''}</b><span style="color:${sh.color}">${sh.name}</span></button>`;
+        return `<button class="lb-p${p.id === Net.id ? ' me' : ''}${p.bot ? ' bot' : ''}" ${host && room ? `data-action="mp-move" data-k="${p.id}"` : 'disabled'}><b>${esc(p.name)}${p.id === mpHost() ? ' ★' : ''}</b><span style="color:${sh.color}">${p.bot ? 'BOT · ' : ''}${sh.name}</span></button>`;
       }).join('') || '<div class="hint">empty</div>';
+      $('lb-bot' + t).classList.toggle('hidden', !(host && room) || ppl.length >= 3);
     }
+    $('lb-invite').classList.toggle('hidden', !(room && Social.me));
     const st = $('lb-start');
-    st.classList.toggle('hidden', !host || quick);
+    st.classList.toggle('hidden', !host || !room);
     st.disabled = !mpCanStart();
-    st.textContent = mpCanStart() ? 'START' : 'Both teams need a player';
+    st.textContent = mpCanStart() ? 'START' : 'Both teams need a pilot or a bot';
   },
   pvpHud() {
     const M = G.pvp; if (!M) return;
     $('pvp-bar').classList.remove('hidden');
     $('pb-s0').textContent = M.score[0]; $('pb-s1').textContent = M.score[1];
     const left = Math.max(0, Math.ceil(PVP.roundTime - M.roundT));
-    $('pb-mid').textContent = M.phase === 'countdown' ? 'ROUND ' + M.round + ' · ' + Math.max(1, Math.ceil(PVP.countdown - M.t)) : M.phase === 'fight' ? 'ROUND ' + M.round + ' · ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + (M.storm ? ' · STORM' : '') : 'ROUND ' + M.round;
+    $('pb-mid').textContent = M.wait || M.offT > 1 ? 'RECONNECTING…' : M.phase === 'countdown' ? 'ROUND ' + M.round + ' · ' + Math.max(1, Math.ceil(PVP.countdown - M.t)) : M.phase === 'fight' ? 'ROUND ' + M.round + ' · ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + (M.storm ? ' · STORM' : '') : 'ROUND ' + M.round;
   },
   pvpFeed(text) {
     const el = $('pvp-feed'), d = document.createElement('div');
@@ -487,10 +597,10 @@ const UI = {
     $('pvp-bar').classList.add('hidden');
     $('mr-title').textContent = r.won ? 'VICTORY' : 'DEFEAT';
     $('mr-title').style.color = r.won ? 'var(--good)' : '#ff4f6b';
-    $('mr-score').textContent = TEAM_NAME[0] + ' ' + r.score[0] + ' : ' + r.score[1] + ' ' + TEAM_NAME[1] + (r.ranked ? ' · ranked' : ' · friendly');
-    $('mr-table').innerHTML = r.players.sort((a, b) => a.team - b.team || b.kills - a.kills).map((p) => `<div class="mr-row${p.id === Net.id ? ' me' : ''}" style="--c:${TEAM_COL[p.team]}"><b>${String(p.name).replace(/[<>&]/g, '')}</b><span>${p.kills} K</span><span>${p.deaths} D</span></div>`).join('');
-    $('mr-rating').textContent = r.reportError ? 'Result not saved (' + r.reportError + ')' : r.rating != null ? 'Rating: ' + r.rating : '';
-    $('mr-again').textContent = MP.mode === 'quick' ? 'PLAY AGAIN' : 'BACK TO THE ROOM';
+    $('mr-score').textContent = TEAM_NAME[0] + ' ' + r.score[0] + ' : ' + r.score[1] + ' ' + TEAM_NAME[1] + ' · ' + MP_MODES[r.mode || 'room'].name.toLowerCase();
+    $('mr-table').innerHTML = r.players.sort((a, b) => a.team - b.team || b.kills - a.kills).map((p) => `<div class="mr-row${p.id === Net.id ? ' me' : ''}" style="--c:${TEAM_COL[p.team]}"><b>${String(p.name).replace(/[<>&]/g, '')}${p.bot ? ' · bot' : ''}</b><span>${p.kills} K</span><span>${p.deaths} D</span></div>`).join('');
+    $('mr-rating').textContent = !r.ranked ? (r.rankNote ? 'Not ranked: ' + r.rankNote : 'No rating in this mode') : r.reportError ? 'Result not saved (' + r.reportError + ')' : r.settled ? 'Rating: ★ ' + r.rating : 'Rating updates once the other side confirms the result';
+    $('mr-again').textContent = MP.mode === 'room' ? 'BACK TO THE ROOM' : 'PLAY AGAIN';
     this.show('s-mpresult');
   },
 
